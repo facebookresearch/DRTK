@@ -456,8 +456,8 @@ __global__ void mipmap_aniso_grid_sampler_2d_kernel(
     scalar_t p_max = max(px, py);
     scalar_t p_min = min(px, py);
 
-    //# See p.255 of OpenGL Core Profile
-    //# N = min(ceil(Pmax/Pmin),maxAniso)
+    // # See p.255 of OpenGL Core Profile
+    // # N = min(ceil(Pmax/Pmin),maxAniso)
     scalar_t N = min(ceil(p_max / p_min), (scalar_t)max_aniso);
     if (p_min == 0.0 || N == 0) {
       N = 1;
@@ -685,8 +685,8 @@ __global__ void mipmap_aniso_grid_sampler_2d_backward_kernel(
     scalar_t p_max = max(px, py);
     scalar_t p_min = min(px, py);
 
-    //# See p.255 of OpenGL Core Profile
-    //# N = min(ceil(Pmax/Pmin),maxAniso)
+    // # See p.255 of OpenGL Core Profile
+    // # N = min(ceil(Pmax/Pmin),maxAniso)
     scalar_t N = min(ceil(p_max / p_min), (scalar_t)max_aniso);
     if (p_min == 0.0 || N == 0) {
       N = 1;
