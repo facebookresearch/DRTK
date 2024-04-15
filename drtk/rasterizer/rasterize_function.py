@@ -13,6 +13,7 @@ from torch import Tensor
 
 class Rasterize(th.autograd.Function):
     @staticmethod
+    @th.cuda.amp.custom_fwd(cast_inputs=th.float32)
     # pyre-fixme[14]: `forward` overrides method defined in `Function` inconsistently.
     # pyre-fixme[3]: Return type must be annotated.
     # pyre-fixme[2]: Parameter must be annotated.
@@ -31,6 +32,7 @@ class Rasterize(th.autograd.Function):
 
 class PackedRasterize(th.autograd.Function):
     @staticmethod
+    @th.cuda.amp.custom_fwd(cast_inputs=th.float32)
     # pyre-fixme[14]: `forward` overrides method defined in `Function` inconsistently.
     # pyre-fixme[3]: Return type must be annotated.
     # pyre-fixme[2]: Parameter must be annotated.

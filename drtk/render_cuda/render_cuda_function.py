@@ -16,6 +16,7 @@ render_backward = th.ops.render_cuda_ext.render_backward
 
 class CudaRenderer(th.autograd.Function):
     @staticmethod
+    @th.cuda.amp.custom_fwd(cast_inputs=th.float32)
     # pyre-fixme[14]: `forward` overrides method defined in `Function` inconsistently.
     # pyre-fixme[3]: Return type must be annotated.
     # pyre-fixme[2]: Parameter must be annotated.
@@ -45,6 +46,7 @@ class CudaRenderer(th.autograd.Function):
         return tuple(outs)
 
     @staticmethod
+    @th.cuda.amp.custom_bwd
     # pyre-fixme[14]: `backward` overrides method defined in `Function` inconsistently.
     def backward(
         # pyre-fixme[2]: Parameter must be annotated.

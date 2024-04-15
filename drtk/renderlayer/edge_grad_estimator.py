@@ -71,7 +71,10 @@ def edge_grad_estimator(
     v_pix_img = compute_vert_image(
         v_pix, vi, index_img, bary_img.detach(), channels_last=True
     ).contiguous()
-    img = th.ops.edge_grad_ext.edge_grad_estimator(v_pix, v_pix_img, vi, img, index_img)
+    with th.autocast(device_type="cuda", dtype=th.float32, enabled=False):
+        img = th.ops.edge_grad_ext.edge_grad_estimator(
+            v_pix, v_pix_img, vi, img, index_img
+        )
 
     if return_v_pix_img:
         return img, v_pix_img
