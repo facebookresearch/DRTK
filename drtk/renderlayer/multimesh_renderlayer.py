@@ -1,6 +1,8 @@
 # (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
 
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
+
+import numpy as np
 
 import torch as th
 from care.strict.data.io.typed.file.obj_np import ObjFileNumpy
@@ -116,9 +118,9 @@ class MultiMeshRenderLayer(th.nn.Module):
         h: int,
         w: int,
         n_verts: List[int],
-        vts: List[th.Tensor],
-        vis: List[th.Tensor],
-        vtis: List[th.Tensor],
+        vts: Union[List[np.ndarray], List[th.Tensor]],
+        vis: Union[List[np.ndarray], List[th.Tensor]],
+        vtis: Union[List[np.ndarray], List[th.Tensor]],
         tex_sizes: List[Tuple[int, int]],
         # pyre-fixme[2]: Parameter must be annotated.
         **kwargs,
@@ -126,6 +128,16 @@ class MultiMeshRenderLayer(th.nn.Module):
         super().__init__()
         assert [vi.shape[0] == vti.shape[0] for vi, vti in zip(vis, vtis)]
         assert len(tex_sizes) == len(vts)
+
+        vts: List[th.Tensor] = [
+            vt if isinstance(vt, th.Tensor) else th.from_numpy(vt) for vt in vts
+        ]
+        vis: List[th.Tensor] = [
+            vi if isinstance(vi, th.Tensor) else th.from_numpy(vi) for vi in vis
+        ]
+        vtis: List[th.Tensor] = [
+            vti if isinstance(vti, th.Tensor) else th.from_numpy(vti) for vti in vtis
+        ]
 
         #
         # Pack the textures into an atlas. This is required for boundary-aware
