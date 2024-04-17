@@ -5,10 +5,10 @@ from typing import Dict, List, Optional, Tuple, Union
 import numpy as np
 
 import torch as th
-from care.strict.data.io.typed.file.obj_np import ObjFileNumpy
-from care.strict.utils.geom import vert_normals
 from rpack import enclosing_size, pack
 from torch import Tensor
+
+from .geomutils import vert_normals
 
 from .renderlayer import RenderLayer
 
@@ -270,38 +270,3 @@ class MultiMeshRenderLayer(th.nn.Module):
                 del out["index_img"]
 
         return out
-
-
-def make_multimesh_from_objs(
-    filenames: List[str],
-    h: int,
-    w: int,
-    tex_sizes: List[Tuple[int, int]],
-    extra_meshes: Optional[
-        List[Tuple[th.Tensor, th.Tensor, th.Tensor, th.Tensor]]
-    ] = None,
-    # pyre-fixme[2]: Parameter must be annotated.
-    **kwargs,
-) -> MultiMeshRenderLayer:
-    if extra_meshes is None:
-        extra_meshes = []
-
-    objs = [ObjFileNumpy.load(fn) for fn in filenames]
-    vs: List[th.Tensor] = [th.from_numpy(obj["v"][:, :3]).float() for obj in objs]
-    vts: List[th.Tensor] = [th.from_numpy(obj["vt"][:, :2]).float() for obj in objs]
-    vis: List[th.Tensor] = [th.from_numpy(obj["vi"][:, :3]).int() for obj in objs]
-    vtis: List[th.Tensor] = [th.from_numpy(obj["vti"][:, :3]).int() for obj in objs]
-    n_verts = [v.shape[0] for v in vs]
-
-    for extra_v, extra_vt, extra_vi, extra_vti in extra_meshes:
-        if isinstance(extra_v, int):
-            n_verts.append(extra_v)
-        else:
-            n_verts.append(extra_v.shape[0])
-        vts.append(extra_vt.float())
-        vis.append(extra_vi.int())
-        vtis.append(extra_vti.int())
-
-    return MultiMeshRenderLayer(
-        h, w, n_verts, vts, vis, vtis, tex_sizes=tex_sizes, **kwargs
-    )

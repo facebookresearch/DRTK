@@ -2,8 +2,9 @@
 
 import torch as th
 import torch.nn.functional as thf
-from care.strict.utils.torch import index
 from drtk.renderlayer.geomutils import compute_vert_image
+
+from .geomutils import index
 
 
 # pyre-fixme[3]: Return type must be annotated.

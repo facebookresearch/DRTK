@@ -2,8 +2,9 @@
 
 import torch as th
 import torch.nn as nn
-from care.strict.utils.torch import index
 from torch import Tensor
+
+from .geomutils import index
 
 
 class PythonRenderer(nn.Module):
