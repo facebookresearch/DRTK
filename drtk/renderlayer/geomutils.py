@@ -4,7 +4,6 @@ from typing import Dict, List, Optional, Union
 
 import torch as th
 import torch.nn.functional as thf
-from drtk.renderlayer.compute_vert_image import compute_vert_image  # noqa
 from torch import Tensor
 
 eps = 1e-8

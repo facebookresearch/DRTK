@@ -1,8 +1,6 @@
-# (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
-
 import torch as th
 from drtk import edge_grad_ext
-from drtk.renderlayer.geomutils import compute_vert_image
+from drtk.interpolate import interpolate
 
 th.ops.load_library(edge_grad_ext.__file__)
 
@@ -68,9 +66,11 @@ def edge_grad_estimator(
     """
 
     # Could use v_pix_img output from DRTK, but bary_img needs to be detached.
-    v_pix_img = compute_vert_image(
-        v_pix, vi, index_img, bary_img.detach(), channels_last=True
-    ).contiguous()
+    v_pix_img = interpolate(v_pix, vi, index_img, bary_img.detach())
+
+    # Temporary we switch to BHWC. Ater edge_grad kernel is updated this won't be necessary
+    v_pix_img = v_pix_img.permute(0, 2, 3, 1).contiguous()
+
     with th.autocast(device_type="cuda", dtype=th.float32, enabled=False):
         img = th.ops.edge_grad_ext.edge_grad_estimator(
             v_pix, v_pix_img, vi, img, index_img

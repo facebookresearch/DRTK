@@ -12,12 +12,13 @@ from ..rasterizer import has_vulkan, rasterize, rasterize_packed
 if has_vulkan:
     from ..rasterizer import VulkanRasterizerContext
 
+from drtk.interpolate import interpolate
 from torch import Tensor
 from torch.nn.modules.module import Module
 
 from ..render_cuda import render as _render
 from . import settings
-from .geomutils import compute_vert_image, vert_binormals
+from .geomutils import vert_binormals
 from .projection import project_points, to_vulkan_clip_space
 from .render_python import PythonRenderer
 from .uv_grad import compute_uv_grad
@@ -644,23 +645,17 @@ class RenderLayer(nn.Module):
         bary_img = render_out["bary_img"]
 
         if "v_pix_img" in output_filters:
-            render_out["v_pix_img"] = compute_vert_image(
-                v_pix, mesh.vi, index_img, bary_img
-            )
+            render_out["v_pix_img"] = interpolate(v_pix, mesh.vi, index_img, bary_img)
 
         if "v_cam_img" in output_filters:
-            render_out["v_cam_img"] = compute_vert_image(
-                v_cam, mesh.vi, index_img, bary_img
-            )
+            render_out["v_cam_img"] = interpolate(v_cam, mesh.vi, index_img, bary_img)
 
         if "v_img" in output_filters:
-            render_out["v_img"] = compute_vert_image(v, mesh.vi, index_img, bary_img)
+            render_out["v_img"] = interpolate(v, mesh.vi, index_img, bary_img)
 
         if "vbn_img" in output_filters:
             vbnorms = vert_binormals(v, vt, vi.long(), vti.long())
-            render_out["vbn_img"] = compute_vert_image(
-                vbnorms, mesh.vi, index_img, bary_img
-            )
+            render_out["vbn_img"] = interpolate(vbnorms, mesh.vi, index_img, bary_img)
 
         if "vt_dxdy_img" in output_filters:
             render_out["vt_dxdy_img"] = compute_uv_grad(

@@ -10,37 +10,37 @@ using at::native::fastAtomicAdd;
 
 template <typename scalar_t, typename index_t>
 C10_LAUNCH_BOUNDS_1(256)
-__global__ void compute_vert_image_kernel(
+__global__ void interpolate_kernel(
     const index_t nthreads,
     TensorInfo<scalar_t, index_t> vert_attributes,
     TensorInfo<int32_t, index_t> vi,
     TensorInfo<int32_t, index_t> index_img,
     TensorInfo<scalar_t, index_t> bary_img,
     TensorInfo<scalar_t, index_t> out_img) {
-  index_t C = vert_attributes.sizes[2];
-  index_t H = bary_img.sizes[2];
-  index_t W = bary_img.sizes[3];
+  const index_t C = vert_attributes.sizes[2];
+  const index_t H = bary_img.sizes[2];
+  const index_t W = bary_img.sizes[3];
 
-  index_t vert_attributes_sN = vert_attributes.strides[0];
-  index_t vert_attributes_sV = vert_attributes.strides[1];
-  index_t vert_attributes_sC = vert_attributes.strides[2];
+  const index_t vert_attributes_sN = vert_attributes.strides[0];
+  const index_t vert_attributes_sV = vert_attributes.strides[1];
+  const index_t vert_attributes_sC = vert_attributes.strides[2];
 
-  index_t vi_sV = vi.strides[0];
-  index_t vi_sF = vi.strides[1];
+  const index_t vi_sV = vi.strides[0];
+  const index_t vi_sF = vi.strides[1];
 
-  index_t index_img_sN = index_img.strides[0];
-  index_t index_img_sH = index_img.strides[1];
-  index_t index_img_sW = index_img.strides[2];
+  const index_t index_img_sN = index_img.strides[0];
+  const index_t index_img_sH = index_img.strides[1];
+  const index_t index_img_sW = index_img.strides[2];
 
-  index_t bary_img_sN = bary_img.strides[0];
-  index_t bary_img_sB = bary_img.strides[1];
-  index_t bary_img_sH = bary_img.strides[2];
-  index_t bary_img_sW = bary_img.strides[3];
+  const index_t bary_img_sN = bary_img.strides[0];
+  const index_t bary_img_sB = bary_img.strides[1];
+  const index_t bary_img_sH = bary_img.strides[2];
+  const index_t bary_img_sW = bary_img.strides[3];
 
-  index_t out_img_sN = out_img.strides[0];
-  index_t out_img_sC = out_img.strides[1];
-  index_t out_img_sH = out_img.strides[2];
-  index_t out_img_sW = out_img.strides[3];
+  const index_t out_img_sN = out_img.strides[0];
+  const index_t out_img_sC = out_img.strides[1];
+  const index_t out_img_sH = out_img.strides[2];
+  const index_t out_img_sW = out_img.strides[3];
 
   CUDA_KERNEL_LOOP_TYPE(index, nthreads, index_t) {
     const index_t w = index % W;
@@ -75,7 +75,8 @@ __global__ void compute_vert_image_kernel(
       }
     } else {
       for (int i = 0; i < C; ++i) {
-        out_ptr[out_img_sC * i] = scalar_t(0.);
+        const scalar_t v[2] = {(w * 2.0f + 1.0f) / W - 1.0f, (h * 2.0f + 1.0f) / H - 1.0f};
+        out_ptr[out_img_sC * i] = v[i % 2];
       }
     }
   }
@@ -83,7 +84,7 @@ __global__ void compute_vert_image_kernel(
 
 template <typename scalar_t, typename index_t, bool bary_img_requires_grad, bool vert_requires_grad>
 C10_LAUNCH_BOUNDS_1(256)
-__global__ void compute_vert_image_backward_kernel(
+__global__ void interpolate_backward_kernel(
     const index_t nthreads,
     TensorInfo<scalar_t, index_t> grad_out,
     TensorInfo<scalar_t, index_t> vert_attributes,
@@ -190,9 +191,9 @@ __global__ void compute_vert_image_backward_kernel(
         bary_2 = bary_ptr[2 * bary_img_sB];
       }
 
-      scalar_t bary_0_grad = scalar_t(0.);
-      scalar_t bary_1_grad = scalar_t(0.);
-      scalar_t bary_2_grad = scalar_t(0.);
+      auto bary_0_grad = scalar_t(0.);
+      auto bary_1_grad = scalar_t(0.);
+      auto bary_2_grad = scalar_t(0.);
 
       for (int i = 0; i < C; ++i) {
         scalar_t g_out = grad_out_ptr[i * grad_out_sC];
@@ -241,14 +242,14 @@ __global__ void compute_vert_image_backward_kernel(
   }
 }
 
-torch::Tensor compute_vert_image_cuda(
+torch::Tensor interpolate_cuda(
     const torch::Tensor& vert_attributes,
     const torch::Tensor& vi,
     const torch::Tensor& index_img,
     const torch::Tensor& bary_img) {
   TORCH_CHECK(
       vert_attributes.defined() && vi.defined() && index_img.defined() && bary_img.defined(),
-      "compute_vert_image(): expected all inputs to be defined");
+      "interpolate(): expected all inputs to be defined");
   auto vert_attributes_opt = vert_attributes.options();
   auto vi_opt = vi.options();
   auto index_img_opt = index_img.options();
@@ -257,21 +258,33 @@ torch::Tensor compute_vert_image_cuda(
       (vert_attributes.device() == vi.device()) &&
           (vert_attributes.device() == index_img.device()) &&
           (vert_attributes.device() == bary_img.device()),
-      "compute_vert_image(): expected all inputs to be on same device");
+      "interpolate(): expected all inputs to be on same device");
   TORCH_CHECK(
       vert_attributes.dtype() == bary_img.dtype(),
-      "compute_vert_image(): expected vert_attributes and bary_img to have same dtype, but vert_attributes has ",
+      "interpolate(): expected vert_attributes and bary_img to have same dtype, but vert_attributes has ",
       vert_attributes.dtype(),
       " and bary_img has ",
       bary_img.dtype());
   TORCH_CHECK(
+      vert_attributes.is_floating_point(),
+      "interpolate(): expected vert_attributes to have floating point type, but v has ",
+      vert_attributes.dtype());
+  TORCH_CHECK(
+      vi.dtype() == torch::kInt32,
+      "interpolate(): expected vi to have int32 type, but vi has ",
+      vi.dtype());
+  TORCH_CHECK(
+      index_img.dtype() == torch::kInt32,
+      "interpolate(): expected index_img to have int32 type, but index_img has ",
+      index_img.dtype());
+  TORCH_CHECK(
       vert_attributes.layout() == torch::kStrided && vi.layout() == torch::kStrided &&
           index_img.layout() == torch::kStrided && bary_img.layout() == torch::kStrided,
-      "compute_vert_image(): expected all inputs to have torch.strided layout");
+      "interpolate(): expected all inputs to have torch.strided layout");
   TORCH_CHECK(
       (vert_attributes.dim() == 3) && (vi.dim() == 2) && (index_img.dim() == 3) &&
           (bary_img.dim() == 4),
-      "compute_vert_image(): expected vert_attributes.ndim == 3, vi.ndim == 2, index_img.ndim == 3, bary_img.ndim == 4, "
+      "interpolate(): expected vert_attributes.ndim == 3, vi.ndim == 2, index_img.ndim == 3, bary_img.ndim == 4, "
       "but got vert_attributes with sizes ",
       vert_attributes.sizes(),
       " and vi with sizes ",
@@ -282,7 +295,7 @@ torch::Tensor compute_vert_image_cuda(
       bary_img.sizes());
   TORCH_CHECK(
       vert_attributes.size(0) == index_img.size(0) && vert_attributes.size(0) == bary_img.size(0),
-      "compute_vert_image(): expected vert_attributes, index_img and bary_img to have same batch size, "
+      "interpolate(): expected vert_attributes, index_img and bary_img to have same batch size, "
       "but got vert_attributes with sizes ",
       vert_attributes.sizes(),
       " and index_img with sizes ",
@@ -291,14 +304,14 @@ torch::Tensor compute_vert_image_cuda(
       bary_img.sizes());
   TORCH_CHECK(
       vi.size(1) == 3 && bary_img.size(1) == 3,
-      "compute_vert_image(): expected second dim of vi to be of size 3, and second dim of bary_img to be of size 3, but got ",
+      "interpolate(): expected second dim of vi to be of size 3, and second dim of bary_img to be of size 3, but got ",
       vi.size(1),
       " in the second dim of vi, and ",
       bary_img.size(1),
       " in the second dim of bary_img");
   TORCH_CHECK(
       index_img.size(1) == bary_img.size(2) && index_img.size(2) == bary_img.size(3),
-      "compute_vert_image(): expected H and W dims of index_img and bary_img to match");
+      "interpolate(): expected H and W dims of index_img and bary_img to match");
 
   const at::cuda::OptionalCUDAGuard device_guard(device_of(vert_attributes));
 
@@ -312,13 +325,13 @@ torch::Tensor compute_vert_image_cuda(
   auto output = at::empty({N, C, H, W}, vert_attributes.options());
 
   if (count > 0) {
-    AT_DISPATCH_FLOATING_TYPES(vert_attributes.scalar_type(), "compute_vert_image_kernel", [&] {
+    AT_DISPATCH_FLOATING_TYPES(vert_attributes.scalar_type(), "interpolate_kernel", [&] {
       if (at::native::canUse32BitIndexMath(vert_attributes) &&
           at::native::canUse32BitIndexMath(bary_img) &&
           at::native::canUse32BitIndexMath(index_img) && at::native::canUse32BitIndexMath(vi)) {
         typedef int index_type;
 
-        compute_vert_image_kernel<scalar_t, index_type>
+        interpolate_kernel<scalar_t, index_type>
             <<<GET_BLOCKS(count, 256), 256, 0, at::cuda::getCurrentCUDAStream()>>>(
                 static_cast<index_type>(count),
                 getTensorInfo<scalar_t, index_type>(vert_attributes),
@@ -330,7 +343,7 @@ torch::Tensor compute_vert_image_cuda(
       } else {
         typedef int64_t index_type;
 
-        compute_vert_image_kernel<scalar_t, index_type>
+        interpolate_kernel<scalar_t, index_type>
             <<<GET_BLOCKS(count, 256), 256, 0, at::cuda::getCurrentCUDAStream()>>>(
                 static_cast<index_type>(count),
                 getTensorInfo<scalar_t, index_type>(vert_attributes),
@@ -346,7 +359,7 @@ torch::Tensor compute_vert_image_cuda(
 }
 
 template <typename scalar_t, typename index_t, bool bary_img_requires_grad, bool vert_requires_grad>
-void _compute_vert_image_cuda_backward(
+void _interpolate_cuda_backward(
     int64_t count,
     const torch::Tensor& grad_out,
     const torch::Tensor& vert_attributes,
@@ -355,7 +368,7 @@ void _compute_vert_image_cuda_backward(
     const torch::Tensor& bary_img,
     const torch::Tensor& vert_attributes_grad,
     const torch::Tensor& bary_img_grad) {
-  compute_vert_image_backward_kernel<scalar_t, index_t, bary_img_requires_grad, vert_requires_grad>
+  interpolate_backward_kernel<scalar_t, index_t, bary_img_requires_grad, vert_requires_grad>
       <<<GET_BLOCKS(count, 256), 256, 0, at::cuda::getCurrentCUDAStream()>>>(
           static_cast<index_t>(count),
           getTensorInfo<scalar_t, index_t>(grad_out),
@@ -372,7 +385,7 @@ void _compute_vert_image_cuda_backward(
 }
 
 template <typename scalar_t, typename index_t>
-void _compute_vert_image_cuda_backward(
+void _interpolate_cuda_backward(
     int64_t count,
     const torch::Tensor& grad_out,
     const torch::Tensor& vert_attributes,
@@ -384,7 +397,7 @@ void _compute_vert_image_cuda_backward(
     bool bary_img_requires_grad,
     bool vert_requires_grad) {
   if (bary_img_requires_grad && vert_requires_grad)
-    _compute_vert_image_cuda_backward<scalar_t, index_t, true, true>(
+    _interpolate_cuda_backward<scalar_t, index_t, true, true>(
         count,
         grad_out,
         vert_attributes,
@@ -394,7 +407,7 @@ void _compute_vert_image_cuda_backward(
         vert_attributes_grad,
         bary_img_grad);
   else if (bary_img_requires_grad)
-    _compute_vert_image_cuda_backward<scalar_t, index_t, true, false>(
+    _interpolate_cuda_backward<scalar_t, index_t, true, false>(
         count,
         grad_out,
         vert_attributes,
@@ -404,7 +417,7 @@ void _compute_vert_image_cuda_backward(
         vert_attributes_grad,
         bary_img_grad);
   else if (vert_requires_grad)
-    _compute_vert_image_cuda_backward<scalar_t, index_t, false, true>(
+    _interpolate_cuda_backward<scalar_t, index_t, false, true>(
         count,
         grad_out,
         vert_attributes,
@@ -415,7 +428,7 @@ void _compute_vert_image_cuda_backward(
         bary_img_grad);
 }
 
-std::tuple<torch::Tensor, torch::Tensor> compute_vert_image_cuda_backward(
+std::tuple<torch::Tensor, torch::Tensor> interpolate_cuda_backward(
     const torch::Tensor& grad_out,
     const torch::Tensor& vert_attributes,
     const torch::Tensor& vi,
@@ -439,11 +452,11 @@ std::tuple<torch::Tensor, torch::Tensor> compute_vert_image_cuda_backward(
       bary_img_requires_grad ? at::empty({N, 3, H, W}, bary_img.options()) : torch::Tensor();
 
   if (count > 0) {
-    AT_DISPATCH_FLOATING_TYPES(vert_attributes.scalar_type(), "compute_vert_image_kernel", [&] {
+    AT_DISPATCH_FLOATING_TYPES(vert_attributes.scalar_type(), "interpolate_kernel", [&] {
       if (at::native::canUse32BitIndexMath(vert_attributes) &&
           at::native::canUse32BitIndexMath(bary_img) &&
           at::native::canUse32BitIndexMath(index_img) && at::native::canUse32BitIndexMath(vi)) {
-        _compute_vert_image_cuda_backward<scalar_t, int>(
+        _interpolate_cuda_backward<scalar_t, int>(
             count,
             grad_out,
             vert_attributes,
@@ -455,7 +468,7 @@ std::tuple<torch::Tensor, torch::Tensor> compute_vert_image_cuda_backward(
             bary_img_requires_grad,
             vert_requires_grad);
       } else {
-        _compute_vert_image_cuda_backward<scalar_t, int64_t>(
+        _interpolate_cuda_backward<scalar_t, int64_t>(
             count,
             grad_out,
             vert_attributes,

@@ -4,9 +4,11 @@ from typing import Optional, Sequence
 
 import torch as th
 
-from . import settings
-from .geomutils import compute_vert_image, face_dpdt
-from .projection import project_points_grad
+from drtk.interpolate import interpolate  # noqa
+
+from drtk.renderlayer import settings
+from drtk.renderlayer.geomutils import face_dpdt
+from drtk.renderlayer.projection import project_points_grad
 
 
 # pyre-fixme[3]: Return type must be annotated.
@@ -49,20 +51,20 @@ def compute_uv_grad(
         vi_dis = th.arange(0, 3 * vi.shape[0], dtype=th.int32, device=v.device).view(
             -1, 3
         )
-        dpdt_t_img = compute_vert_image(
+        dpdt_t_img = interpolate(
             dpdt_t.reshape(dpdt_t.shape[0], dpdt_t.shape[1] * dpdt_t.shape[2], -1),
             vi_dis,
             index_img,
             bary_img,
-        )
+        ).permute(0, 2, 3, 1)
         dpdt_t_img = dpdt_t_img.view(*dpdt_t_img.shape[:3], 2, 3)
 
-        vf_img = compute_vert_image(
+        vf_img = interpolate(
             vf.reshape(vf.shape[0], vf.shape[1] * vf.shape[2], -1),
             vi_dis,
             index_img,
             bary_img,
-        )
+        ).permute(0, 2, 3, 1)
 
         # duplicate vertex position vector for u and v
         vf_img = vf_img[:, :, :, None].expand(-1, -1, -1, 2, -1)
@@ -125,7 +127,9 @@ def compute_uv_grad(
         # Rasterize 2D pixel-space uv gradients to an image
         # The result - `vt_dxdy_img` is transposed Jacobian: (dt / dp_pix)^T
         # Where vt_dxdy_img[..., i, j] = dt[j] / dp_pix[i]
-        vt_dxdy_img = compute_vert_image(dt_dp_pix_t, vi_dis, index_img, bary_img)
+        vt_dxdy_img = interpolate(dt_dp_pix_t, vi_dis, index_img, bary_img).permute(
+            0, 2, 3, 1
+        )
 
         return vt_dxdy_img.view(
             vt_dxdy_img.shape[0], vt_dxdy_img.shape[1], vt_dxdy_img.shape[2], 2, 2

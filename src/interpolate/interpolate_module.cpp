@@ -6,7 +6,7 @@
 
 #include "interpolate_kernel.h"
 
-class ComputeVertImageFunction : public torch::autograd::Function<ComputeVertImageFunction> {
+class InterpolateFunction : public torch::autograd::Function<InterpolateFunction> {
  public:
   static torch::autograd::tensor_list forward(
       torch::autograd::AutogradContext* ctx,
@@ -21,17 +21,17 @@ class ComputeVertImageFunction : public torch::autograd::Function<ComputeVertIma
     save_list.push_back(index_img);
     save_list.push_back(bary_img);
     ctx->save_for_backward(save_list);
-    return {compute_vert_image_cuda(vert_attributes, vi, index_img, bary_img)};
+    return {interpolate_cuda(vert_attributes, vi, index_img, bary_img)};
   }
 
   static torch::autograd::tensor_list backward(
       torch::autograd::AutogradContext* ctx,
       torch::autograd::tensor_list grad_outputs) {
     const auto saved = ctx->get_saved_variables();
-    torch::Tensor vert_attributes = saved[0];
-    torch::Tensor vi = saved[1];
-    torch::Tensor index_img = saved[2];
-    torch::Tensor bary_img = saved[3];
+    const torch::Tensor& vert_attributes = saved[0];
+    const torch::Tensor& vi = saved[1];
+    const torch::Tensor& index_img = saved[2];
+    const torch::Tensor& bary_img = saved[3];
     bool bary_img_requires_grad = bary_img.requires_grad();
     bool vert_requires_grad = vert_attributes.requires_grad();
 
@@ -41,41 +41,39 @@ class ComputeVertImageFunction : public torch::autograd::Function<ComputeVertIma
       return out;
     }
     auto grad_out =
-        compute_vert_image_cuda_backward(grad_outputs[0], vert_attributes, vi, index_img, bary_img);
+        interpolate_cuda_backward(grad_outputs[0], vert_attributes, vi, index_img, bary_img);
 
     out.push_back(std::get<0>(grad_out));
-    out.push_back(torch::Tensor());
-    out.push_back(torch::Tensor());
+    out.emplace_back();
+    out.emplace_back();
     out.push_back(std::get<1>(grad_out));
     return out;
   }
 };
 
-torch::Tensor compute_vert_image_autograd(
+torch::Tensor interpolate_autograd(
     const torch::Tensor& vert_attributes,
     const torch::Tensor& vi,
     const torch::Tensor& index_img,
     const torch::Tensor& bary_img) {
-  return ComputeVertImageFunction::apply(vert_attributes, vi, index_img, bary_img)[0];
+  return InterpolateFunction::apply(vert_attributes, vi, index_img, bary_img)[0];
 }
 
 #ifndef NO_PYBIND
 // Just so that we can import this file as a Python module to get the path and
 // import the Torch ops.
-PYBIND11_MODULE(interpolate_ext, m) {
-  m.def("compute_vert_image", &compute_vert_image_cuda);
-}
+PYBIND11_MODULE(interpolate_ext, m) {}
 #endif
 
 TORCH_LIBRARY(interpolate_ext, m) {
   m.def(
-      "compute_vert_image(Tensor vert_attributes, Tensor vi, Tensor index_img, Tensor bary_img) -> Tensor");
+      "interpolate(Tensor vert_attributes, Tensor vi, Tensor index_img, Tensor bary_img) -> Tensor");
 }
 
 TORCH_LIBRARY_IMPL(interpolate_ext, Autograd, m) {
-  m.impl("compute_vert_image", &compute_vert_image_autograd);
+  m.impl("interpolate", &interpolate_autograd);
 }
 
 TORCH_LIBRARY_IMPL(interpolate_ext, CUDA, m) {
-  m.impl("compute_vert_image", &compute_vert_image_cuda);
+  m.impl("interpolate", &interpolate_cuda);
 }

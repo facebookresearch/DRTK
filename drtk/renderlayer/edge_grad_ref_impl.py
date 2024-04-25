@@ -2,7 +2,7 @@
 
 import torch as th
 import torch.nn.functional as thf
-from drtk.renderlayer.geomutils import compute_vert_image
+from drtk.interpolate import interpolate
 
 from .geomutils import index
 
@@ -27,7 +27,7 @@ def edge_grad_estimator(
     """
 
     # could use v_pix_img output from DRTK, but bary_img needs to be detached.
-    v_pix_img = compute_vert_image(v_pix, vi, index_img, bary_img.detach())
+    v_pix_img = interpolate(v_pix, vi, index_img, bary_img.detach())
     # pyre-fixme[16]: `EdgeGradEstimatorFunction` has no attribute `apply`.
     img = EdgeGradEstimatorFunction.apply(v_pix, v_pix_img, vi, img, index_img)
     if return_v_pix_img:
