@@ -1,19 +1,21 @@
+from typing import Callable, Optional
+
 import torch as th
 from drtk import edge_grad_ext
 from drtk.interpolate import interpolate
 
+
 th.ops.load_library(edge_grad_ext.__file__)
 
 
-# pyre-fixme[3]: Return type must be annotated.
 def edge_grad_estimator(
     v_pix: th.Tensor,
     vi: th.Tensor,
     bary_img: th.Tensor,
     img: th.Tensor,
     index_img: th.Tensor,
-    return_v_pix_img: bool = False,
-):
+    v_pix_img_hook: Optional[Callable[[th.Tensor], None]] = None,
+) -> th.Tensor:
     """
     Args:
         v_pix: Pixel-space vertex coordinates with preserved camera-space Z-values.
@@ -31,14 +33,30 @@ def edge_grad_estimator(
         index_img: index image tensor
             N x H x W
 
-        return_v_pix_img: Bool - If True will return computed v_pix_img. Useful for adding backward
-            pass hooks to visualize gradients. Default False
+        v_pix_img_hook: a backward hook that will be registered to v_pix_img. Useful for examining
+            generated image space. Default None
 
     Returns:
         returns the img argument unchanged. Optionally also returns computed
         v_pix_img. Your loss should use the returned img, even though it is
-        unchanged. Gradients are computed in backward pass and are accumulated
-        to the gradient of v_pix_img.
+        unchanged.
+
+    Note:
+        It is important to not spatially modify the rasterized image before passing it to edge_grad_estimator.
+        Any operation as long as it is differentiable is ok after the edge_grad_estimator.
+
+        Examples of opeartions that can be done before edge_grad_estimator:
+            - Pixel-wise MLP
+            - Color mapping
+            - Color correction, gamma correction
+        If the operation is significantly non-linear, then it is recommended to do it before
+        edge_grad_estimator. All sorts of clipping and clamping (e.g. `x.clamp(min=0.0, max=1.0)`), must be
+        done before edge_grad_estimator.
+
+        Examples of operations that are not allowed before edge_grad_estimator:
+            - Gaussian blur
+            - Warping, deformation
+            - Masking, cropping, making holes.
 
     Usage::
 
@@ -68,14 +86,11 @@ def edge_grad_estimator(
     # Could use v_pix_img output from DRTK, but bary_img needs to be detached.
     v_pix_img = interpolate(v_pix, vi, index_img, bary_img.detach())
 
-    # Temporary we switch to BHWC. Ater edge_grad kernel is updated this won't be necessary
-    v_pix_img = v_pix_img.permute(0, 2, 3, 1).contiguous()
-
     with th.autocast(device_type="cuda", dtype=th.float32, enabled=False):
         img = th.ops.edge_grad_ext.edge_grad_estimator(
             v_pix, v_pix_img, vi, img, index_img
         )
 
-    if return_v_pix_img:
-        return img, v_pix_img
+    if v_pix_img_hook is not None:
+        v_pix_img.register_hook(v_pix_img_hook)
     return img

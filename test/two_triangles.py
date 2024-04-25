@@ -1,10 +1,9 @@
-# (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
-
 import os
 
 import cv2
 import torch as th
-from drtk.renderlayer import edge_grad_estimator, RenderLayer
+from drtk.edge_grad_estimator import edge_grad_estimator
+from drtk.renderlayer import RenderLayer
 
 
 def main(write_images, xy_only=False, z_only=False):

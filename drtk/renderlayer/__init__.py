@@ -7,7 +7,6 @@ class settings:
     use_precise_uv_grads = False
 
 
-from .edge_grad_estimator import edge_grad_estimator  # noqa
 from .mipmap_grid_sampler import mipmap_grid_sample  # noqa
 from .msi import msi  # noqa
 from .projection import DISTORTION_MODES, project_points  # noqa
