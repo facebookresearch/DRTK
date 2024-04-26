@@ -2,7 +2,7 @@ from typing import List
 
 from torch import Tensor
 
-def mipmap_grid_sampler_2d(
+def mipmap_grid_sample_2d(
     x: List[Tensor],
     grid: Tensor,
     vt_dxdy_img: Tensor,

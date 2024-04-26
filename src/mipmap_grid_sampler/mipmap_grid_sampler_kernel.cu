@@ -1,11 +1,11 @@
 #include <cuda_math_helper.h>
-#include "../include/grid_utils.h"
-#include "../include/tensor_list.h"
 
 #include <c10/cuda/CUDAGuard.h>
 #include <torch/types.h>
 
-#include "../include/kernel_utils.h"
+#include <grid_utils.h>
+#include <kernel_utils.h>
+#include <tensor_list.h>
 
 using namespace math;
 

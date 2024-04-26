@@ -4,7 +4,7 @@
 #include <torch/extension.h>
 #endif
 
-#include "../mipmap_grid_sampler/mipmap_grid_sampler.h"
+#include "mipmap_grid_sampler_kernel.h"
 
 class MipmapGridSample2DFunction : public torch::autograd::Function<MipmapGridSample2DFunction> {
  public:
@@ -187,9 +187,7 @@ torch::Tensor mipmap_grid_sampler_2d_autograd(
 #ifndef NO_PYBIND
 // Just so that we can import this file as a Python module to get the path and
 // import the Torch ops.
-PYBIND11_MODULE(mipmap_grid_sampler_ext, m) {
-  m.def("mipmap_grid_sampler_2d", &mipmap_aniso_grid_sampler_2d_cuda);
-}
+PYBIND11_MODULE(mipmap_grid_sampler_ext, m) {}
 #endif
 
 TORCH_LIBRARY(mipmap_grid_sampler_ext, m) {

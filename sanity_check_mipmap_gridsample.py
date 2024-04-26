@@ -8,7 +8,8 @@ import numpy as np
 
 import torch as th
 import torch.nn.functional as thf
-from drtk.renderlayer import mipmap_grid_sample, RenderLayer
+from drtk.mipmap_grid_sample import mipmap_grid_sample
+from drtk.renderlayer import RenderLayer
 from drtk.renderlayer.mipmap_grid_sampler_ref_impl import (
     mipmap_grid_sample as mipmap_grid_sample_ref,
 )
