@@ -1,12 +1,8 @@
-#ifndef _WIN32
-#include <unistd.h>
-#endif
 #include <c10/cuda/CUDAGuard.h>
 #include <torch/script.h>
 
 #include "../include/common.h"
-#include "../raster/rasterizer_kernel.h"
-#include "rasterize_module.h"
+#include "../rasterize/rasterize_kernel.h"
 
 #ifndef NO_PYBIND
 #include <torch/extension.h>

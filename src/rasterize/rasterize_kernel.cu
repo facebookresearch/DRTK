@@ -2,7 +2,7 @@
 #include <limits>
 #include "../include/kernel_utils.h"
 #include "../render/helper_math.h"
-#include "rasterizer_kernel.h"
+#include "rasterize_kernel.h"
 
 #include <stdio.h>
 #include <cmath>
