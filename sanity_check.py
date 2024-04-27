@@ -88,11 +88,10 @@ if __name__ == "__main__":
     vti = th.IntTensor([[0, 1, 2], [3, 4, 5]])
 
     rl = RenderLayer(h, w, vt, vi, vti).cuda()
-    brl = RenderLayer(h, w, vt, vi, vti, boundary_aware=True).cuda()
 
     # Verify that the RenderLayer is picklable.
-    th.save((rl, brl), "_tmp.pt")
-    (rl, brl) = th.load("_tmp.pt")
+    th.save(rl, "_tmp.pt")
+    rl = th.load("_tmp.pt")
     os.unlink("_tmp.pt")
 
     # Generate the ground truth / target image by shifting the vertices in the
@@ -137,7 +136,7 @@ if __name__ == "__main__":
             bg, scale_factor=128, mode="bilinear", align_corners=False
         )
         _v = th.nn.functional.pad(v, (0, 1))
-        out = brl(
+        out = rl(
             _v.expand(b, -1, -1),
             tex.expand(b, -1, -1, -1),
             campos,

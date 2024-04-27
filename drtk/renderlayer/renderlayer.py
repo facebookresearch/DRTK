@@ -7,19 +7,16 @@ import torch as th
 import torch.nn as nn
 import torch.nn.functional as thf
 
-from ..rasterizer import has_vulkan, rasterize, rasterize_packed
-
-if has_vulkan:
-    from ..rasterizer import VulkanRasterizerContext
-
 from drtk.interpolate import interpolate
+
+from drtk.rasterize import rasterize
 from torch import Tensor
 from torch.nn.modules.module import Module
 
 from ..render_cuda import render as _render
 from . import settings
 from .geomutils import vert_binormals
-from .projection import project_points, to_vulkan_clip_space
+from .projection import project_points
 from .render_python import PythonRenderer
 from .uv_grad import compute_uv_grad
 
@@ -75,7 +72,6 @@ class RenderLayer(nn.Module):
         vt: Union[np.ndarray, th.Tensor],
         vi: Union[np.ndarray, th.Tensor],
         vti: Union[np.ndarray, th.Tensor],
-        boundary_aware: bool = False,
         flip_uvs: bool = True,
         grid_sample_params: Optional[Dict[str, Any]] = None,
         backface_culling: bool = False,
@@ -87,7 +83,6 @@ class RenderLayer(nn.Module):
 
         self.h = h
         self.w = w
-        self.boundary_aware = boundary_aware
         self.flip_uvs = flip_uvs
 
         # pyre-fixme[4]: Attribute must be annotated.
@@ -98,9 +93,6 @@ class RenderLayer(nn.Module):
             if use_python_renderer is not None
             else settings.use_python_renderer
         )
-
-        if self.use_vulkan:
-            assert has_vulkan
 
         if self.use_python_renderer:
             # pyre-fixme[4]: Attribute must be annotated.
@@ -133,21 +125,6 @@ class RenderLayer(nn.Module):
         if flip_uvs:
             self.vt[:, 1] = 1 - self.vt[:, 1]
 
-        # The Vulkan rasterizer context needs to start with a CUDA device of
-        # some kind so that it can choose the matching Vulkan physical device.
-        # We change this appropriately in our overridden to() method.
-        if self.use_vulkan:
-            init_vrc_dev = th.cuda.current_device()
-            # pyre-fixme[4]: Attribute must be annotated.
-            self.vrc = VulkanRasterizerContext(h, w, init_vrc_dev, backface_culling)
-            self.vrc.updateTopology(self.vi.to(init_vrc_dev))
-
-        if boundary_aware:
-            k = th.zeros(2, 1, 3, 3)
-            k[0, 0] = th.FloatTensor([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]]) / 4
-            k[1, 0] = th.FloatTensor([[-1, -2, -1], [0, 0, 0], [1, 2, 1]]) / 4
-            self.register_buffer("sobel_kernel", k, persistent=False)
-
     # pyre-fixme[2]: Parameter must be annotated.
     def to(self, *args, **kwargs) -> Module:
         device = th._C._nn._parse_to(*args, **kwargs)[0]
@@ -161,45 +138,6 @@ class RenderLayer(nn.Module):
     def resize(self, h: int, w: int) -> None:
         self.h = h
         self.w = w
-
-    # pyre-fixme[3]: Return type must be annotated.
-    def rasterize(
-        self,
-        # pyre-fixme[2]: Parameter must be annotated.
-        v,
-        # pyre-fixme[2]: Parameter must be annotated.
-        v_clip,
-        # pyre-fixme[2]: Parameter must be annotated.
-        mesh,
-        # pyre-fixme[2]: Parameter must be annotated.
-        campos,
-        # pyre-fixme[2]: Parameter must be annotated.
-        camrot,
-        # pyre-fixme[2]: Parameter must be annotated.
-        focal,
-        # pyre-fixme[2]: Parameter must be annotated.
-        princpt,
-        write_depth: bool = False,
-    ):
-        assert v.dtype == th.float32
-        assert v_clip.dtype == th.float32
-        vi = mesh.vi
-
-        dev = v.device
-        bs = v.shape[0]
-        depth_img = th.empty(bs, self.h, self.w, dtype=th.float32, device=dev)
-        index_img = th.empty(bs, self.h, self.w, dtype=th.int32, device=dev)
-
-        if self.use_vulkan:
-            if vi is not self.vi:
-                self.vrc.updateTopology(vi)
-            return rasterize(
-                self.vrc, v_clip.contiguous(), depth_img, index_img, write_depth
-            )
-        packed_index_img = th.empty(bs, self.h, self.w, 2, dtype=th.int32, device=dev)
-        return rasterize_packed(
-            v_clip.contiguous(), vi, depth_img, index_img, packed_index_img
-        )[:2]
 
     # pyre-fixme[2]: Parameter must be annotated.
     def interp_vert_attrs(self, v_pix, mesh, index_img, vn=None) -> Dict[str, Any]:
@@ -228,134 +166,6 @@ class RenderLayer(nn.Module):
             out["vn_img"] = vn_img
         return out
 
-    def render_ba(
-        self,
-        # pyre-fixme[2]: Parameter must be annotated.
-        v_pix,
-        tex: Tensor,
-        # pyre-fixme[2]: Parameter must be annotated.
-        mesh,
-        index_img: Tensor,
-        # pyre-fixme[2]: Parameter must be annotated.
-        mask,
-        # pyre-fixme[2]: Parameter must be annotated.
-        vn,
-        # pyre-fixme[2]: Parameter must be annotated.
-        background,
-        # pyre-fixme[2]: Parameter must be annotated.
-        ksize,
-    ) -> Dict[str, Any]:
-        if (ksize % 2) == 0 or ksize < 3:
-            raise ValueError(
-                "Invalid kernel size for boundary-aware blurring. ksize must be an odd integer >= 3."
-            )
-
-        krad = ksize // 2
-        b = v_pix.shape[0]
-
-        weighted_img_sum = th.zeros(
-            b, tex.shape[1], self.h, self.w, device=v_pix.device
-        )
-        weight_sum = th.zeros(b, 1, self.h, self.w, device=v_pix.device)
-        masked_weight_sum = th.zeros(b, 1, self.h, self.w, device=v_pix.device)
-        if vn is not None:
-            weighted_vn_sum = th.zeros((b, self.h, self.w, 3), device=v_pix.device)
-
-        weight_sum.fill_(0)
-        masked_weight_sum.fill_(0)
-        weighted_img_sum.fill_(0)
-
-        # For pixels that do not lie near a depth discontinuity, use the
-        # plain rendering.
-        base_render_out = self.interp_vert_attrs(v_pix, mesh, index_img, vn=vn)
-        base_vt_img = base_render_out["vt_img"]
-        base_render = thf.grid_sample(tex, base_vt_img, **self.grid_sample_params)
-        float_mask = mask[:, None].float()
-        base_render = base_render * float_mask
-
-        # pyre-fixme[6]: Expected `List[int]` for 2nd param but got
-        #  `Tuple[typing.Any, typing.Any, typing.Any, typing.Any]`.
-        index_img_padded = thf.pad(index_img, (krad, krad, krad, krad), value=-2)
-
-        # Blur contributions from pixels within a neighborhood of a depth
-        # discontinuity so that we spread gradients w.r.t. vertex positions
-        # across discontinuity boundaries.
-        h = self.h
-        w = self.w
-        for y_off in range(ksize):
-            for x_off in range(ksize):
-                if x_off == krad and y_off == krad:
-                    # Don't re-render the center pixel, just use the base output.
-                    render_out = base_render_out
-                    iimg_shifted = index_img
-                    mask_shifted = float_mask
-                else:
-                    iimg_shifted = index_img_padded[
-                        :, y_off : y_off + h, x_off : x_off + w
-                    ]
-                    iimg_shifted = iimg_shifted.contiguous()
-                    mask_shifted = (iimg_shifted > -1)[:, None].float()
-
-                    render_out = self.interp_vert_attrs(
-                        v_pix, mesh, iimg_shifted, vn=vn
-                    )
-
-                vt_img = render_out["vt_img"]
-                bary_img = render_out["bary_img"]
-
-                # Don't count pixels outside the border as background pixels
-                # since we don't know if there is background or more triangles
-                # outside the image bounds.
-                non_border = (iimg_shifted != -2)[:, None].float()
-
-                weight = 1 / (-bary_img.clamp(max=0).sum(dim=1, keepdim=True) * 5 + 1)
-                render = thf.grid_sample(tex, vt_img, **self.grid_sample_params)
-
-                masked_weight_sum = masked_weight_sum + weight * mask_shifted
-                weighted_img_sum = weighted_img_sum + render * mask_shifted * weight
-                weight_sum = weight_sum + weight * non_border
-
-                if vn is not None:
-                    normals = render_out["vn_img"]
-                    # pyre-fixme[16]: `float` has no attribute `permute`.
-                    wp = weight.permute(0, 2, 3, 1)
-                    mp = mask_shifted.permute(0, 2, 3, 1)
-                    weighted_vn_sum = weighted_vn_sum + normals * wp * mp
-
-        alpha = masked_weight_sum / weight_sum.clamp(min=1e-8)
-        render = weighted_img_sum / masked_weight_sum.clamp(min=1e-8)
-
-        # For blurring normals, it doesn't make sense to blend them with the
-        # background since the background is color, not normals. Instead, just
-        # blend across meshes and re-normalize.
-        if vn is not None:
-            # pyre-fixme[61]: `weighted_vn_sum` is undefined, or not always defined.
-            normals = thf.normalize(weighted_vn_sum, dim=-1)
-            normals = normals * float_mask.permute(0, 2, 3, 1)
-
-        # Any pixels that have one or more non-background pixels mixed into
-        # them (alpha > 0) are now considered valid.
-        mask = (alpha > 0)[:, 0]
-
-        render = alpha * render
-        if background is not None:
-            render = render + (1 - alpha) * background
-
-        out = {
-            "vt_img": base_vt_img,
-            "render": render,
-            "alpha": alpha,
-            "mask": mask,
-            "depth_img": base_render_out["depth_img"],
-            "bary_img": base_render_out["bary_img"],
-        }
-
-        if vn is not None:
-            # pyre-fixme[61]: `normals` is undefined, or not always defined.
-            out["vn_img"] = normals
-
-        return out
-
     # TODO: Should we finally move to having people pass in a "camera
     # parameters" struct that holds / computes the KRt matrix?
     def forward(
@@ -375,11 +185,7 @@ class RenderLayer(nn.Module):
         distortion_coeff: Optional[th.Tensor] = None,
         fov: Optional[th.Tensor] = None,
         vn: Optional[th.Tensor] = None,
-        depth_img: Optional[th.Tensor] = None,
         background: Optional[th.Tensor] = None,
-        ksize: Optional[int] = None,
-        far: Optional[float] = None,
-        near: Optional[float] = None,
         output_filters: Optional[Sequence[str]] = None,
     ) -> Dict[str, th.Tensor]:
         """
@@ -443,9 +249,6 @@ class RenderLayer(nn.Module):
         background: Tensor, N x C x H x W
         Background images on which to composite the rendered mesh.
 
-        far: float
-        Far plane.
-
         near: float
         Near plane.
 
@@ -459,9 +262,6 @@ class RenderLayer(nn.Module):
         mask:       Mask of which pixels contain valid rendered colors.
                     N x H x W
 
-        alpha:      Soft foreground / background mask (if boundary_aware is on and ksize > 1).
-                    N x 1 x H x W
-
         vt_img:     Per-pixel interpolated texture coordinates.
                     N x H x W x 2
 
@@ -473,9 +273,6 @@ class RenderLayer(nn.Module):
 
         vbn_img:    Per-pixel interpolated vertex binormals (if vn was given).
                     N x H x W x 3
-
-        depth_img:  Per-pixel depth values.
-                    N x H x W
 
         index_img:  Per-pixel face indices.
                     N x H x W
@@ -525,11 +322,6 @@ class RenderLayer(nn.Module):
                 "RenderLayer does not produce these outputs:", ",".join(unknown_filters)
             )
 
-        if ksize is not None and not self.boundary_aware:
-            raise ValueError(
-                "You must initialize RenderLayer with `boundary_aware=True` to use boundary aware rendering (ksize != None)"
-            )
-
         if not ((camrot is not None and campos is not None) ^ (Rt is not None)):
             raise ValueError("You must provide exactly one of Rt or (campos, camrot).")
 
@@ -569,75 +361,28 @@ class RenderLayer(nn.Module):
         )
 
         with th.no_grad():
-            if self.use_vulkan:
-                v_clip, A, B = to_vulkan_clip_space(
-                    v_pix, self.h, self.w, far=far, near=near
-                )
-                _depth_img, index_img = self.rasterize(
-                    v,
-                    v_clip,
-                    mesh,
-                    campos,
-                    camrot,
-                    focal,
-                    princpt,
-                    write_depth=depth_img is not None,
-                )
-            else:
-                if near is not None or far is not None:
-                    raise NotImplementedError(
-                        "Clipping planes are currently only supported by the Vulkan rasterizer."
-                    )
-                _depth_img, index_img = self.rasterize(
-                    v,
-                    v_pix,
-                    mesh,
-                    campos,
-                    camrot,
-                    focal,
-                    princpt,
-                )
+            index_img = rasterize(
+                v_pix,
+                vi,
+                self.h,
+                self.w,
+            )
 
             mask = th.ne(index_img, -1)
 
-            if depth_img is not None:
-                # Based on the projection matrix above, the depth buffer will
-                # contain (Az + B) / w = A + B / z which we need to solve to
-                # recover depth:
-                #
-                #   depth = A + B / z
-                #   z = B / (depth - A)
-                #
-                # NOTE: this loses some precision compared to adding an
-                # additional attachment for linear depth output, but it saves
-                # memory and compute. Given that we use a 32-bit float depth
-                # buffer, this should be ok for most uses.
-                if self.use_vulkan:
-                    _depth_img = (
-                        mask.float()
-                        * B[:, None, None]
-                        / ((1 - _depth_img) - A[:, None, None])
-                    )
-                index_img[(_depth_img >= depth_img)] = -1
+        render_out = self.interp_vert_attrs(v_pix, mesh, index_img, vn)
+        render_out["mask"] = mask
 
-        if self.boundary_aware and ksize is not None:
-            render_out = self.render_ba(
-                v_pix, tex, mesh, index_img, mask, vn, background, ksize
-            )
-        else:
-            render_out = self.interp_vert_attrs(v_pix, mesh, index_img, vn)
-            render_out["mask"] = mask
+        if "render" in output_filters:
+            vt_img = render_out["vt_img"]
+            render = thf.grid_sample(tex, vt_img, **self.grid_sample_params)
 
-            if "render" in output_filters:
-                vt_img = render_out["vt_img"]
-                render = thf.grid_sample(tex, vt_img, **self.grid_sample_params)
+            mf = mask[:, None].float()
+            render = render * mf
+            if background is not None:
+                render = render + (1 - mf) * background
 
-                mf = mask[:, None].float()
-                render = render * mf
-                if background is not None:
-                    render = render + (1 - mf) * background
-
-                render_out["render"] = render
+            render_out["render"] = render
 
         render_out["v_pix"] = v_pix
         render_out["v_cam"] = v_cam

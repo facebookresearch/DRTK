@@ -43,7 +43,7 @@ def test_near_far(far, near, dist=5, h=10, w=10, b=1, eps=1e-5):
     vi = th.tensor([[0, 1, 2], [3, 4, 5]], dtype=th.int64)
     vti = th.tensor([[0, 1, 2], [3, 4, 5]], dtype=th.int64)
 
-    rl = RenderLayer(h, w, vt, vi, vti, boundary_aware=True, use_vulkan=True).cuda()
+    rl = RenderLayer(h, w, vt, vi, vti).cuda()
 
     out = rl(
         v.expand(b, -1, -1),

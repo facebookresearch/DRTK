@@ -1,76 +1,52 @@
 #include <c10/cuda/CUDAGuard.h>
+#include <torch/extension.h>
 #include <torch/script.h>
 
-#include "../include/common.h"
-#include "../rasterize/rasterize_kernel.h"
+#include "rasterize_kernel.h"
 
-#ifndef NO_PYBIND
-#include <torch/extension.h>
-#endif
+class RasterizeFunction : public torch::autograd::Function<RasterizeFunction> {
+ public:
+  static torch::autograd::tensor_list forward(
+      torch::autograd::AutogradContext* ctx,
+      const torch::Tensor& v,
+      const torch::Tensor& vi,
+      int64_t height,
+      int64_t width,
+      bool wireframe) {
+    ctx->set_materialize_grads(false);
+    auto outputs = rasterize_cuda(v, vi, height, width, wireframe);
+    ctx->mark_non_differentiable(outputs);
+    return outputs;
+  }
 
-int64_t rasterize_packed(
-    torch::Tensor verts_t,
-    torch::Tensor vind_t,
-    torch::Tensor depth_img_t,
-    torch::Tensor index_img_t,
-    torch::Tensor packedindex_img_t) {
-  CHECK_INPUT(verts_t)
-  CHECK_INPUT(vind_t)
-  CHECK_INPUT(depth_img_t)
-  CHECK_INPUT(index_img_t)
-  CHECK_INPUT(packedindex_img_t)
-  CHECK_3DIMS(index_img_t)
-  CHECK_3DIMS(verts_t)
-  CHECK_3DIMS(depth_img_t)
+  static torch::autograd::tensor_list backward(
+      torch::autograd::AutogradContext* ctx,
+      torch::autograd::tensor_list grad_outputs) {
+    return {torch::Tensor(), torch::Tensor(), torch::Tensor(), torch::Tensor(), torch::Tensor()};
+  }
+};
 
-  at::cuda::CUDAGuard device_guard(verts_t.device());
-  cudaStream_t stream = c10::cuda::getCurrentCUDAStream();
-
-  const int nprims = vind_t.sizes()[0];
-  const int nverts = verts_t.sizes()[1];
-  const int b = verts_t.sizes()[0];
-  const int h = index_img_t.sizes()[1];
-  const int w = index_img_t.sizes()[2];
-  TORCH_CHECK(index_img_t.numel() >= w * h, "Bad index image shape.");
-  TORCH_CHECK(depth_img_t.numel() >= w * h, "Bad depth image shape.");
-  TORCH_CHECK(vind_t.sizes()[1] == 3, "Vertex indices must have shape[1] == 3.");
-  TORCH_CHECK(verts_t.sizes()[2] == 3, "Vertices must be 3D points, shape[2] == 3.");
-  TORCH_CHECK(packedindex_img_t.sizes()[0] == b, "Packed index image has wrong batch size.");
-  TORCH_CHECK(depth_img_t.sizes()[0] == b, "Depth image has wrong batch size.");
-  TORCH_CHECK(index_img_t.sizes()[0] == b, "Index image has wrong batch size.");
-
-  int3* vind = reinterpret_cast<int3*>(DATA_PTR(vind_t, int));
-  float* verts = DATA_PTR(verts_t, float);
-  float* depth_img = DATA_PTR(depth_img_t, float);
-  int* index_img = DATA_PTR(index_img_t, int);
-  int* packedindex_img = DATA_PTR(packedindex_img_t, int);
-
-  packed_rasterize_cuda(
-      b,
-      w,
-      h,
-      nprims,
-      nverts,
-      reinterpret_cast<float3*>(verts),
-      vind,
-      depth_img,
-      index_img,
-      packedindex_img,
-      stream);
-
-  return 1;
+torch::autograd::tensor_list rasterize_autograd(
+    const torch::Tensor& v,
+    const torch::Tensor& vi,
+    int64_t height,
+    int64_t width,
+    bool wireframe) {
+  return RasterizeFunction::apply(v, vi, height, width, wireframe);
 }
 
 #ifndef NO_PYBIND
-PYBIND11_MODULE(rasterizer_ext, m) {
-  m.def(
-      "rasterize_packed",
-      &rasterize_packed,
-      py::call_guard<py::gil_scoped_release>(),
-      "Rasterize with packed depth / index buffer.");
-}
+PYBIND11_MODULE(rasterize_ext, m) {}
 #endif
 
-TORCH_LIBRARY(rasterizer_ext, m) {
-  m.def("rasterize_packed", rasterize_packed);
+TORCH_LIBRARY(rasterize_ext, m) {
+  m.def("rasterize(Tensor v, Tensor vi, int height, int width, bool wireframe) -> Tensor[]");
+}
+
+TORCH_LIBRARY_IMPL(rasterize_ext, Autograd, m) {
+  m.impl("rasterize", &rasterize_autograd);
+}
+
+TORCH_LIBRARY_IMPL(rasterize_ext, CUDA, m) {
+  m.impl("rasterize", &rasterize_cuda);
 }

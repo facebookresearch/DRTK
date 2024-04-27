@@ -56,7 +56,7 @@ vti = th.IntTensor([[0, 1, 2],
 bg_img = 255*th.rand(b, 3, h, w).cuda()
 
 # Create the renderlayer module.
-rl = RenderLayer(h, w, vt, vi, vti, boundary_aware=True).cuda()
+rl = RenderLayer(h, w, vt, vi, vti).cuda()
 
 # Render the views and save the resulting images.
 output = rl(v, tex, campos, camrot, focal, princpt, background=bg_img, ksize=3)

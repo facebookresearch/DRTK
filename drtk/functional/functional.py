@@ -3,7 +3,7 @@ from typing import Dict, Optional, Sequence, Tuple
 import torch as th
 import torch.nn.functional as thf
 
-from drtk.rasterizer import rasterize_packed
+from drtk.rasterize import rasterize
 from drtk.render_cuda import render as _render
 from drtk.renderlayer.projection import project_points
 
@@ -113,20 +113,7 @@ def render(
     if align_corners is None:
         align_corners = False
 
-    dev = v.device
-    depth_img = th.empty(v.shape[0], size[0], size[1], dtype=th.float32, device=dev)
-    index_img = th.empty(v.shape[0], size[0], size[1], dtype=th.int32, device=dev)
-    packed_index_img = th.empty(
-        v.shape[0], size[0], size[1], 2, dtype=th.int32, device=dev
-    )
-
-    depth_img, index_img = rasterize_packed(
-        v.contiguous(),
-        vi,
-        depth_img,
-        index_img,
-        packed_index_img,
-    )[:2]
+    index_img = rasterize(v, vi, height=size[0], width=size[1])
 
     _render_outs = _render(v.contiguous(), vt.contiguous(), vi, vti, index_img)
     depth_img, bary_img, vt_img = _render_outs[:3]
@@ -152,22 +139,4 @@ def render(
         mf = mask[:, None].float()
         out["render"] = res * mf
 
-    return out
-
-
-def rasterize(
-    v: th.Tensor, vi: th.Tensor, size: Tuple[int, int]
-) -> Dict[str, th.Tensor]:
-    dev = v.device
-    depth_img = th.empty(v.shape[0], size[0], size[1], dtype=th.float32, device=dev)
-    index_img = th.empty(v.shape[0], size[0], size[1], dtype=th.int32, device=dev)
-    packed_index_img = th.empty(1, size[0], size[1], 2, dtype=th.int32, device=dev)
-    depth_img, index_img = rasterize_packed(
-        v.contiguous(),
-        vi,
-        depth_img,
-        index_img,
-        packed_index_img,
-    )[:2]
-    out = {"depth_img": depth_img, "index_img": index_img}
     return out
