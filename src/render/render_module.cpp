@@ -5,8 +5,8 @@
 #include <torch/extension.h>
 #endif
 
-#include "../render/render_cuda_kernel.h"
-#include "render_cuda.h"
+#include "../include/common.h"
+#include "render_kernel.h"
 
 std::vector<torch::Tensor> render_forward(
     torch::Tensor v2d,
@@ -141,13 +141,10 @@ std::vector<torch::Tensor> render_backward(
 }
 
 #ifndef NO_PYBIND
-PYBIND11_MODULE(render_cuda_ext, m) {
-  m.def("render_forward", &render_forward, "Render forward (CUDA)");
-  m.def("render_backward", &render_backward, "Render backward (CUDA)");
-}
+PYBIND11_MODULE(render_ext, m) {}
 #endif
 
-TORCH_LIBRARY(render_cuda_ext, m) {
+TORCH_LIBRARY(render_ext, m) {
   m.def("render_forward", &render_forward);
   m.def("render_backward", &render_backward);
 }

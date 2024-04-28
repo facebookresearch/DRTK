@@ -1,4 +1,4 @@
-#include "render_cuda_kernel.h"
+#include "render_kernel.h"
 
 #include <cmath>
 #include <cstdio>

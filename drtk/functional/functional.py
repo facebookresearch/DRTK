@@ -4,7 +4,7 @@ import torch as th
 import torch.nn.functional as thf
 
 from drtk.rasterize import rasterize
-from drtk.render_cuda import render as _render
+from drtk.render import render as _render
 from drtk.renderlayer.projection import project_points
 
 

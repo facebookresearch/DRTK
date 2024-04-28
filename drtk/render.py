@@ -3,15 +3,15 @@
 from typing import Optional, Tuple
 
 import torch as th
+
+from drtk import render_ext
 from torch import Tensor
 
-from .. import render_cuda_ext
-
-th.ops.load_library(render_cuda_ext.__file__)
+th.ops.load_library(render_ext.__file__)
 # pyre-fixme[5]: Global expression must be annotated.
-render_forward = th.ops.render_cuda_ext.render_forward
+render_forward = th.ops.render_ext.render_forward
 # pyre-fixme[5]: Global expression must be annotated.
-render_backward = th.ops.render_cuda_ext.render_backward
+render_backward = th.ops.render_ext.render_backward
 
 
 class CudaRenderer(th.autograd.Function):

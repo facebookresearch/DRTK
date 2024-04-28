@@ -10,10 +10,10 @@ import torch.nn.functional as thf
 from drtk.interpolate import interpolate
 
 from drtk.rasterize import rasterize
+from drtk.render import render as _render
 from torch import Tensor
 from torch.nn.modules.module import Module
 
-from ..render_cuda import render as _render
 from . import settings
 from .geomutils import vert_binormals
 from .projection import project_points
