@@ -1,5 +1,5 @@
 #include <torch/script.h>
-#include "../msi_bkg/msi_bkg.h"
+#include "msi_kernel.h"
 
 #ifndef NO_PYBIND
 #include <torch/extension.h>
@@ -113,9 +113,7 @@ torch::Tensor msi_bkg_autograd(
 }
 
 #ifndef NO_PYBIND
-PYBIND11_MODULE(msi_ext, m) {
-  m.def("msi_bkg", &msi_bkg_autograd);
-}
+PYBIND11_MODULE(msi_ext, m) {}
 #endif
 
 TORCH_LIBRARY(msi_ext, m) {

@@ -7,7 +7,6 @@ class settings:
     use_precise_uv_grads = False
 
 
-from .msi import msi  # noqa
 from .projection import DISTORTION_MODES, project_points  # noqa
 from .renderlayer import RenderLayer  # noqa
 

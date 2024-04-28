@@ -4,8 +4,8 @@
 #include <cassert>
 
 #include <cuda_math_helper.h>
-#include "../include/grid_utils.h"
-#include "../include/kernel_utils.h"
+#include <grid_utils.h>
+#include <kernel_utils.h>
 
 using namespace math;
 
