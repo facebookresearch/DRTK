@@ -1,11 +1,41 @@
 #include <torch/script.h>
 
+#include <ATen/autocast_mode.h>
+
 #ifndef NO_PYBIND
 #include <torch/extension.h>
 #endif
 
 #include "mipmap_grid_sampler_kernel.h"
 
+// Dispatch function
+torch::Tensor mipmap_grid_sampler_2d(
+    const torch::TensorList& input,
+    const torch::Tensor& grid,
+    const torch::Tensor& vt_dxdy_img,
+    int64_t max_aniso,
+    int64_t padding_mode,
+    int64_t interpolation_mode,
+    bool align_corners,
+    bool force_max_ansio,
+    bool clip_grad) {
+  static auto op = torch::Dispatcher::singleton()
+                       .findSchemaOrThrow("mipmap_grid_sampler_ext::mipmap_grid_sampler_2d", "")
+                       .typed<decltype(mipmap_grid_sampler_2d)>();
+  return op.call(
+      input,
+      grid,
+      vt_dxdy_img,
+      max_aniso,
+      padding_mode,
+      interpolation_mode,
+      align_corners,
+      force_max_ansio,
+      clip_grad);
+}
+
+// Ideally we would need to turn off autograd handling and re-dispatch, but we just call
+// cuda kernels directly
 class MipmapGridSample2DFunction : public torch::autograd::Function<MipmapGridSample2DFunction> {
  public:
   static torch::autograd::tensor_list forward(
@@ -184,6 +214,29 @@ torch::Tensor mipmap_grid_sampler_2d_autograd(
       input.size() > 10 ? input[10] : c10::optional<torch::Tensor>())[0];
 }
 
+torch::Tensor mipmap_grid_sampler_2d_autocast(
+    const torch::TensorList& input,
+    const torch::Tensor& grid,
+    const torch::Tensor& vt_dxdy_img,
+    int64_t max_aniso,
+    int64_t padding_mode,
+    int64_t interpolation_mode,
+    bool align_corners,
+    bool force_max_ansio,
+    bool clip_grad) {
+  c10::impl::ExcludeDispatchKeyGuard no_autocast(c10::DispatchKey::Autocast);
+  return mipmap_grid_sampler_2d(
+      at::autocast::cached_cast(torch::kFloat32, input),
+      at::autocast::cached_cast(torch::kFloat32, grid),
+      at::autocast::cached_cast(torch::kFloat32, vt_dxdy_img),
+      max_aniso,
+      padding_mode,
+      interpolation_mode,
+      align_corners,
+      force_max_ansio,
+      clip_grad);
+}
+
 #ifndef NO_PYBIND
 // Just so that we can import this file as a Python module to get the path and
 // import the Torch ops.
@@ -197,6 +250,10 @@ TORCH_LIBRARY(mipmap_grid_sampler_ext, m) {
 
 TORCH_LIBRARY_IMPL(mipmap_grid_sampler_ext, Autograd, m) {
   m.impl("mipmap_grid_sampler_2d", &mipmap_grid_sampler_2d_autograd);
+}
+
+TORCH_LIBRARY_IMPL(mipmap_grid_sampler_ext, Autocast, m) {
+  m.impl("mipmap_grid_sampler_2d", mipmap_grid_sampler_2d_autocast);
 }
 
 TORCH_LIBRARY_IMPL(mipmap_grid_sampler_ext, CUDA, m) {

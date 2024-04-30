@@ -1,6 +1,6 @@
 from torch import Tensor
 
-def msi_bkg(
+def msi(
     ray_o: th.Tensor,
     ray_d: th.Tensor,
     texture: th.Tensor,

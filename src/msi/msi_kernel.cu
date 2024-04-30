@@ -10,7 +10,7 @@
 using namespace math;
 
 template <typename scalar_t, typename index_t>
-__device__ inline typename math::TVec4<scalar_t> msi_bkg_sample_bilinear_cubic(
+__device__ inline typename math::TVec4<scalar_t> msi_sample_bilinear_cubic(
     const TensorInfo<scalar_t, index_t>& input,
     math::TVec3<scalar_t> uvw) {
   typedef typename math::TVec2<scalar_t> scalar2_t;
@@ -84,7 +84,7 @@ __device__ inline typename math::TVec4<scalar_t> msi_bkg_sample_bilinear_cubic(
 }
 
 template <typename scalar_t, typename index_t>
-__device__ inline void msi_bkg_sample_bilinear_cubic_backward(
+__device__ inline void msi_sample_bilinear_cubic_backward(
     const TensorInfo<scalar_t, index_t>& grad_input,
     math::TVec4<scalar_t> grad_output,
     math::TVec3<scalar_t> uvw,
@@ -203,7 +203,7 @@ __device__ __host__ __forceinline__ float2 direction_to_equirectangular(float3 d
 
 template <typename scalar_t, typename index_t>
 C10_LAUNCH_BOUNDS_1(256)
-__global__ void msi_bkg_forward_kernel(
+__global__ void msi_forward_kernel(
     const index_t nthreads,
     TensorInfo<float, index_t> ray_o,
     TensorInfo<float, index_t> ray_d,
@@ -266,7 +266,7 @@ __global__ void msi_bkg_forward_kernel(
 
       const float3 uvw = make_float3(direction_to_equirectangular(pos), w);
 
-      auto sample = msi_bkg_sample_bilinear_cubic(texture, uvw);
+      auto sample = msi_sample_bilinear_cubic(texture, uvw);
 
       scalar3_t rgb = {sample.x, sample.y, sample.z};
       float alpha = sample.w;
@@ -294,7 +294,7 @@ __global__ void msi_bkg_forward_kernel(
 
 template <typename scalar_t, typename index_t>
 C10_LAUNCH_BOUNDS_1(256)
-__global__ void msi_bkg_backward_kernel(
+__global__ void msi_backward_kernel(
     const index_t nthreads,
     TensorInfo<float, index_t> ray_o,
     TensorInfo<float, index_t> ray_d,
@@ -371,7 +371,7 @@ __global__ void msi_bkg_backward_kernel(
 
       const float3 uvw = make_float3(direction_to_equirectangular(pos), w);
 
-      auto sample = msi_bkg_sample_bilinear_cubic(texture, uvw);
+      auto sample = msi_sample_bilinear_cubic(texture, uvw);
 
       scalar3_t rgb = {sample.x, sample.y, sample.z};
       float alpha = sample.w;
@@ -396,8 +396,7 @@ __global__ void msi_bkg_backward_kernel(
 
         scalar4_t rgba_grad = make_float4(color_grad, alpha_grad);
 
-        msi_bkg_sample_bilinear_cubic_backward(
-            texture_grad, rgba_grad, uvw, texture_grad_memory_span);
+        msi_sample_bilinear_cubic_backward(texture_grad, rgba_grad, uvw, texture_grad_memory_span);
 
         if (__expf(log_transmit) < stop_thresh) {
           log_transmit = -1e3f;
@@ -408,7 +407,7 @@ __global__ void msi_bkg_backward_kernel(
   }
 }
 
-__host__ torch::Tensor msi_bkg_forward_cuda(
+__host__ torch::Tensor msi_forward_cuda(
     const torch::Tensor& ray_o,
     const torch::Tensor& ray_d,
     const torch::Tensor& texture,
@@ -416,15 +415,15 @@ __host__ torch::Tensor msi_bkg_forward_cuda(
     double min_inv_r,
     double max_inv_r,
     double stop_thresh) {
-  TORCH_CHECK(sub_step_count > 0, "msi_bkg(): expected step_size > 0, but got ", sub_step_count);
+  TORCH_CHECK(sub_step_count > 0, "msi(): expected step_size > 0, but got ", sub_step_count);
   TORCH_CHECK(
       stop_thresh > 0 && stop_thresh < 1,
-      "msi_bkg(): expected 0 < stop_thresh < 1, but got ",
+      "msi(): expected 0 < stop_thresh < 1, but got ",
       stop_thresh);
 
   TORCH_CHECK(
       min_inv_r > max_inv_r,
-      "msi_bkg(): expected min_inv_r to be greater than max_inv_r, but "
+      "msi(): expected min_inv_r to be greater than max_inv_r, but "
       "got min_inv_r:",
       min_inv_r,
       " and max_inv_r: ",
@@ -432,7 +431,7 @@ __host__ torch::Tensor msi_bkg_forward_cuda(
 
   TORCH_CHECK(
       ray_o.defined() && ray_d.defined() && texture.defined(),
-      "msi_bkg(): expected all inputs not be undefined, but "
+      "msi(): expected all inputs not be undefined, but "
       "ray_o is ",
       ray_o,
       ", ray_d is ",
@@ -449,16 +448,14 @@ __host__ torch::Tensor msi_bkg_forward_cuda(
   auto ray_dtype = ray_o_opt.dtype();
 
   TORCH_CHECK(
-      device.is_cuda(),
-      "msi_bkg(): expected inputs to be on CUDA device, but got ray_o on ",
-      device);
+      device.is_cuda(), "msi(): expected inputs to be on CUDA device, but got ray_o on ", device);
 
   const at::cuda::OptionalCUDAGuard device_guard(device);
 
   TORCH_CHECK(
       device == ray_o_opt.device() && device == ray_d_opt.device() &&
           device == texture_opt.device(),
-      "msi_bkg(): expected all inputs to be on same device, but input "
+      "msi(): expected all inputs to be on same device, but input "
       "ray_o is ",
       ray_o_opt.device(),
       ", ray_d is ",
@@ -468,13 +465,13 @@ __host__ torch::Tensor msi_bkg_forward_cuda(
 
   TORCH_CHECK(
       tex_dtype == torch::kFloat64 || tex_dtype == torch::kFloat32 || tex_dtype == torch::kHalf,
-      "msi_bkg(): expected texture to be of type Double, Float or "
+      "msi(): expected texture to be of type Double, Float or "
       "Half, but got type ",
       texture_opt.dtype());
 
   TORCH_CHECK(
       ray_o_opt.dtype() == torch::kFloat32 && ray_d_opt.dtype() == torch::kFloat32,
-      "msi_bkg(): expected ray_o and ray_d to be of type Float, but "
+      "msi(): expected ray_o and ray_d to be of type Float, but "
       "input ray_o is  ",
       ray_o_opt.dtype(),
       " and ray_d is ",
@@ -483,7 +480,7 @@ __host__ torch::Tensor msi_bkg_forward_cuda(
   TORCH_CHECK(
       torch::kStrided == ray_o_opt.layout() && torch::kStrided == ray_d_opt.layout() &&
           torch::kStrided == texture_opt.layout(),
-      "msi_bkg(): expected all inputs to have torch.strided layout, but "
+      "msi(): expected all inputs to have torch.strided layout, but "
       "ray_o has ",
       ray_o_opt.layout(),
       ", ray_d has ",
@@ -493,7 +490,7 @@ __host__ torch::Tensor msi_bkg_forward_cuda(
 
   TORCH_CHECK(
       ray_o.dim() == 2 && ray_d.dim() == 2 && texture.dim() == 4,
-      "msi_bkg(): expected ray_o and ray_d to have 2 dimensions, "
+      "msi(): expected ray_o and ray_d to have 2 dimensions, "
       "and texture to have 4 dimension, "
       "but got ray_o with size ",
       ray_o.sizes(),
@@ -504,7 +501,7 @@ __host__ torch::Tensor msi_bkg_forward_cuda(
 
   TORCH_CHECK(
       ray_o.size(1) == 3 && ray_d.size(1) == 3 && texture.size(1) == 4,
-      "msi_bkg(): expected ray_o, ray_d to have size 3 along the dimension 1, "
+      "msi(): expected ray_o, ray_d to have size 3 along the dimension 1, "
       " and texture to have size 4 along the dimension 1, "
       "but got ray_o with size ",
       ray_o.sizes(),
@@ -515,7 +512,7 @@ __host__ torch::Tensor msi_bkg_forward_cuda(
 
   TORCH_CHECK(
       ray_o.size(0) == ray_d.size(0),
-      "msi_bkg(): expected ray_o, ray_d to have the same size along "
+      "msi(): expected ray_o, ray_d to have the same size along "
       "the dimension 0, "
       "but got ray_o with size ",
       ray_o.sizes(),
@@ -526,12 +523,12 @@ __host__ torch::Tensor msi_bkg_forward_cuda(
   auto rgba_img = torch::empty({N, 4}, texture.options());
 
   if (N > 0) {
-    DISPATCH_FLOAT(texture.scalar_type(), "msi_bkg_forward_kernel", [&] {
+    DISPATCH_FLOAT(texture.scalar_type(), "msi_forward_kernel", [&] {
       if (at::native::canUse32BitIndexMath(ray_o) && at::native::canUse32BitIndexMath(ray_d) &&
           at::native::canUse32BitIndexMath(texture)) {
         typedef int index_type;
 
-        msi_bkg_forward_kernel<scalar_t, index_type>
+        msi_forward_kernel<scalar_t, index_type>
             <<<GET_BLOCKS(N, 256), 256, 0, at::cuda::getCurrentCUDAStream()>>>(
                 static_cast<index_type>(N),
                 getTensorInfo<float, index_type>(ray_o),
@@ -546,7 +543,7 @@ __host__ torch::Tensor msi_bkg_forward_cuda(
       } else {
         typedef int64_t index_type;
 
-        msi_bkg_forward_kernel<scalar_t, index_type>
+        msi_forward_kernel<scalar_t, index_type>
             <<<GET_BLOCKS(N, 256), 256, 0, at::cuda::getCurrentCUDAStream()>>>(
                 static_cast<index_type>(N),
                 getTensorInfo<float, index_type>(ray_o),
@@ -564,7 +561,7 @@ __host__ torch::Tensor msi_bkg_forward_cuda(
   return rgba_img;
 }
 
-torch::Tensor msi_bkg_backward_cuda(
+torch::Tensor msi_backward_cuda(
     const torch::Tensor& rgba_img,
     const torch::Tensor& rgba_img_grad,
     const torch::Tensor& ray_o,
@@ -588,7 +585,7 @@ torch::Tensor msi_bkg_backward_cuda(
   auto texture_grad = torch::zeros_like(texture);
 
   if (N > 0) {
-    DISPATCH_FLOAT(texture.scalar_type(), "msi_bkg_forward_kernel", [&] {
+    DISPATCH_FLOAT(texture.scalar_type(), "msi_forward_kernel", [&] {
       if (at::native::canUse32BitIndexMath(ray_o) && at::native::canUse32BitIndexMath(ray_d) &&
           at::native::canUse32BitIndexMath(rgba_img) &&
           at::native::canUse32BitIndexMath(rgba_img_grad) &&
@@ -597,7 +594,7 @@ torch::Tensor msi_bkg_backward_cuda(
         typedef int index_type;
 
         index_type texture_grad_memory_span = texture_grad.numel();
-        msi_bkg_backward_kernel<scalar_t, index_type>
+        msi_backward_kernel<scalar_t, index_type>
             <<<GET_BLOCKS(N, 256), 256, 0, at::cuda::getCurrentCUDAStream()>>>(
                 static_cast<index_type>(N),
                 getTensorInfo<float, index_type>(ray_o),
@@ -616,7 +613,7 @@ torch::Tensor msi_bkg_backward_cuda(
         typedef int64_t index_type;
 
         index_type texture_grad_memory_span = texture_grad.numel();
-        msi_bkg_backward_kernel<scalar_t, index_type>
+        msi_backward_kernel<scalar_t, index_type>
             <<<GET_BLOCKS(N, 256), 256, 0, at::cuda::getCurrentCUDAStream()>>>(
                 static_cast<index_type>(N),
                 getTensorInfo<float, index_type>(ray_o),

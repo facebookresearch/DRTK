@@ -1,10 +1,25 @@
 #include <torch/script.h>
 
+#include <ATen/autocast_mode.h>
+
 #ifndef NO_PYBIND
 #include <torch/extension.h>
 #endif
 
 #include "edge_grad_kernel.h"
+
+// Dispatch function
+torch::Tensor edge_grad_estimator(
+    const torch::Tensor& v_pix,
+    const torch::Tensor& v_pix_img,
+    const torch::Tensor& vi,
+    const torch::Tensor& img,
+    const torch::Tensor& index_img) {
+  static auto op = torch::Dispatcher::singleton()
+                       .findSchemaOrThrow("edge_grad_ext::edge_grad_estimator", "")
+                       .typed<decltype(edge_grad_estimator)>();
+  return op.call(v_pix, v_pix_img, vi, img, index_img);
+}
 
 torch::Tensor edge_grad_estimator_fwd(
     const torch::Tensor& v_pix,
@@ -89,6 +104,8 @@ torch::Tensor edge_grad_estimator_fwd(
   return img;
 }
 
+// Ideally we would need to turn off autograd handling and re-dispatch, but we just call
+// cuda kernels directly
 class EdgeGradEstimatorFunction : public torch::autograd::Function<EdgeGradEstimatorFunction> {
  public:
   static torch::autograd::tensor_list forward(
@@ -132,6 +149,21 @@ torch::Tensor edge_grad_estimator_autograd(
   return EdgeGradEstimatorFunction::apply(v_pix, v_pix_img, vi, img, index_img)[0];
 }
 
+torch::Tensor edge_grad_estimator_autocast(
+    const torch::Tensor& v_pix,
+    const torch::Tensor& v_pix_img,
+    const torch::Tensor& vi,
+    const torch::Tensor& img,
+    const torch::Tensor& index_img) {
+  c10::impl::ExcludeDispatchKeyGuard no_autocast(c10::DispatchKey::Autocast);
+  return edge_grad_estimator(
+      at::autocast::cached_cast(torch::kFloat32, v_pix),
+      at::autocast::cached_cast(torch::kFloat32, v_pix_img),
+      vi,
+      at::autocast::cached_cast(torch::kFloat32, img),
+      index_img)[0];
+}
+
 #ifndef NO_PYBIND
 // Just so that we can import this file as a Python module to get the path and
 // import the Torch ops.
@@ -145,6 +177,10 @@ TORCH_LIBRARY(edge_grad_ext, m) {
 
 TORCH_LIBRARY_IMPL(edge_grad_ext, Autograd, m) {
   m.impl("edge_grad_estimator", &edge_grad_estimator_autograd);
+}
+
+TORCH_LIBRARY_IMPL(edge_grad_ext, Autocast, m) {
+  m.impl("edge_grad_estimator", edge_grad_estimator_autocast);
 }
 
 TORCH_LIBRARY_IMPL(edge_grad_ext, CUDA, m) {

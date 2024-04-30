@@ -1,11 +1,27 @@
 #include <torch/script.h>
 
+#include <ATen/autocast_mode.h>
+
 #ifndef NO_PYBIND
 #include <torch/extension.h>
 #endif
 
 #include "interpolate_kernel.h"
 
+// Dispatch function
+torch::Tensor interpolate(
+    const torch::Tensor& vert_attributes,
+    const torch::Tensor& vi,
+    const torch::Tensor& index_img,
+    const torch::Tensor& bary_img) {
+  static auto op = torch::Dispatcher::singleton()
+                       .findSchemaOrThrow("interpolate_ext::interpolate", "")
+                       .typed<decltype(interpolate)>();
+  return op.call(vert_attributes, vi, index_img, bary_img);
+}
+
+// Ideally we would need to turn off autograd handling and re-dispatch, but we just call
+// cuda kernels directly
 class InterpolateFunction : public torch::autograd::Function<InterpolateFunction> {
  public:
   static torch::autograd::tensor_list forward(
@@ -59,6 +75,19 @@ torch::Tensor interpolate_autograd(
   return InterpolateFunction::apply(vert_attributes, vi, index_img, bary_img)[0];
 }
 
+torch::Tensor interpolate_autocast(
+    const torch::Tensor& vert_attributes,
+    const torch::Tensor& vi,
+    const torch::Tensor& index_img,
+    const torch::Tensor& bary_img) {
+  c10::impl::ExcludeDispatchKeyGuard no_autocast(c10::DispatchKey::Autocast);
+  return interpolate(
+      at::autocast::cached_cast(torch::kFloat32, vert_attributes),
+      vi,
+      index_img,
+      at::autocast::cached_cast(torch::kFloat32, bary_img));
+}
+
 #ifndef NO_PYBIND
 // Just so that we can import this file as a Python module to get the path and
 // import the Torch ops.
@@ -72,6 +101,10 @@ TORCH_LIBRARY(interpolate_ext, m) {
 
 TORCH_LIBRARY_IMPL(interpolate_ext, Autograd, m) {
   m.impl("interpolate", &interpolate_autograd);
+}
+
+TORCH_LIBRARY_IMPL(interpolate_ext, Autocast, m) {
+  m.impl("interpolate", interpolate_autocast);
 }
 
 TORCH_LIBRARY_IMPL(interpolate_ext, CUDA, m) {

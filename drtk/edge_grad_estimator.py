@@ -86,10 +86,7 @@ def edge_grad_estimator(
     # Could use v_pix_img output from DRTK, but bary_img needs to be detached.
     v_pix_img = interpolate(v_pix, vi, index_img, bary_img.detach())
 
-    with th.autocast(device_type="cuda", dtype=th.float32, enabled=False):
-        img = th.ops.edge_grad_ext.edge_grad_estimator(
-            v_pix, v_pix_img, vi, img, index_img
-        )
+    img = th.ops.edge_grad_ext.edge_grad_estimator(v_pix, v_pix_img, vi, img, index_img)
 
     if v_pix_img_hook is not None:
         v_pix_img.register_hook(v_pix_img_hook)

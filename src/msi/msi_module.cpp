@@ -1,3 +1,4 @@
+#include <ATen/autocast_mode.h>
 #include <torch/script.h>
 #include "msi_kernel.h"
 
@@ -9,11 +10,27 @@
  * Renders a Multi-Sphere Image which is similar to the one described in "NeRF++: Analyzing and
  * Improving Neural Radiance Fields".
  * This file provides python/torch bindings and autograd function implementation.
- * It main implementation is in `src/msi_bkg/msi_bkg.cu`, see functions `msi_bkg_forward_cuda` and
- * `msi_bkg_backward_cuda`.
- * For more details see docstring in drtk/renderlayer/msi.py
+ * It main implementation is in `src/msi/msi_kernel.cu`, see functions `msi_forward_cuda` and
+ * `msi_backward_cuda`.
+ * For more details see docstring in drtk/msi.py
  */
 
+// Dispatch function
+torch::Tensor msi(
+    const torch::Tensor& ray_o,
+    const torch::Tensor& ray_d,
+    const torch::Tensor& texture,
+    int64_t sub_step_count,
+    double min_inv_r,
+    double max_inv_r,
+    double stop_thresh) {
+  static auto op =
+      torch::Dispatcher::singleton().findSchemaOrThrow("msi_ext::msi", "").typed<decltype(msi)>();
+  return op.call(ray_o, ray_d, texture, sub_step_count, min_inv_r, max_inv_r, stop_thresh);
+}
+
+// Ideally we would need to turn off autograd handling and re-dispatch, but we just call
+// cuda kernels directly
 class MSIFunction : public torch::autograd::Function<MSIFunction> {
  public:
   static torch::Tensor forward(
@@ -36,8 +53,8 @@ class MSIFunction : public torch::autograd::Function<MSIFunction> {
 
     ctx->saved_data["data"] =
         std::make_tuple(requires_grad, sub_step_count, min_inv_r, max_inv_r, stop_thresh);
-    torch::Tensor rgba_img = msi_bkg_forward_cuda(
-        ray_o, ray_d, texture, sub_step_count, min_inv_r, max_inv_r, stop_thresh);
+    torch::Tensor rgba_img =
+        msi_forward_cuda(ray_o, ray_d, texture, sub_step_count, min_inv_r, max_inv_r, stop_thresh);
 
     save_list.push_back(rgba_img);
     ctx->save_for_backward(save_list);
@@ -64,14 +81,14 @@ class MSIFunction : public torch::autograd::Function<MSIFunction> {
     }
 
     const auto saved = ctx->get_saved_variables();
-    auto ray_o = saved[0];
-    auto ray_d = saved[1];
-    auto texture = saved[2];
-    auto rgba_img = saved[3];
+    const auto& ray_o = saved[0];
+    const auto& ray_d = saved[1];
+    const auto& texture = saved[2];
+    const auto& rgba_img = saved[3];
 
     auto rgba_img_grad = grad_outputs[0];
 
-    auto texture_grad = msi_bkg_backward_cuda(
+    auto texture_grad = msi_backward_cuda(
         rgba_img,
         rgba_img_grad,
         ray_o,
@@ -100,7 +117,7 @@ class MSIFunction : public torch::autograd::Function<MSIFunction> {
   }
 };
 
-torch::Tensor msi_bkg_autograd(
+torch::Tensor msi_autograd(
     const torch::Tensor& ray_o,
     const torch::Tensor& ray_d,
     const torch::Tensor& texture,
@@ -112,21 +129,44 @@ torch::Tensor msi_bkg_autograd(
       ray_o, ray_d, texture, sub_step_count, min_inv_r, max_inv_r, stop_thresh);
 }
 
+torch::Tensor msi_autocast(
+    const torch::Tensor& ray_o,
+    const torch::Tensor& ray_d,
+    const torch::Tensor& texture,
+    int64_t sub_step_count,
+    double min_inv_r,
+    double max_inv_r,
+    double stop_thresh) {
+  c10::impl::ExcludeDispatchKeyGuard no_autocast(c10::DispatchKey::Autocast);
+  return msi(
+      at::autocast::cached_cast(torch::kFloat32, ray_o),
+      at::autocast::cached_cast(torch::kFloat32, ray_d),
+      at::autocast::cached_cast(torch::kFloat32, texture),
+      sub_step_count,
+      min_inv_r,
+      max_inv_r,
+      stop_thresh);
+}
+
 #ifndef NO_PYBIND
 PYBIND11_MODULE(msi_ext, m) {}
 #endif
 
 TORCH_LIBRARY(msi_ext, m) {
   m.def(
-      "msi_bkg(Tensor ray_o, Tensor ray_d, Tensor texture, "
+      "msi(Tensor ray_o, Tensor ray_d, Tensor texture, "
       "int sub_step_count, float min_inv_r, float max_inv_r, float stop_thresh) -> "
       "Tensor");
 }
 
 TORCH_LIBRARY_IMPL(msi_ext, Autograd, m) {
-  m.impl("msi_bkg", &msi_bkg_autograd);
+  m.impl("msi", &msi_autograd);
+}
+
+TORCH_LIBRARY_IMPL(msi_ext, Autocast, m) {
+  m.impl("msi", msi_autocast);
 }
 
 TORCH_LIBRARY_IMPL(msi_ext, CUDA, m) {
-  m.impl("msi_bkg", &msi_bkg_forward_cuda);
+  m.impl("msi", &msi_forward_cuda);
 }

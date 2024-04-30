@@ -1,6 +1,5 @@
-#include <cuda_math_helper.h>
-
 #include <c10/cuda/CUDAGuard.h>
+#include <cuda_math_helper.h>
 #include <torch/types.h>
 
 #include <grid_utils.h>

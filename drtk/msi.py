@@ -41,6 +41,6 @@ def msi(
         output (Tensor): Result of the sampled MSI. First three channels are the color channels, and the 4th
         one is sigma (transmittance). [N x 4]
     """
-    return th.ops.msi_ext.msi_bkg(
+    return th.ops.msi_ext.msi(
         ray_o, ray_d, texture, sub_step_count, min_inv_r, max_inv_r, stop_thresh
     )
