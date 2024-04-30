@@ -2,7 +2,7 @@ from typing import Dict, Optional, Sequence, Tuple
 
 import torch as th
 import torch.nn.functional as thf
-
+from drtk.interpolate import interpolate
 from drtk.rasterize import rasterize
 from drtk.render import render as _render
 from drtk.renderlayer.projection import project_points
@@ -114,9 +114,18 @@ def render(
         align_corners = False
 
     index_img = rasterize(v, vi, height=size[0], width=size[1])
+    depth_img, bary_img = _render(v, vi, index_img)
 
-    _render_outs = _render(v.contiguous(), vt.contiguous(), vi, vti, index_img)
-    depth_img, bary_img, vt_img = _render_outs[:3]
+    # In contrast to renderlayer API, the new modular API assumes that vt bas the batch dim.
+    # Since the new kernels allow non-contiguous tensors, expanding the batch dim is free.
+    # In order to work with both, vt with batch dim a nd without we need to expand it here
+    # if it doesn't have a batch dim.
+    if vt.ndim == 2:
+        vt = vt[None].expand(v.shape[0], -1, -1)
+
+    # The older render kernel scaled vt from 0..1 to -1..1 implicitly. Since we use a generic
+    # `interpolate` function, we need to do scaling explicitly.
+    vt_img = interpolate(2 * vt - 1.0, vti, index_img, bary_img).permute(0, 2, 3, 1)
 
     mask = th.ne(index_img, -1)
 
@@ -124,7 +133,7 @@ def render(
         "depth_img": depth_img,
         "index_img": index_img,
         "vt_img": vt_img,
-        "bary_img": bary_img.permute(0, 3, 1, 2),
+        "bary_img": bary_img,
         "mask": mask,
     }
 

@@ -7,17 +7,14 @@ import torch as th
 import torch.nn as nn
 import torch.nn.functional as thf
 
-from drtk.interpolate import interpolate
+from drtk.interpolate import interpolate, interpolate_ref
 
 from drtk.rasterize import rasterize
-from drtk.render import render as _render
+from drtk.render import render, render_ref
 from torch import Tensor
-from torch.nn.modules.module import Module
 
-from . import settings
 from .geomutils import vert_binormals
 from .projection import project_points
-from .render_python import PythonRenderer
 from .uv_grad import compute_uv_grad
 
 
@@ -48,7 +45,6 @@ class Mesh:
 RENDERLAYER_OUTPUTS = {
     "render",
     "mask",
-    "alpha",
     "vt_img",
     "bary_img",
     "vn_img",
@@ -75,8 +71,7 @@ class RenderLayer(nn.Module):
         flip_uvs: bool = True,
         grid_sample_params: Optional[Dict[str, Any]] = None,
         backface_culling: bool = False,
-        use_vulkan: Optional[bool] = None,
-        use_python_renderer: Optional[bool] = None,
+        use_python_renderer: bool = False,
     ) -> None:
         """Create a RenderLayer that produces w x h images."""
         super(RenderLayer, self).__init__()
@@ -85,18 +80,7 @@ class RenderLayer(nn.Module):
         self.w = w
         self.flip_uvs = flip_uvs
 
-        # pyre-fixme[4]: Attribute must be annotated.
-        self.use_vulkan = use_vulkan if use_vulkan is not None else settings.use_vulkan
-        # pyre-fixme[4]: Attribute must be annotated.
-        self.use_python_renderer = (
-            use_python_renderer
-            if use_python_renderer is not None
-            else settings.use_python_renderer
-        )
-
-        if self.use_python_renderer:
-            # pyre-fixme[4]: Attribute must be annotated.
-            self.pyrender = PythonRenderer(h, w)
+        self.use_python_renderer = use_python_renderer
 
         # pyre-fixme[4]: Attribute must be annotated.
         self.grid_sample_params = grid_sample_params or {
@@ -125,45 +109,45 @@ class RenderLayer(nn.Module):
         if flip_uvs:
             self.vt[:, 1] = 1 - self.vt[:, 1]
 
-    # pyre-fixme[2]: Parameter must be annotated.
-    def to(self, *args, **kwargs) -> Module:
-        device = th._C._nn._parse_to(*args, **kwargs)[0]
-        if device.type != "cuda":
-            raise ValueError(f"Device {device} is not a CUDA device.")
-        idx = device.index
-        if self.use_vulkan:
-            self.vrc.to(idx if idx is not None else th.cuda.current_device())
-        return super().to(*args, **kwargs)
-
     def resize(self, h: int, w: int) -> None:
         self.h = h
         self.w = w
 
+    # TODO: use_python_renderer added temporarly, after tests are updated it can be removed
     # pyre-fixme[2]: Parameter must be annotated.
-    def interp_vert_attrs(self, v_pix, mesh, index_img, vn=None) -> Dict[str, Any]:
+    def interp_vert_attrs(
+        self, v_pix, mesh, index_img, vn=None, use_python_renderer: bool = False
+    ) -> Dict[str, Any]:
         assert index_img.dtype == th.int
         vt = mesh.vt
         vi = mesh.vi
         vti = mesh.vti
 
-        if self.use_python_renderer:
-            depth_img, bary_img, vt_img, vn_img = self.pyrender(
-                v_pix, vt, vi, vti, index_img, vn
-            )
-        else:
-            _render_outs = _render(v_pix, vt, vi, vti, index_img, vn)
-            depth_img, bary_img, vt_img = _render_outs[:3]
-            if vn is not None:
-                vn_img = _render_outs[3]
+        # TODO: After tests are updated, we can remove this
+        interpolate_func = interpolate_ref if use_python_renderer else interpolate
+        render_func = render_ref if use_python_renderer else render
+
+        depth_img, bary_img = render_func(v_pix, vi, index_img)
+
+        assert vt.ndim == 2
+        # In contrast to renderlayer API, the new modular API assumes that vt bas the batch dim.
+        # Since the new kernels allow non-contiguous tensors, expanding the batch dim is free.
+        # However, the existing renderlayer API assumes that vt does not have batch dim, so
+        # we need to expand it here.
+        vt = vt[None].expand(v_pix.shape[0], -1, -1)
+
+        # The older render kernel scaled vt from 0..1 to -1..1 implicitly. Since we use a generic
+        # `interpolate` function, we need to do scaling explicitly.
+        vt_img = interpolate_func(2 * vt - 1.0, vti, index_img, bary_img)
 
         out = {
             "depth_img": depth_img,
-            "vt_img": vt_img,
-            "bary_img": bary_img.permute(0, 3, 1, 2),
+            "vt_img": vt_img.permute(0, 2, 3, 1),
+            "bary_img": bary_img,
         }
         if vn is not None:
-            # pyre-fixme[61]: `vn_img` is undefined, or not always defined.
-            out["vn_img"] = vn_img
+            vn_img = interpolate_func(vn, vi, index_img, bary_img)
+            out["vn_img"] = vn_img.permute(0, 2, 3, 1)
         return out
 
     # TODO: Should we finally move to having people pass in a "camera
@@ -305,6 +289,9 @@ class RenderLayer(nn.Module):
         if output_filters is None:
             output_filters = ["render"]
 
+        # TODO: After tests are updated, we can remove this
+        interpolate_func = interpolate_ref if self.use_python_renderer else interpolate
+
         vt = vt if vt is not None else self.vt
         vi = vi if vi is not None else self.vi
         vti = vti if vti is not None else self.vti
@@ -370,7 +357,9 @@ class RenderLayer(nn.Module):
 
             mask = th.ne(index_img, -1)
 
-        render_out = self.interp_vert_attrs(v_pix, mesh, index_img, vn)
+        render_out = self.interp_vert_attrs(
+            v_pix, mesh, index_img, vn, self.use_python_renderer
+        )
         render_out["mask"] = mask
 
         if "render" in output_filters:
@@ -390,17 +379,23 @@ class RenderLayer(nn.Module):
         bary_img = render_out["bary_img"]
 
         if "v_pix_img" in output_filters:
-            render_out["v_pix_img"] = interpolate(v_pix, mesh.vi, index_img, bary_img)
+            render_out["v_pix_img"] = interpolate_func(
+                v_pix, mesh.vi, index_img, bary_img
+            )
 
         if "v_cam_img" in output_filters:
-            render_out["v_cam_img"] = interpolate(v_cam, mesh.vi, index_img, bary_img)
+            render_out["v_cam_img"] = interpolate_func(
+                v_cam, mesh.vi, index_img, bary_img
+            )
 
         if "v_img" in output_filters:
-            render_out["v_img"] = interpolate(v, mesh.vi, index_img, bary_img)
+            render_out["v_img"] = interpolate_func(v, mesh.vi, index_img, bary_img)
 
         if "vbn_img" in output_filters:
             vbnorms = vert_binormals(v, vt, vi.long(), vti.long())
-            render_out["vbn_img"] = interpolate(vbnorms, mesh.vi, index_img, bary_img)
+            render_out["vbn_img"] = interpolate_func(
+                vbnorms, mesh.vi, index_img, bary_img
+            )
 
         if "vt_dxdy_img" in output_filters:
             render_out["vt_dxdy_img"] = compute_uv_grad(

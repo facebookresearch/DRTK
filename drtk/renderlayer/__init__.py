@@ -1,12 +1,6 @@
 # (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
 
 
-class settings:
-    use_python_renderer = False
-    use_vulkan = False
-    use_precise_uv_grads = False
-
-
 from .projection import DISTORTION_MODES, project_points  # noqa
 from .renderlayer import RenderLayer  # noqa
 

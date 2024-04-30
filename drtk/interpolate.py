@@ -40,6 +40,11 @@ def interpolate_ref(
     """
     A reference implementation for `interpolate`. See the doc string from `interpolate`
     """
+
+    # Run reference implementation in double precision to get as good reference as possible
+    orig_dtype = vert_attributes.dtype
+    vert_attributes = vert_attributes.double()
+    bary_img = bary_img.double()
     b = vert_attributes.shape[0]
     iimg_clamped = index_img.clamp(min=0).long()
     vi_img = vi[iimg_clamped].long()
@@ -55,4 +60,41 @@ def interpolate_ref(
         .contiguous()
     )
     v_img = (v_img * bary_img[..., None]).sum(dim=1)
-    return v_img.permute(0, 3, 1, 2)
+
+    # Do the sweep of value in the range -1..1 for the `index_img == -1` region, like
+    # in is done in the CUDA kernel.
+    undefined_region = th.stack(
+        [
+            (
+                th.arange(0, index_img.shape[-1], device=vert_attributes.device)[
+                    None, ...
+                ]
+                .repeat(index_img.shape[-2], 1)
+                .double()
+                * 2.0
+                + 1.0
+            )
+            / index_img.shape[-1]
+            - 1.0,
+            (
+                th.arange(0, index_img.shape[-2], device=vert_attributes.device)[
+                    ..., None
+                ]
+                .repeat(1, index_img.shape[-1])
+                .double()
+                * 2.0
+                + 1.0
+            )
+            / index_img.shape[-2]
+            - 1.0,
+        ],
+        dim=2,
+    )
+    undefined_region = th.tile(
+        undefined_region[None], dims=[1, 1, 1, (vert_attributes.shape[-1] + 1) // 2]
+    )[:, :, :, : vert_attributes.shape[-1]]
+    v_img[index_img == -1] = undefined_region.expand(index_img.shape[0], -1, -1, -1)[
+        index_img == -1, :
+    ]
+
+    return v_img.permute(0, 3, 1, 2).to(orig_dtype)

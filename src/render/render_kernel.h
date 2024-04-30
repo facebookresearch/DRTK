@@ -1,39 +1,11 @@
 #pragma once
-#include <cstdint>
-#include "cuda_runtime.h"
 
-void render_forward_cuda(
-    int N,
-    int H,
-    int W,
-    int V,
-    float* v2d,
-    float* vt,
-    float* vn,
-    int32_t* vi,
-    int32_t* vti,
-    int32_t* indeximg,
-    float* depthimg,
-    float* baryimg,
-    float* uvimg,
-    float* vnimg,
-    cudaStream_t stream);
+std::vector<torch::Tensor>
+render_cuda(const torch::Tensor& v, const torch::Tensor& vi, const torch::Tensor& index_img);
 
-void render_backward_cuda(
-    int N,
-    int H,
-    int W,
-    int V,
-    float* v2d,
-    float* vt,
-    float* vn,
-    int32_t* vi,
-    int32_t* vti,
-    int32_t* indeximg,
-    float* grad_depthimg,
-    float* grad_baryimg,
-    float* grad_uvimg,
-    float* grad_vnimg,
-    float* grad_v2d,
-    float* grad_vn,
-    cudaStream_t stream);
+torch::Tensor render_cuda_backward(
+    const torch::Tensor& v,
+    const torch::Tensor& vi,
+    const torch::Tensor& index_img,
+    const torch::Tensor& grad_depth_img,
+    const torch::Tensor& grad_bary_img);
