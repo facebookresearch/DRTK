@@ -10,3 +10,5 @@ from .mipmap_grid_sample import mipmap_grid_sample  # noqa
 from .msi import msi  # noqa
 from .rasterize import rasterize  # noqa
 from .render import render  # noqa
+
+__version__ = "0.1.0"  # noqa
