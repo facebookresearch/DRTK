@@ -31,3 +31,9 @@ If rpack isn't available, the multi-mesh renderlayer will not be available.
 ```
 python setup.py build_ext --inplace
 ```
+
+
+See the [CONTRIBUTING](CONTRIBUTING.md) file for how to help out.
+
+## License
+DRTK is MIT licensed, as found in the LICENSE file.
