@@ -57,7 +57,7 @@ class InterpolateFunction : public torch::autograd::Function<InterpolateFunction
     bool vert_requires_grad = vert_attributes.requires_grad();
 
     torch::autograd::tensor_list out;
-    if (!bary_img_requires_grad && !vert_requires_grad) {
+    if ((!bary_img_requires_grad && !vert_requires_grad) || !grad_outputs[0].defined()) {
       out.resize(4);
       return out;
     }
