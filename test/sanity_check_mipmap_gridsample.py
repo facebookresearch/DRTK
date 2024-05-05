@@ -351,7 +351,7 @@ def compose_horizontal(img_list, text_list):
     return np.concatenate(
         [
             add_text(convert_image(im), 10, im.shape[-1] - 20, text)
-            for im, text in zip(img_list, text_list)
+            for im, text in zip(img_list, text_list, strict=True)
         ],
         axis=1,
     )

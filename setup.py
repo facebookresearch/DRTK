@@ -151,7 +151,7 @@ def main(debug: bool) -> None:
             ),
         ],
         cmdclass={"build_ext": BuildExtension},
-        packages=["drtk"],
+        packages=["drtk", "drtk.utils"],
     )
 
 
