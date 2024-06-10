@@ -24,8 +24,8 @@ where:
 - **CUSTOM SHADING**: user implemented shading.
 - **edge_grad**: special module that computes gradients for the **rasterize** step which is not differentiable on its own. For details please see [**Rasterized Edge Gradients: Handling Discontinuities Differentiably**](https://arxiv.org/abs/2405.02508)
 
-## Hellow Triangle
-The "Hellow Triangle" with DRTK would look like this:
+## Hello Triangle
+The "Hello Triangle" with DRTK would look like this:
 ```python
 import drtk
 import torch as th
@@ -50,7 +50,7 @@ img = bary * (index_img != -1)
 save_image(img, "render.png")
 ```
 
-![hellow triangle](doc/hellow_triangle.png)
+![hello triangle](doc/hellow_triangle.png)
 
 ## Dependencies
 * PyTorch >= 2.1.0
