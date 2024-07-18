@@ -13,6 +13,7 @@ from drtk import mipmap_grid_sampler_ext
 th.ops.load_library(mipmap_grid_sampler_ext.__file__)
 
 
+@th.compiler.disable
 def mipmap_grid_sample(
     input: List[th.Tensor],
     grid: th.Tensor,

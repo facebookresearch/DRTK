@@ -10,6 +10,7 @@ from drtk import interpolate_ext
 th.ops.load_library(interpolate_ext.__file__)
 
 
+@th.compiler.disable
 def interpolate(
     vert_attributes: th.Tensor,
     vi: th.Tensor,

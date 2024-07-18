@@ -16,6 +16,7 @@ from drtk.utils import index
 th.ops.load_library(edge_grad_ext.__file__)
 
 
+@th.compiler.disable
 def edge_grad_estimator(
     v_pix: th.Tensor,
     vi: th.Tensor,
@@ -126,7 +127,6 @@ def edge_grad_estimator_ref(
 
 class EdgeGradEstimatorFunction(th.autograd.Function):
     @staticmethod
-    @th.cuda.amp.custom_fwd(cast_inputs=th.float32)
     # pyre-fixme[14]: `forward` overrides method defined in `Function` inconsistently.
     def forward(
         ctx,
@@ -140,7 +140,6 @@ class EdgeGradEstimatorFunction(th.autograd.Function):
         return img
 
     @staticmethod
-    @th.cuda.amp.custom_bwd
     # pyre-fixme[14]: `backward` overrides method defined in `Function` inconsistently.
     def backward(ctx, grad_output: th.Tensor) -> Tuple[
         Optional[th.Tensor],

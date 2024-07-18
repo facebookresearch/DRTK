@@ -14,6 +14,7 @@ from drtk import render_ext
 th.ops.load_library(render_ext.__file__)
 
 
+@th.compiler.disable
 def render(
     v: th.Tensor,
     vi: th.Tensor,

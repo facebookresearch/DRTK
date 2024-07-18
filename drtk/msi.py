@@ -10,6 +10,7 @@ from drtk import msi_ext
 th.ops.load_library(msi_ext.__file__)
 
 
+@th.compiler.disable
 def msi(
     ray_o: th.Tensor,
     ray_d: th.Tensor,

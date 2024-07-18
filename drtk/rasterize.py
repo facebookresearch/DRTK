@@ -13,6 +13,7 @@ from drtk import rasterize_ext
 th.ops.load_library(rasterize_ext.__file__)
 
 
+@th.compiler.disable
 def rasterize(
     v: th.Tensor,
     vi: th.Tensor,
@@ -59,6 +60,7 @@ def rasterize(
     return index_img
 
 
+@th.compiler.disable
 def rasterize_with_depth(
     v: th.Tensor,
     vi: th.Tensor,
