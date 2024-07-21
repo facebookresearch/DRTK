@@ -9,7 +9,11 @@ from typing import Optional, Sequence, Set, Tuple, Union
 import numpy as np
 import torch as th
 
-DISTORTION_MODES: Set[Optional[str]] = {None, "radial-tangential", "fisheye"}
+DISTORTION_MODES: Set[Optional[str]] = {
+    None,
+    "radial-tangential",
+    "fisheye",
+}
 
 
 def project_pinhole(
@@ -163,7 +167,7 @@ def project_fisheye_distort_62(
     v_cam:      N x V x 3
     focal:      N x 2 x 2
     princpt:    N x 2
-    D:          N x 4
+    D:          N x 8
     fov:        N x 1
     """
 
@@ -171,6 +175,11 @@ def project_fisheye_distort_62(
     # a more readible version: https://euratom-software.github.io/calcam/html/intro_theory.html
     if fov is None:
         with th.no_grad():
+            # TODO: bug.
+            # Fisheye62 uses 8 parameters, and the first 4 can be used
+            # by the same FOV estimation equation as fisheye distortion.
+            # However, the code takes the coeffs at indices -4, -3, -2,
+            # -1: which take the last 4 values, instead of the first 4.
             fov = estimate_fisheye_fov(D)
 
     z = v_cam[:, :, 2:3]
