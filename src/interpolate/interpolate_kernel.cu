@@ -234,11 +234,16 @@ __global__ void interpolate_backward_kernel(
                 vert_2_grad_ptr, i * vert_attributes_grad_sC, memory_span, grad_v_2, true);
         }
       }
-
-      if (thread_is_used && bary_img_requires_grad) {
-        bary_grad_ptr[0 * bary_img_grad_sB] = bary_0_grad;
-        bary_grad_ptr[1 * bary_img_grad_sB] = bary_1_grad;
-        bary_grad_ptr[2 * bary_img_grad_sB] = bary_2_grad;
+      if (bary_img_requires_grad) {
+        if (thread_is_used) {
+          bary_grad_ptr[0 * bary_img_grad_sB] = bary_0_grad;
+          bary_grad_ptr[1 * bary_img_grad_sB] = bary_1_grad;
+          bary_grad_ptr[2 * bary_img_grad_sB] = bary_2_grad;
+        } else {
+          bary_grad_ptr[0 * bary_img_grad_sB] = scalar_t(0.);
+          bary_grad_ptr[1 * bary_img_grad_sB] = scalar_t(0.);
+          bary_grad_ptr[2 * bary_img_grad_sB] = scalar_t(0.);
+        }
       }
     } else if ((index < nthreads) && bary_img_requires_grad) {
       bary_grad_ptr[0 * bary_img_grad_sB] = scalar_t(0.);
