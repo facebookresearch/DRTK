@@ -151,6 +151,15 @@ def main(debug: bool) -> None:
                 extra_compile_args={"cxx": cxx_args[target_os], "nvcc": nvcc_args},
                 include_dirs=include_dir,
             ),
+            CUDAExtension(
+                "drtk.grid_scatter_ext",
+                sources=[
+                    "src/grid_scatter/grid_scatter_module.cpp",
+                    "src/grid_scatter/grid_scatter_kernel.cu",
+                ],
+                extra_compile_args={"cxx": cxx_args[target_os], "nvcc": nvcc_args},
+                include_dirs=include_dir,
+            ),
         ],
         cmdclass={"build_ext": BuildExtension},
         packages=["drtk", "drtk.utils"],

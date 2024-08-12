@@ -6,6 +6,7 @@
 
 from . import utils  # noqa  # noqa
 from .edge_grad_estimator import edge_grad_estimator, edge_grad_estimator_ref  # noqa
+from .grid_scatter import grid_scatter, grid_scatter_ref  # noqa
 from .interpolate import interpolate, interpolate_ref  # noqa
 from .mipmap_grid_sample import mipmap_grid_sample, mipmap_grid_sample_ref  # noqa
 from .msi import msi  # noqa
