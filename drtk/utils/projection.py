@@ -11,6 +11,7 @@ import torch as th
 
 DISTORTION_MODES: Set[Optional[str]] = {
     None,
+    "pinhole",
     "radial-tangential",
     "fisheye",
 }
@@ -359,7 +360,7 @@ def project_points(
         elif len(modes) == 1:
             distortion_mode = modes[0]
 
-    if distortion_mode is None:
+    if distortion_mode is None or distortion_mode == "pinhole":
         v_pix = project_pinhole(v_cam, focal, princpt)
     elif isinstance(distortion_mode, str):
         assert distortion_coeff is not None
@@ -391,9 +392,10 @@ def project_points(
                 f"Invalid distortion mode: {distortion_mode}. Valid options: {DISTORTION_MODES}."
             )
         v_pix = th.empty_like(v_cam[..., :2])
-        if None in modes:
+        if None in modes or "pinhole" in modes:
             idx = th.tensor(
-                [mode is None for mode in distortion_mode], device=v_pix.device
+                [mode is None or mode == "pinhole" for mode in distortion_mode],
+                device=v_pix.device,
             )
             v_pix[idx] = project_pinhole(v_cam[idx], focal[idx], princpt[idx])
         if "radial-tangential" in modes:
