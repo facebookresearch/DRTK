@@ -162,7 +162,8 @@ def project_fisheye_distort_62(
     fov: Optional[th.Tensor] = None,
 ) -> th.Tensor:
     """Project camera-space points to distort pixel-space points using the
-    OculusVisionFishEye62 distortion model.
+    Fisheye62 distortion model. See the perception camera model implementation
+    where this was copied from here: https://fburl.com/code/oqpu8xdm
 
     v_cam:      N x V x 3
     focal:      N x 2 x 2
@@ -170,45 +171,60 @@ def project_fisheye_distort_62(
     D:          N x 8
     fov:        N x 1
     """
+    assert (
+        D.shape[1] == 8
+    ), f"Fisheye62 model requires 8 distortion parameters: {D.shape}"
 
-    # See https://www.internalfb.com/code/fbsource/[188bdaeaad64]/arvr/projects/nimble/prod/pynimble/visualization/shaders.py?lines=103-123
-    # a more readible version: https://euratom-software.github.io/calcam/html/intro_theory.html
     if fov is None:
         with th.no_grad():
-            # TODO: bug.
-            # Fisheye62 uses 8 parameters, and the first 4 can be used
-            # by the same FOV estimation equation as fisheye distortion.
-            # However, the code takes the coeffs at indices -4, -3, -2,
-            # -1: which take the last 4 values, instead of the first 4.
             fov = estimate_fisheye_fov(D)
 
     z = v_cam[:, :, 2:3]
     z = th.where(z < 0, z.clamp(max=-1e-8), z.clamp(min=1e-8))
 
     v_proj = v_cam[:, :, :2] / z
-    r = v_proj.pow(2).sum(-1).sqrt()  # rp
+    r = v_proj.pow(2).sum(-1).sqrt()
     r = r.clamp(max=fov, min=1e-8 * th.ones_like(fov))
     theta = th.atan(r)
-    theta_d = theta * (
-        1
-        + D[:, 0:1] * theta.pow(2)
-        + D[:, 1:2] * theta.pow(4)
-        + D[:, 2:3] * theta.pow(6)
-        + D[:, 3:4] * theta.pow(8)
-        + D[:, 4:5] * theta.pow(10)
-        + D[:, 5:6] * theta.pow(12)
+    theta2 = theta * theta
+
+    k0 = D[:, 0].unsqueeze(1)
+    k1 = D[:, 1].unsqueeze(1)
+    k2 = D[:, 2].unsqueeze(1)
+    k3 = D[:, 3].unsqueeze(1)
+    k4 = D[:, 4].unsqueeze(1)
+    k5 = D[:, 5].unsqueeze(1)
+    p0 = D[:, 6].unsqueeze(1)
+    p1 = D[:, 7].unsqueeze(1)
+
+    theta3 = theta2 * theta
+    theta5 = theta2 * theta3
+    theta7 = theta2 * theta5
+    theta9 = theta2 * theta7
+    theta11 = theta2 * theta9
+    theta13 = theta2 * theta11
+
+    thetad = (
+        theta
+        + k0 * theta3
+        + k1 * theta5
+        + k2 * theta7
+        + k3 * theta9
+        + k4 * theta11
+        + k5 * theta13
     )
+
     r = th.where(r < 0, r.clamp(max=-1e-8), r.clamp(min=1e-8))
-    v_proj_dist = v_proj * (theta_d / r)[..., None]
+    v_proj_dist = v_proj * (thetad / r)[..., None]
 
-    # Tangential Distortion
-    x = v_proj_dist[:, :, 0]
-    y = v_proj_dist[:, :, 1]
+    x_r = v_proj_dist[:, :, 0]
+    y_r = v_proj_dist[:, :, 1]
 
-    xtan = D[:, 6:7] * (r.pow(2) + 2 * x.pow(2)) + 2 * D[:, 7:8] * x * y
-    ytan = 2 * D[:, 6:7] * x * y + D[:, 7:8] * (r.pow(2) + 2 * y.pow(2))
+    rRadial2 = x_r * x_r + y_r * y_r
+    x_t = (2 * x_r * x_r + rRadial2) * p0 + (2 * x_r * y_r) * p1
+    y_t = (2 * x_r * y_r) * p0 + (2 * y_r * y_r + rRadial2) * p1
 
-    pTangential = th.cat([xtan[..., None], ytan[..., None]], dim=-1)
+    pTangential = th.cat([x_t[..., None], y_t[..., None]], dim=-1)
 
     v_proj_dist = v_proj_dist + pTangential
 
@@ -275,13 +291,13 @@ def estimate_fisheye_fov(D: Union[np.ndarray, th.Tensor]) -> th.Tensor:
     zeros = np.zeros_like(coefs[:, 0])
     coefs = np.stack(
         [
-            9 * coefs[:, -1],
+            9 * coefs[:, 3],
             zeros,
-            7 * coefs[:, -2],
+            7 * coefs[:, 2],
             zeros,
-            5 * coefs[:, -3],
+            5 * coefs[:, 1],
             zeros,
-            3 * coefs[:, -4],
+            3 * coefs[:, 0],
             zeros,
             ones,
         ],
