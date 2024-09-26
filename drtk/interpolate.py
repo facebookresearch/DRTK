@@ -3,6 +3,11 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+"""
+``drtk.interpolate`` module provides functions for differentiable interpolation of vertex
+attributes across the fragments, e.i. pixels covered by the primitive.
+"""
+
 import torch as th
 from drtk import interpolate_ext
 
@@ -18,6 +23,7 @@ def interpolate(
 ) -> th.Tensor:
     """
     Performs a linear interpolation of the vertex attributes given the barycentric coordinates
+
     Args:
         vert_attributes (th.Tensor):  vertex attribute tensor
             N x V x C
@@ -27,12 +33,14 @@ def interpolate(
             N x H x W
         bary_img (th.Tensor): 3D barycentric coordinate image tensor
             N x 3 x H x W
+
     Returns:
         A tensor with interpolated vertex attributes with a shape [N, C, H, W]
-    Note:
-        1. The default of `channels_last` is set to true to make this function backward compatible.
-        Please consider using the argument `channels_last` instead of permuting the result afterward.
-        2. By default, the output is not contiguous. Make sure you cal .contiguous() if that is a requirement.
+
+    .. warning::
+        The returned tensor has only valid values for pixels which have a valid index in ``index_img``.
+        For all other pixels, which had index ``-1`` in ``index_img``, the returned tensor will have non-zero
+        values which should be ignored.
     """
     return th.ops.interpolate_ext.interpolate(vert_attributes, vi, index_img, bary_img)
 
@@ -44,7 +52,8 @@ def interpolate_ref(
     bary_img: th.Tensor,
 ) -> th.Tensor:
     """
-    A reference implementation for `interpolate`. See the doc string from `interpolate`
+    A reference implementation of :func:`drtk.interpolate` in pure PyTorch.
+    This function is used for tests only, please see :func:`drtk.interpolate` for documentation.
     """
 
     # Run reference implementation in double precision to get as good reference as possible

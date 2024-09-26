@@ -24,65 +24,97 @@ def edge_grad_estimator(
     index_img: th.Tensor,
     v_pix_img_hook: Optional[Callable[[th.Tensor], None]] = None,
 ) -> th.Tensor:
-    """
+    """Makes the rasterized image ``img`` differentiable at visibility discontinuities
+    and backpropagates the gradients to ``v_pix``.
+
+    This function takes a rasterized image ``img`` that is assumed to be differentiable at
+    continuous regions but not at discontinuities. In some cases, ``img`` may not be differentiable
+    at all. For example, if the image is a rendered segmentation mask, it remains constant at
+    continuous regions, making it non-differentiable. However, ``edge_grad_estimator`` can still
+    compute gradients at the discontinuities with respect to ``v_pix``.
+
+    The arguments ``bary_img`` and ``index_img`` must correspond exactly to the rasterized image
+    ``img``. Each pixel in ``img`` should correspond to a fragment originated prom primitive
+    specified by ``index_img`` and it should have barycentric coordinates specified by
+    ``bary_img``. This means that with a small change to ``v_pix``, the pixels in ``img`` should
+    change accordingly. A frequent mistake that violates this condition is applying a mask
+    to the rendered image to exclude unwanted regions, which leads to erroneous gradients.
+
+    The function returns the ``img`` unchanged but with added differentiability at the
+    discontinuities. Note that it is not necessary for the input ``img`` to require gradients,
+    but the returned ``img`` will always require gradients.
+
     Args:
-        v_pix: Pixel-space vertex coordinates with preserved camera-space Z-values.
-            N x V x 3
-
-        vi: face vertex index list tensor
-            V x 3
-
-        bary_img: 3D barycentric coordinate image tensor
-            N x 3 x H x W
-
-        img: The rendered image
-            N x C x H x W
-
-        index_img: index image tensor
-            N x H x W
-
-        v_pix_img_hook: a backward hook that will be registered to v_pix_img. Useful for examining
-            generated image space. Default None
+        v_pix (Tensor): Pixel-space vertex coordinates, preserving the original camera-space
+            Z-values. Shape: :math:`(N, V, 3)`.
+        vi (Tensor): Face vertex index list tensor. Shape: :math:`(V, 3)`.
+        bary_img (Tensor): 3D barycentric coordinate image tensor. Shape: :math:`(N, 3, H, W)`.
+        img (Tensor): The rendered image. Shape: :math:`(N, C, H, W)`.
+        index_img (Tensor): Index image tensor. Shape: :math:`(N, H, W)`.
+        v_pix_img_hook (Optional[Callable[[th.Tensor], None]]): An optional backward hook that will
+            be registered to ``v_pix_img``. Useful for examining the generated image space. Default
+            is None.
 
     Returns:
-        returns the img argument unchanged. Optionally also returns computed
-        v_pix_img. Your loss should use the returned img, even though it is
-        unchanged.
+        Tensor: Returns the input ``img`` unchanged. However, the returned image now has added
+        differentiability at visibility discontinuities. This returned image should be used for
+        computing losses
 
     Note:
-        It is important to not spatially modify the rasterized image before passing it to edge_grad_estimator.
-        Any operation as long as it is differentiable is ok after the edge_grad_estimator.
+        It is crucial not to spatially modify the rasterized image before passing it to
+        `edge_grad_estimator`. That stems from the requirement that ``bary_img`` and ``index_img``
+        must correspond exactly to the rasterized image ``img``. That means that the location of all
+        discontinuities is controlled by ``v_pix`` and can be modified by modifing ``v_pix``.
 
-        Examples of opeartions that can be done before edge_grad_estimator:
+        Operations that are allowed, as long as they are differentiable, include:
             - Pixel-wise MLP
             - Color mapping
             - Color correction, gamma correction
-        If the operation is significantly non-linear, then it is recommended to do it before
-        edge_grad_estimator. All sorts of clipping and clamping (e.g. `x.clamp(min=0.0, max=1.0)`), must be
-        done before edge_grad_estimator.
+            - Anything that would be indistinguishable from processing fragments independently
+              before their values get assigned to pixels of ``img``
 
-        Examples of operations that are not allowed before edge_grad_estimator:
+        Operations that **must be avoided** before `edge_grad_estimator` include:
             - Gaussian blur
-            - Warping, deformation
-            - Masking, cropping, making holes.
+            - Warping or deformation
+            - Masking, cropping, or introducing holes
 
-    Usage::
+        There is however, no issue with appling them after `edge_grad_estimator`.
 
-        from drtk.renderlayer import edge_grad_estimator
+        If the operation is highly non-linear, it is recommended to perform it before calling
+        :func:`edge_grad_estimator`.
+        All sorts of clipping and clamping (e.g., `x.clamp(min=0.0, max=1.0)`) must also be done
+        before invoking this function.
+
+    Usage Example::
+
+        import torch.nn.functional as thf
+        from drtk import transform, rasterize, render, interpolate, edge_grad_estimator
 
         ...
 
-        out = renderlayer(v, tex, campos, camrot, focal, princpt,
-                 output_filters=["index_img", "render", "mask", "bary_img", "v_pix"])
+        v_pix = transform(v, tex, campos, camrot, focal, princpt)
+        index_img = rasterize(v_pix, vi, width=512, height=512)
+        _, bary_img = render(v_pix, vi, index_img)
+        vt_img = interpolate(vt, vti, index_img, bary_img)
 
-        img = out["render"] * out["mask"]
+        img = thf.grid_sample(
+            tex,
+            vt_img.permute(0, 2, 3, 1),
+            mode="bilinear",
+            padding_mode="border",
+            align_corners=False
+        )
+
+        mask = (index_img != -1)[:, None, :, :]
+
+        img = img * mask
 
         img = edge_grad_estimator(
-            v_pix=out["v_pix"],
-            vi=rl.vi,
-            bary_img=out["bary_img"],
+            v_pix=v_pix,
+            vi=vi,
+            bary_img=bary_img,
             img=img,
-            index_img=out["index_img"]
+            index_img=index_img
         )
 
         optim.zero_grad()
@@ -91,7 +123,10 @@ def edge_grad_estimator(
         optim.step()
     """
 
-    # Could use v_pix_img output from DRTK, but bary_img needs to be detached.
+    # TODO: avoid call to interpolate, use backward kernel of interpolate directly
+    # Doing so will make `edge_grad_estimator` zero-overhead in forward pass
+    # At the moment, value of `v_pix_img` is ignored, and only passed to
+    # edge_grad_estimator so that backward kernel can be called with the computed gradient.
     v_pix_img = interpolate(v_pix, vi, index_img, bary_img.detach())
 
     img = th.ops.edge_grad_ext.edge_grad_estimator(v_pix, v_pix_img, vi, img, index_img)
@@ -111,7 +146,7 @@ def edge_grad_estimator_ref(
 ) -> th.Tensor:
     """
     Python reference implementation for
-    :func:`drtk.edge_grad_estimator.edge_grad_estimator`.
+    :func:`drtk.edge_grad_estimator`.
     """
 
     # could use v_pix_img output from DRTK, but bary_img needs to be detached.
