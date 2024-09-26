@@ -74,7 +74,7 @@ python setup.py build_ext --inplace -j 1
 See the [CONTRIBUTING](CONTRIBUTING.md) file for how to help out.
 
 ## License
-DRTK is CC-BY-NC 4.0 licensed, as found in the [LICENSE](LICENSE) file.
+DRTK is MIT licensed, as found in the [LICENSE](LICENSE) file.
 
 ## Citation
 ```bibtex
