@@ -3,7 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from typing import Optional, Sequence, Set, Tuple, Union
+from typing import List, Optional, Set, Tuple, Union
 
 import numpy as np
 import torch as th
@@ -321,13 +321,14 @@ def estimate_fisheye_fov(D: Union[np.ndarray, th.Tensor]) -> th.Tensor:
     return fov
 
 
+@th.jit.ignore
 def project_points(
     v: th.Tensor,
     campos: th.Tensor,
     camrot: th.Tensor,
     focal: th.Tensor,
     princpt: th.Tensor,
-    distortion_mode: Optional[Sequence[str]] = None,
+    distortion_mode: Optional[Union[List[str], str]] = None,
     distortion_coeff: Optional[th.Tensor] = None,
     fov: Optional[th.Tensor] = None,
 ) -> Tuple[th.Tensor, th.Tensor]:
@@ -430,13 +431,14 @@ def project_points(
     return v_pix, v_cam
 
 
+@th.jit.ignore
 def project_points_grad(
     v_grad: th.Tensor,
     v: th.Tensor,
     campos: th.Tensor,
     camrot: th.Tensor,
     focal: th.Tensor,
-    distortion_mode: Optional[Sequence[str]] = None,
+    distortion_mode: Optional[Union[List[str], str]] = None,
     distortion_coeff: Optional[th.Tensor] = None,
 ) -> th.Tensor:
     """Computes the gradient of projected (pixel-space) vertex positions with

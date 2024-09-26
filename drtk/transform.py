@@ -3,7 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-from typing import Optional, Sequence, Tuple
+from typing import List, Optional, Tuple, Union
 
 import torch as th
 from drtk.utils import project_points
@@ -17,7 +17,7 @@ def transform(
     princpt: Optional[th.Tensor] = None,
     K: Optional[th.Tensor] = None,
     Rt: Optional[th.Tensor] = None,
-    distortion_mode: Optional[Sequence[str]] = None,
+    distortion_mode: Optional[Union[List[str], str]] = None,
     distortion_coeff: Optional[th.Tensor] = None,
     fov: Optional[th.Tensor] = None,
 ) -> th.Tensor:
@@ -72,7 +72,7 @@ def transform_with_v_cam(
     princpt: Optional[th.Tensor] = None,
     K: Optional[th.Tensor] = None,
     Rt: Optional[th.Tensor] = None,
-    distortion_mode: Optional[Sequence[str]] = None,
+    distortion_mode: Optional[Union[List[str], str]] = None,
     distortion_coeff: Optional[th.Tensor] = None,
     fov: Optional[th.Tensor] = None,
 ) -> Tuple[th.Tensor, th.Tensor]:
