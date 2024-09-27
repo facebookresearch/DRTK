@@ -10,6 +10,7 @@ from drtk.utils.geometry import (  # noqa
     vert_normals,  # noqa
 )
 from drtk.utils.indexing import index  # noqa
+from drtk.utils.load_torch_ops import load_torch_ops  # noqa
 from drtk.utils.projection import (  # noqa
     DISTORTION_MODES,  # noqa
     project_points,  # noqa

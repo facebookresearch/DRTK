@@ -7,12 +7,11 @@ from typing import Callable, Optional, Tuple
 
 import torch as th
 import torch.nn.functional as thf
-from drtk import edge_grad_ext
 from drtk.interpolate import interpolate
-from drtk.utils import index
+from drtk.utils import index, load_torch_ops
 
 
-th.ops.load_library(edge_grad_ext.__file__)
+load_torch_ops("drtk.edge_grad_ext")
 
 
 @th.compiler.disable

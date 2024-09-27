@@ -9,9 +9,9 @@ attributes across the fragments, e.i. pixels covered by the primitive.
 """
 
 import torch as th
-from drtk import interpolate_ext
+from drtk.utils import load_torch_ops
 
-th.ops.load_library(interpolate_ext.__file__)
+load_torch_ops("drtk.interpolate_ext")
 
 
 @th.compiler.disable

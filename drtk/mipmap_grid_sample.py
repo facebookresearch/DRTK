@@ -7,9 +7,9 @@ from typing import List, Optional, Tuple
 
 import torch as th
 import torch.nn.functional as thf
-from drtk import mipmap_grid_sampler_ext
+from drtk.utils import load_torch_ops
 
-th.ops.load_library(mipmap_grid_sampler_ext.__file__)
+load_torch_ops("drtk.mipmap_grid_sampler_ext")
 
 
 @th.compiler.disable

@@ -7,9 +7,9 @@ from typing import Optional
 
 import torch as th
 import torch.nn.functional as thf
-from drtk import grid_scatter_ext
+from drtk.utils import load_torch_ops
 
-th.ops.load_library(grid_scatter_ext.__file__)
+load_torch_ops("drtk.grid_scatter_ext")
 
 
 @th.compiler.disable
