@@ -32,13 +32,18 @@ def main(debug: bool) -> None:
         ),
     }
 
-    nvcc_args = [
-        "-gencode=arch=compute_72,code=sm_72",
-        "-gencode=arch=compute_75,code=sm_75",
-        "-gencode=arch=compute_80,code=sm_80",
-        "-gencode=arch=compute_86,code=sm_86",
-        "-gencode=arch=compute_90,code=sm_90",
-    ] + (["-O0", "-g", "-DDEBUG"] if debug else ["-O3", "--use_fast_math"])
+    nvcc_args = ["-O0", "-g", "-DDEBUG"] if debug else ["-O3", "--use_fast_math"]
+    if not os.getenv("TORCH_CUDA_ARCH_LIST"):
+        # Respect TORCH_CUDA_ARCH_LIST when set, otherwise fall back to a default list of archs
+        nvcc_args.extend(
+            [
+                "-gencode=arch=compute_72,code=sm_72",
+                "-gencode=arch=compute_75,code=sm_75",
+                "-gencode=arch=compute_80,code=sm_80",
+                "-gencode=arch=compute_86,code=sm_86",
+                "-gencode=arch=compute_90,code=sm_90",
+            ]
+        )
 
     # There is som issue effecting latest NVCC and pytorch 2.3.0 https://github.com/pytorch/pytorch/issues/122169
     # The workaround is adding -std=c++20 to NVCC args
@@ -59,13 +64,6 @@ def main(debug: bool) -> None:
     groups = pattern.findall(init_file)
     assert len(groups) == 1
     version = groups[0]
-
-    if get_dist("torch") is None:
-        raise RuntimeError("Setup requires torch package to be installed")
-
-    import torch as th
-
-    assert th.cuda.is_available()
 
     target_os = "none"
 
