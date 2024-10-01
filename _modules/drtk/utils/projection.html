@@ -1,0 +1,943 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>drtk.utils.projection &#8212; DRTK  documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../../_static/styles/theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../../../_static/styles/bootstrap.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+
+  
+  <link href="../../../_static/vendor/fontawesome/6.5.2/css/all.min.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
+
+    <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=9dd9a163" />
+  
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
+  <script src="../../../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+    <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/design-tabs.js?v=f930bc37"></script>
+    <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/drtk/utils/projection';</script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-primary-sidebar-checkbox"/>
+  <label class="overlay overlay-primary" for="pst-primary-sidebar-checkbox"></label>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-secondary-sidebar-checkbox"/>
+  <label class="overlay overlay-secondary" for="pst-secondary-sidebar-checkbox"></label>
+  
+  <div class="search-button__wrapper">
+    <div class="search-button__overlay"></div>
+    <div class="search-button__search-container">
+<form class="bd-search d-flex align-items-center"
+      action="../../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+  </div>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">DRTK</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../installation/index.html">
+    Installation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../tutorials/index.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api_reference/index.html">
+    DRTK API
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-external" href="https://github.com/facebookresearch/DRTK">
+    GitHub
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+ <script>
+ document.write(`
+   <button class="btn search-button-field search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <span class="search-button__default-text">Search</span>
+    <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+   </button>
+ `);
+ </script>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<script>
+document.write(`
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"></i>
+  </button>
+`);
+</script></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/facebookresearch/DRTK" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-github fa-2xl fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+ <script>
+ document.write(`
+   <button class="btn search-button-field search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <span class="search-button__default-text">Search</span>
+    <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+   </button>
+ `);
+ </script>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <div class="bd-sidebar-primary bd-sidebar hide-on-wide">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../installation/index.html">
+    Installation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../tutorials/index.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../../api_reference/index.html">
+    DRTK API
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-external" href="https://github.com/facebookresearch/DRTK">
+    GitHub
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<script>
+document.write(`
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"></i>
+  </button>
+`);
+</script></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/facebookresearch/DRTK" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-github fa-2xl fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../../index.html" class="nav-link">Module code</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page">drtk.utils.p...</li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for drtk.utils.projection</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Copyright (c) Meta Platforms, Inc. and affiliates.</span>
+<span class="c1">#</span>
+<span class="c1"># This source code is licensed under the MIT license found in the</span>
+<span class="c1"># LICENSE file in the root directory of this source tree.</span>
+
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Set</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">Union</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">torch</span> <span class="k">as</span> <span class="nn">th</span>
+
+<span class="n">DISTORTION_MODES</span><span class="p">:</span> <span class="n">Set</span><span class="p">[</span><span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="kc">None</span><span class="p">,</span>
+    <span class="s2">&quot;pinhole&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;radial-tangential&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;fisheye&quot;</span><span class="p">,</span>
+<span class="p">}</span>
+
+
+<span class="k">def</span> <span class="nf">project_pinhole</span><span class="p">(</span>
+    <span class="n">v_cam</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">focal</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">princpt</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Project camera-space points to pixel-space points with camera</span>
+<span class="sd">    intrinsics.</span>
+
+<span class="sd">    v_cam:      N x V x 3</span>
+<span class="sd">    focal:      N x 2 x 2</span>
+<span class="sd">    princpt:    N x 2</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">z</span> <span class="o">=</span> <span class="n">v_cam</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">2</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span>
+    <span class="n">z</span> <span class="o">=</span> <span class="n">th</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">z</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">z</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="nb">max</span><span class="o">=-</span><span class="mf">1e-8</span><span class="p">),</span> <span class="n">z</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="nb">min</span><span class="o">=</span><span class="mf">1e-8</span><span class="p">))</span>
+
+    <span class="n">v_proj</span> <span class="o">=</span> <span class="n">v_cam</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">2</span><span class="p">]</span> <span class="o">/</span> <span class="n">z</span>
+    <span class="n">v_pix</span> <span class="o">=</span> <span class="p">(</span><span class="n">focal</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">@</span> <span class="n">v_proj</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">])[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">princpt</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
+
+    <span class="k">return</span> <span class="n">v_pix</span>
+
+
+<span class="k">def</span> <span class="nf">project_pinhole_distort_rt</span><span class="p">(</span>
+    <span class="n">v_cam</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">focal</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">princpt</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">D</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">fov</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Project camera-space points to distorted pixel-space using the radial</span>
+<span class="sd">    and tangential model (4 parameters).</span>
+
+<span class="sd">    v_cam:      N x V x 3</span>
+<span class="sd">    focal:      N x 2 x 2</span>
+<span class="sd">    princpt:    N x 2</span>
+<span class="sd">    D:          N x 4</span>
+<span class="sd">    fov:        N x 1</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># See https://docs.opencv.org/2.4/doc/tutorials/calib3d/camera_calibration/camera_calibration.html</span>
+
+    <span class="k">if</span> <span class="n">fov</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">with</span> <span class="n">th</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+            <span class="n">fov</span> <span class="o">=</span> <span class="n">estimate_rt_fov</span><span class="p">(</span><span class="n">D</span><span class="p">)</span>
+
+    <span class="n">z</span> <span class="o">=</span> <span class="n">v_cam</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">2</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span>
+    <span class="n">z</span> <span class="o">=</span> <span class="n">th</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">z</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">z</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="nb">max</span><span class="o">=-</span><span class="mf">1e-8</span><span class="p">),</span> <span class="n">z</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="nb">min</span><span class="o">=</span><span class="mf">1e-8</span><span class="p">))</span>
+
+    <span class="n">v_proj</span> <span class="o">=</span> <span class="n">v_cam</span><span class="p">[:,</span> <span class="p">:,</span> <span class="p">:</span><span class="mi">2</span><span class="p">]</span> <span class="o">/</span> <span class="n">z</span>
+    <span class="n">r2</span> <span class="o">=</span> <span class="n">v_proj</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="c1"># Clamp x, y and r to avoid wrapping behavior of the distortion model.</span>
+    <span class="n">r2</span> <span class="o">=</span> <span class="n">r2</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="nb">max</span><span class="o">=</span><span class="n">fov</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span><span class="mi">2</span><span class="p">))</span>
+    <span class="n">v_clamped</span> <span class="o">=</span> <span class="n">v_proj</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="nb">min</span><span class="o">=-</span><span class="n">fov</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">],</span> <span class="nb">max</span><span class="o">=</span><span class="n">fov</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">])</span>
+
+    <span class="k">assert</span> <span class="n">D</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="ow">in</span> <span class="p">[</span><span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">8</span><span class="p">]</span>
+
+    <span class="c1"># 4 param: R = (1 + k1 r^2 + k2 r^4)</span>
+    <span class="n">R</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">+</span> <span class="n">D</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">r2</span> <span class="o">+</span> <span class="n">D</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">:</span><span class="mi">2</span><span class="p">]</span> <span class="o">*</span> <span class="n">r2</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+
+    <span class="c1"># 5 param: R = (1 + k1 r^2 + k2 r^4 + k3 r^6)</span>
+    <span class="k">if</span> <span class="n">D</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">5</span><span class="p">:</span>
+        <span class="n">R</span> <span class="o">=</span> <span class="n">R</span> <span class="o">+</span> <span class="n">D</span><span class="p">[:,</span> <span class="mi">4</span><span class="p">:</span><span class="mi">5</span><span class="p">]</span> <span class="o">*</span> <span class="n">r2</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+
+    <span class="c1"># 8 param: R = (1 + k1 r^2 + k2 r^4 + k3 r^6) / (1 + k4 r^2 + k5 r^4 + k6 r^6)</span>
+    <span class="k">if</span> <span class="n">D</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">8</span><span class="p">:</span>
+        <span class="n">R</span> <span class="o">=</span> <span class="n">R</span> <span class="o">+</span> <span class="n">D</span><span class="p">[:,</span> <span class="mi">4</span><span class="p">:</span><span class="mi">5</span><span class="p">]</span> <span class="o">*</span> <span class="n">r2</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+        <span class="n">R</span> <span class="o">=</span> <span class="n">R</span> <span class="o">/</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">D</span><span class="p">[:,</span> <span class="mi">5</span><span class="p">:</span><span class="mi">6</span><span class="p">]</span> <span class="o">*</span> <span class="n">r2</span> <span class="o">+</span> <span class="n">D</span><span class="p">[:,</span> <span class="mi">6</span><span class="p">:</span><span class="mi">7</span><span class="p">]</span> <span class="o">*</span> <span class="n">r2</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="n">D</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">:</span><span class="mi">8</span><span class="p">]</span> <span class="o">*</span> <span class="n">r2</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span><span class="mi">3</span><span class="p">))</span>
+
+    <span class="c1"># [x&#39; y&#39;] * R</span>
+    <span class="n">v_proj_dist</span> <span class="o">=</span> <span class="n">v_proj</span> <span class="o">*</span> <span class="n">R</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>
+
+    <span class="c1"># [2 p1 x&#39; y&#39;,  2 p2 x&#39; y&#39;]</span>
+    <span class="n">v_proj_dist</span> <span class="o">+=</span> <span class="p">(</span>
+        <span class="mi">2</span>
+        <span class="o">*</span> <span class="n">v_clamped</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">1</span><span class="p">]</span>
+        <span class="o">*</span> <span class="n">v_clamped</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">:</span><span class="mi">2</span><span class="p">]</span>
+        <span class="o">*</span> <span class="n">th</span><span class="o">.</span><span class="n">stack</span><span class="p">((</span><span class="n">D</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">:</span><span class="mi">3</span><span class="p">],</span> <span class="n">D</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">4</span><span class="p">]),</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="c1"># [p2 r^2,  p1 r^2]</span>
+    <span class="n">v_proj_dist</span> <span class="o">+=</span> <span class="n">r2</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">th</span><span class="o">.</span><span class="n">stack</span><span class="p">((</span><span class="n">D</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">4</span><span class="p">],</span> <span class="n">D</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">:</span><span class="mi">3</span><span class="p">]),</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="c1"># [2 p2 x&#39;^2, 2 p1 y&#39;^2]</span>
+    <span class="n">v_proj_dist</span> <span class="o">+=</span> <span class="n">th</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span>
+        <span class="p">(</span>
+            <span class="mi">2</span> <span class="o">*</span> <span class="n">D</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">4</span><span class="p">]</span> <span class="o">*</span> <span class="n">v_clamped</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span>
+            <span class="mi">2</span> <span class="o">*</span> <span class="n">D</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">*</span> <span class="n">v_clamped</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span>
+        <span class="p">),</span>
+        <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="n">v_pix_dist</span> <span class="o">=</span> <span class="p">(</span><span class="n">focal</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">@</span> <span class="n">v_proj_dist</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">])[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">princpt</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
+
+    <span class="k">return</span> <span class="n">v_pix_dist</span>
+
+
+<span class="k">def</span> <span class="nf">project_fisheye_distort</span><span class="p">(</span>
+    <span class="n">v_cam</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">focal</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">princpt</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">D</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">fov</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Project camera-space points to distort pixel-space points using the</span>
+<span class="sd">    fisheye distortion model.</span>
+
+<span class="sd">    v_cam:      N x V x 3</span>
+<span class="sd">    focal:      N x 2 x 2</span>
+<span class="sd">    princpt:    N x 2</span>
+<span class="sd">    D:          N x 4</span>
+<span class="sd">    fov:        N x 1</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># See https://github.com/opencv/opencv/blob/master/modules/calib3d/src/fisheye.cpp</span>
+
+    <span class="k">if</span> <span class="n">fov</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">with</span> <span class="n">th</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+            <span class="n">fov</span> <span class="o">=</span> <span class="n">estimate_fisheye_fov</span><span class="p">(</span><span class="n">D</span><span class="p">)</span>
+
+    <span class="n">z</span> <span class="o">=</span> <span class="n">v_cam</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">2</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span>
+    <span class="n">z</span> <span class="o">=</span> <span class="n">th</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">z</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">z</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="nb">max</span><span class="o">=-</span><span class="mf">1e-8</span><span class="p">),</span> <span class="n">z</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="nb">min</span><span class="o">=</span><span class="mf">1e-8</span><span class="p">))</span>
+
+    <span class="n">v_proj</span> <span class="o">=</span> <span class="n">v_cam</span><span class="p">[:,</span> <span class="p">:,</span> <span class="p">:</span><span class="mi">2</span><span class="p">]</span> <span class="o">/</span> <span class="n">z</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">v_proj</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">sqrt</span><span class="p">()</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="nb">max</span><span class="o">=</span><span class="n">fov</span><span class="p">,</span> <span class="nb">min</span><span class="o">=</span><span class="mf">1e-8</span> <span class="o">*</span> <span class="n">th</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">fov</span><span class="p">))</span>
+    <span class="n">theta</span> <span class="o">=</span> <span class="n">th</span><span class="o">.</span><span class="n">atan</span><span class="p">(</span><span class="n">r</span><span class="p">)</span>
+    <span class="n">theta_d</span> <span class="o">=</span> <span class="n">theta</span> <span class="o">*</span> <span class="p">(</span>
+        <span class="mi">1</span>
+        <span class="o">+</span> <span class="n">D</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">theta</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+        <span class="o">+</span> <span class="n">D</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">:</span><span class="mi">2</span><span class="p">]</span> <span class="o">*</span> <span class="n">theta</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span><span class="mi">4</span><span class="p">)</span>
+        <span class="o">+</span> <span class="n">D</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span> <span class="o">*</span> <span class="n">theta</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span><span class="mi">6</span><span class="p">)</span>
+        <span class="o">+</span> <span class="n">D</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">:</span><span class="mi">4</span><span class="p">]</span> <span class="o">*</span> <span class="n">theta</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span><span class="mi">8</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">th</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">r</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">r</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="nb">max</span><span class="o">=-</span><span class="mf">1e-8</span><span class="p">),</span> <span class="n">r</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="nb">min</span><span class="o">=</span><span class="mf">1e-8</span><span class="p">))</span>
+    <span class="n">v_proj_dist</span> <span class="o">=</span> <span class="n">v_proj</span> <span class="o">*</span> <span class="p">(</span><span class="n">theta_d</span> <span class="o">/</span> <span class="n">r</span><span class="p">)[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>
+    <span class="n">v_pix_dist</span> <span class="o">=</span> <span class="p">(</span><span class="n">focal</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">@</span> <span class="n">v_proj_dist</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">])[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">princpt</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
+
+    <span class="k">return</span> <span class="n">v_pix_dist</span>
+
+
+<span class="k">def</span> <span class="nf">project_fisheye_distort_62</span><span class="p">(</span>
+    <span class="n">v_cam</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">focal</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">princpt</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">D</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">fov</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Project camera-space points to distort pixel-space points using the</span>
+<span class="sd">    Fisheye62 distortion model. See the perception camera model implementation</span>
+<span class="sd">    where this was copied from here: https://fburl.com/code/oqpu8xdm</span>
+
+<span class="sd">    v_cam:      N x V x 3</span>
+<span class="sd">    focal:      N x 2 x 2</span>
+<span class="sd">    princpt:    N x 2</span>
+<span class="sd">    D:          N x 8</span>
+<span class="sd">    fov:        N x 1</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="p">(</span>
+        <span class="n">D</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">8</span>
+    <span class="p">),</span> <span class="sa">f</span><span class="s2">&quot;Fisheye62 model requires 8 distortion parameters: </span><span class="si">{</span><span class="n">D</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span>
+
+    <span class="k">if</span> <span class="n">fov</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">with</span> <span class="n">th</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+            <span class="n">fov</span> <span class="o">=</span> <span class="n">estimate_fisheye_fov</span><span class="p">(</span><span class="n">D</span><span class="p">)</span>
+
+    <span class="n">z</span> <span class="o">=</span> <span class="n">v_cam</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">2</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span>
+    <span class="n">z</span> <span class="o">=</span> <span class="n">th</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">z</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">z</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="nb">max</span><span class="o">=-</span><span class="mf">1e-8</span><span class="p">),</span> <span class="n">z</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="nb">min</span><span class="o">=</span><span class="mf">1e-8</span><span class="p">))</span>
+
+    <span class="n">v_proj</span> <span class="o">=</span> <span class="n">v_cam</span><span class="p">[:,</span> <span class="p">:,</span> <span class="p">:</span><span class="mi">2</span><span class="p">]</span> <span class="o">/</span> <span class="n">z</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">v_proj</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">sqrt</span><span class="p">()</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="nb">max</span><span class="o">=</span><span class="n">fov</span><span class="p">,</span> <span class="nb">min</span><span class="o">=</span><span class="mf">1e-8</span> <span class="o">*</span> <span class="n">th</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">fov</span><span class="p">))</span>
+    <span class="n">theta</span> <span class="o">=</span> <span class="n">th</span><span class="o">.</span><span class="n">atan</span><span class="p">(</span><span class="n">r</span><span class="p">)</span>
+    <span class="n">theta2</span> <span class="o">=</span> <span class="n">theta</span> <span class="o">*</span> <span class="n">theta</span>
+
+    <span class="n">k0</span> <span class="o">=</span> <span class="n">D</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">k1</span> <span class="o">=</span> <span class="n">D</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">k2</span> <span class="o">=</span> <span class="n">D</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">k3</span> <span class="o">=</span> <span class="n">D</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">]</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">k4</span> <span class="o">=</span> <span class="n">D</span><span class="p">[:,</span> <span class="mi">4</span><span class="p">]</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">k5</span> <span class="o">=</span> <span class="n">D</span><span class="p">[:,</span> <span class="mi">5</span><span class="p">]</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">p0</span> <span class="o">=</span> <span class="n">D</span><span class="p">[:,</span> <span class="mi">6</span><span class="p">]</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">p1</span> <span class="o">=</span> <span class="n">D</span><span class="p">[:,</span> <span class="mi">7</span><span class="p">]</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="n">theta3</span> <span class="o">=</span> <span class="n">theta2</span> <span class="o">*</span> <span class="n">theta</span>
+    <span class="n">theta5</span> <span class="o">=</span> <span class="n">theta2</span> <span class="o">*</span> <span class="n">theta3</span>
+    <span class="n">theta7</span> <span class="o">=</span> <span class="n">theta2</span> <span class="o">*</span> <span class="n">theta5</span>
+    <span class="n">theta9</span> <span class="o">=</span> <span class="n">theta2</span> <span class="o">*</span> <span class="n">theta7</span>
+    <span class="n">theta11</span> <span class="o">=</span> <span class="n">theta2</span> <span class="o">*</span> <span class="n">theta9</span>
+    <span class="n">theta13</span> <span class="o">=</span> <span class="n">theta2</span> <span class="o">*</span> <span class="n">theta11</span>
+
+    <span class="n">thetad</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">theta</span>
+        <span class="o">+</span> <span class="n">k0</span> <span class="o">*</span> <span class="n">theta3</span>
+        <span class="o">+</span> <span class="n">k1</span> <span class="o">*</span> <span class="n">theta5</span>
+        <span class="o">+</span> <span class="n">k2</span> <span class="o">*</span> <span class="n">theta7</span>
+        <span class="o">+</span> <span class="n">k3</span> <span class="o">*</span> <span class="n">theta9</span>
+        <span class="o">+</span> <span class="n">k4</span> <span class="o">*</span> <span class="n">theta11</span>
+        <span class="o">+</span> <span class="n">k5</span> <span class="o">*</span> <span class="n">theta13</span>
+    <span class="p">)</span>
+
+    <span class="n">r</span> <span class="o">=</span> <span class="n">th</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">r</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">r</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="nb">max</span><span class="o">=-</span><span class="mf">1e-8</span><span class="p">),</span> <span class="n">r</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="nb">min</span><span class="o">=</span><span class="mf">1e-8</span><span class="p">))</span>
+    <span class="n">v_proj_dist</span> <span class="o">=</span> <span class="n">v_proj</span> <span class="o">*</span> <span class="p">(</span><span class="n">thetad</span> <span class="o">/</span> <span class="n">r</span><span class="p">)[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>
+
+    <span class="n">x_r</span> <span class="o">=</span> <span class="n">v_proj_dist</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">y_r</span> <span class="o">=</span> <span class="n">v_proj_dist</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">1</span><span class="p">]</span>
+
+    <span class="n">rRadial2</span> <span class="o">=</span> <span class="n">x_r</span> <span class="o">*</span> <span class="n">x_r</span> <span class="o">+</span> <span class="n">y_r</span> <span class="o">*</span> <span class="n">y_r</span>
+    <span class="n">x_t</span> <span class="o">=</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">x_r</span> <span class="o">*</span> <span class="n">x_r</span> <span class="o">+</span> <span class="n">rRadial2</span><span class="p">)</span> <span class="o">*</span> <span class="n">p0</span> <span class="o">+</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">x_r</span> <span class="o">*</span> <span class="n">y_r</span><span class="p">)</span> <span class="o">*</span> <span class="n">p1</span>
+    <span class="n">y_t</span> <span class="o">=</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">x_r</span> <span class="o">*</span> <span class="n">y_r</span><span class="p">)</span> <span class="o">*</span> <span class="n">p0</span> <span class="o">+</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">y_r</span> <span class="o">*</span> <span class="n">y_r</span> <span class="o">+</span> <span class="n">rRadial2</span><span class="p">)</span> <span class="o">*</span> <span class="n">p1</span>
+
+    <span class="n">pTangential</span> <span class="o">=</span> <span class="n">th</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">x_t</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">y_t</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="n">v_proj_dist</span> <span class="o">=</span> <span class="n">v_proj_dist</span> <span class="o">+</span> <span class="n">pTangential</span>
+
+    <span class="n">v_pix_dist</span> <span class="o">=</span> <span class="p">(</span><span class="n">focal</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">@</span> <span class="n">v_proj_dist</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">])[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">princpt</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
+
+    <span class="k">return</span> <span class="n">v_pix_dist</span>
+
+
+<span class="k">def</span> <span class="nf">estimate_rt_fov</span><span class="p">(</span><span class="n">D</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Estimate the maximum field of view based on the assumption that the 5th order</span>
+<span class="sd">    polynomial for fish-eye effect is non-decreasing.</span>
+
+<span class="sd">    D:  N x 4</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="n">th</span><span class="o">.</span><span class="n">is_tensor</span><span class="p">(</span><span class="n">D</span><span class="p">):</span>
+        <span class="n">coefs</span> <span class="o">=</span> <span class="n">D</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">coefs</span> <span class="o">=</span> <span class="n">D</span>
+
+    <span class="n">ones</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">coefs</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">])</span>
+    <span class="n">zeros</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">coefs</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">])</span>
+    <span class="n">coefs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span>
+        <span class="p">[</span>
+            <span class="mi">5</span> <span class="o">*</span> <span class="n">coefs</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">],</span>
+            <span class="n">zeros</span><span class="p">,</span>
+            <span class="mi">3</span> <span class="o">*</span> <span class="n">coefs</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span>
+            <span class="n">zeros</span><span class="p">,</span>
+            <span class="n">ones</span><span class="p">,</span>
+        <span class="p">],</span>
+        <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="n">fov</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">coef</span> <span class="ow">in</span> <span class="n">coefs</span><span class="p">:</span>
+        <span class="n">roots</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">roots</span><span class="p">(</span><span class="n">coef</span><span class="p">)</span>
+        <span class="n">real_valued</span> <span class="o">=</span> <span class="n">roots</span><span class="o">.</span><span class="n">real</span><span class="p">[</span><span class="nb">abs</span><span class="p">(</span><span class="n">roots</span><span class="o">.</span><span class="n">imag</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mf">1e-5</span><span class="p">]</span>
+        <span class="n">positive_roots</span> <span class="o">=</span> <span class="n">real_valued</span><span class="p">[</span><span class="n">real_valued</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">positive_roots</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">fov</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">fov</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">positive_roots</span><span class="o">.</span><span class="n">min</span><span class="p">())</span>
+    <span class="n">fov</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">fov</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="n">th</span><span class="o">.</span><span class="n">is_tensor</span><span class="p">(</span><span class="n">D</span><span class="p">):</span>
+        <span class="n">fov</span> <span class="o">=</span> <span class="n">th</span><span class="o">.</span><span class="n">from_numpy</span><span class="p">(</span><span class="n">fov</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">D</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">fov</span>
+
+
+<span class="k">def</span> <span class="nf">estimate_fisheye_fov</span><span class="p">(</span><span class="n">D</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Estimate the maximum field of view based on the assumption that the 9th order</span>
+<span class="sd">    polynomial is non-decreasing.</span>
+
+<span class="sd">    D:  N x 4</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="n">th</span><span class="o">.</span><span class="n">is_tensor</span><span class="p">(</span><span class="n">D</span><span class="p">):</span>
+        <span class="n">coefs</span> <span class="o">=</span> <span class="n">D</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">coefs</span> <span class="o">=</span> <span class="n">D</span>
+
+    <span class="n">ones</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">coefs</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">])</span>
+    <span class="n">zeros</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">coefs</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">])</span>
+    <span class="n">coefs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span>
+        <span class="p">[</span>
+            <span class="mi">9</span> <span class="o">*</span> <span class="n">coefs</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">],</span>
+            <span class="n">zeros</span><span class="p">,</span>
+            <span class="mi">7</span> <span class="o">*</span> <span class="n">coefs</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">],</span>
+            <span class="n">zeros</span><span class="p">,</span>
+            <span class="mi">5</span> <span class="o">*</span> <span class="n">coefs</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">],</span>
+            <span class="n">zeros</span><span class="p">,</span>
+            <span class="mi">3</span> <span class="o">*</span> <span class="n">coefs</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span>
+            <span class="n">zeros</span><span class="p">,</span>
+            <span class="n">ones</span><span class="p">,</span>
+        <span class="p">],</span>
+        <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="n">fov</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">coef</span> <span class="ow">in</span> <span class="n">coefs</span><span class="p">:</span>
+        <span class="n">roots</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">roots</span><span class="p">(</span><span class="n">coef</span><span class="p">)</span>
+        <span class="n">real_valued</span> <span class="o">=</span> <span class="n">roots</span><span class="o">.</span><span class="n">real</span><span class="p">[</span><span class="nb">abs</span><span class="p">(</span><span class="n">roots</span><span class="o">.</span><span class="n">imag</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mf">1e-5</span><span class="p">]</span>
+        <span class="n">positive_roots</span> <span class="o">=</span> <span class="n">real_valued</span><span class="p">[</span><span class="n">real_valued</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">positive_roots</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">fov</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">fov</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="n">positive_roots</span><span class="o">.</span><span class="n">min</span><span class="p">(),</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mi">2</span><span class="p">))</span>
+    <span class="n">fov</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">tan</span><span class="p">(</span><span class="n">fov</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="n">th</span><span class="o">.</span><span class="n">is_tensor</span><span class="p">(</span><span class="n">D</span><span class="p">):</span>
+        <span class="n">fov</span> <span class="o">=</span> <span class="n">th</span><span class="o">.</span><span class="n">from_numpy</span><span class="p">(</span><span class="n">fov</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">D</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">fov</span>
+
+
+<div class="viewcode-block" id="project_points">
+<a class="viewcode-back" href="../../../api_reference/projection.html#drtk.utils.projection.project_points">[docs]</a>
+<span class="nd">@th</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">ignore</span>
+<span class="k">def</span> <span class="nf">project_points</span><span class="p">(</span>
+    <span class="n">v</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">campos</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">camrot</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">focal</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">princpt</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">distortion_mode</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">distortion_coeff</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">fov</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Project 3D world-space vertices to pixel-space, optionally applying a</span>
+<span class="sd">    distortion model with provided coefficients.</span>
+
+<span class="sd">    Returns v_pix, v_cam, both N x V x 3 since we preserve the camera-space</span>
+<span class="sd">    Z-coordinate for v_pix.</span>
+
+<span class="sd">    v:                  N x V x 3</span>
+<span class="sd">    camrot:             N x 3 x 3</span>
+<span class="sd">    campos:             N x 3</span>
+<span class="sd">    focal:              N x 2 x 2</span>
+<span class="sd">    princpt:            N x 2</span>
+<span class="sd">    distortion_coeff:   N x 4</span>
+<span class="sd">    fov:                N x 1</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="n">distortion_mode</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">assert</span> <span class="n">distortion_coeff</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">,</span> <span class="s2">&quot;Missing distortion coefficients.&quot;</span>
+
+    <span class="n">v_cam</span> <span class="o">=</span> <span class="p">(</span><span class="n">camrot</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">@</span> <span class="p">(</span><span class="n">v</span> <span class="o">-</span> <span class="n">campos</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">])[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">])[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+
+    <span class="c1"># Fall back to single distortion mode if all the distortion modes are the same.</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">distortion_mode</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)):</span>
+        <span class="n">modes</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">distortion_mode</span><span class="p">))</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">modes</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">distortion_mode</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">modes</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">distortion_mode</span> <span class="o">=</span> <span class="n">modes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="n">distortion_mode</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">distortion_mode</span> <span class="o">==</span> <span class="s2">&quot;pinhole&quot;</span><span class="p">:</span>
+        <span class="n">v_pix</span> <span class="o">=</span> <span class="n">project_pinhole</span><span class="p">(</span><span class="n">v_cam</span><span class="p">,</span> <span class="n">focal</span><span class="p">,</span> <span class="n">princpt</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">distortion_mode</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="n">distortion_coeff</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+
+        <span class="c1"># Single distortion model</span>
+        <span class="k">if</span> <span class="n">distortion_mode</span> <span class="o">==</span> <span class="s2">&quot;radial-tangential&quot;</span><span class="p">:</span>
+            <span class="n">v_pix</span> <span class="o">=</span> <span class="n">project_pinhole_distort_rt</span><span class="p">(</span>
+                <span class="n">v_cam</span><span class="p">,</span> <span class="n">focal</span><span class="p">,</span> <span class="n">princpt</span><span class="p">,</span> <span class="n">distortion_coeff</span><span class="p">,</span> <span class="n">fov</span>
+            <span class="p">)</span>
+        <span class="k">elif</span> <span class="n">distortion_mode</span> <span class="o">==</span> <span class="s2">&quot;fisheye&quot;</span><span class="p">:</span>
+            <span class="n">v_pix</span> <span class="o">=</span> <span class="n">project_fisheye_distort</span><span class="p">(</span>
+                <span class="n">v_cam</span><span class="p">,</span> <span class="n">focal</span><span class="p">,</span> <span class="n">princpt</span><span class="p">,</span> <span class="n">distortion_coeff</span><span class="p">,</span> <span class="n">fov</span>
+            <span class="p">)</span>
+        <span class="k">elif</span> <span class="n">distortion_mode</span> <span class="o">==</span> <span class="s2">&quot;fisheye62&quot;</span><span class="p">:</span>
+            <span class="n">v_pix</span> <span class="o">=</span> <span class="n">project_fisheye_distort_62</span><span class="p">(</span>
+                <span class="n">v_cam</span><span class="p">,</span> <span class="n">focal</span><span class="p">,</span> <span class="n">princpt</span><span class="p">,</span> <span class="n">distortion_coeff</span><span class="p">,</span> <span class="n">fov</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Invalid distortion mode: </span><span class="si">{</span><span class="n">distortion_mode</span><span class="si">}</span><span class="s2">. Valid options: </span><span class="si">{</span><span class="n">DISTORTION_MODES</span><span class="si">}</span><span class="s2">.&quot;</span>
+            <span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">distortion_mode</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)):</span>
+        <span class="k">assert</span> <span class="n">distortion_coeff</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+
+        <span class="c1"># A mix of multiple distortion modes</span>
+        <span class="n">modes</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">distortion_mode</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">modes</span> <span class="o">&lt;=</span> <span class="n">DISTORTION_MODES</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Invalid distortion mode: </span><span class="si">{</span><span class="n">distortion_mode</span><span class="si">}</span><span class="s2">. Valid options: </span><span class="si">{</span><span class="n">DISTORTION_MODES</span><span class="si">}</span><span class="s2">.&quot;</span>
+            <span class="p">)</span>
+        <span class="n">v_pix</span> <span class="o">=</span> <span class="n">th</span><span class="o">.</span><span class="n">empty_like</span><span class="p">(</span><span class="n">v_cam</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">2</span><span class="p">])</span>
+        <span class="k">if</span> <span class="kc">None</span> <span class="ow">in</span> <span class="n">modes</span> <span class="ow">or</span> <span class="s2">&quot;pinhole&quot;</span> <span class="ow">in</span> <span class="n">modes</span><span class="p">:</span>
+            <span class="n">idx</span> <span class="o">=</span> <span class="n">th</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span>
+                <span class="p">[</span><span class="n">mode</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">mode</span> <span class="o">==</span> <span class="s2">&quot;pinhole&quot;</span> <span class="k">for</span> <span class="n">mode</span> <span class="ow">in</span> <span class="n">distortion_mode</span><span class="p">],</span>
+                <span class="n">device</span><span class="o">=</span><span class="n">v_pix</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="n">v_pix</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">project_pinhole</span><span class="p">(</span><span class="n">v_cam</span><span class="p">[</span><span class="n">idx</span><span class="p">],</span> <span class="n">focal</span><span class="p">[</span><span class="n">idx</span><span class="p">],</span> <span class="n">princpt</span><span class="p">[</span><span class="n">idx</span><span class="p">])</span>
+        <span class="k">if</span> <span class="s2">&quot;radial-tangential&quot;</span> <span class="ow">in</span> <span class="n">modes</span><span class="p">:</span>
+            <span class="n">idx</span> <span class="o">=</span> <span class="n">th</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span>
+                <span class="p">[</span><span class="n">mode</span> <span class="o">==</span> <span class="s2">&quot;radial-tangential&quot;</span> <span class="k">for</span> <span class="n">mode</span> <span class="ow">in</span> <span class="n">distortion_mode</span><span class="p">],</span>
+                <span class="n">device</span><span class="o">=</span><span class="n">v_pix</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="n">v_pix</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">project_pinhole_distort_rt</span><span class="p">(</span>
+                <span class="n">v_cam</span><span class="p">[</span><span class="n">idx</span><span class="p">],</span>
+                <span class="n">focal</span><span class="p">[</span><span class="n">idx</span><span class="p">],</span>
+                <span class="n">princpt</span><span class="p">[</span><span class="n">idx</span><span class="p">],</span>
+                <span class="n">distortion_coeff</span><span class="p">[</span><span class="n">idx</span><span class="p">],</span>
+                <span class="n">fov</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="k">if</span> <span class="n">fov</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="s2">&quot;fisheye&quot;</span> <span class="ow">in</span> <span class="n">modes</span><span class="p">:</span>
+            <span class="n">idx</span> <span class="o">=</span> <span class="n">th</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span>
+                <span class="p">[</span><span class="n">mode</span> <span class="o">==</span> <span class="s2">&quot;fisheye&quot;</span> <span class="k">for</span> <span class="n">mode</span> <span class="ow">in</span> <span class="n">distortion_mode</span><span class="p">],</span> <span class="n">device</span><span class="o">=</span><span class="n">v_pix</span><span class="o">.</span><span class="n">device</span>
+            <span class="p">)</span>
+            <span class="n">v_pix</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">project_fisheye_distort</span><span class="p">(</span>
+                <span class="n">v_cam</span><span class="p">[</span><span class="n">idx</span><span class="p">],</span>
+                <span class="n">focal</span><span class="p">[</span><span class="n">idx</span><span class="p">],</span>
+                <span class="n">princpt</span><span class="p">[</span><span class="n">idx</span><span class="p">],</span>
+                <span class="n">distortion_coeff</span><span class="p">[</span><span class="n">idx</span><span class="p">],</span>
+                <span class="n">fov</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="k">if</span> <span class="n">fov</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Invalid distortion mode: </span><span class="si">{</span><span class="n">distortion_mode</span><span class="si">}</span><span class="s2">. Valid options: </span><span class="si">{</span><span class="n">DISTORTION_MODES</span><span class="si">}</span><span class="s2">.&quot;</span>
+        <span class="p">)</span>
+
+    <span class="n">v_pix</span> <span class="o">=</span> <span class="n">th</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="n">v_pix</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">2</span><span class="p">],</span> <span class="n">v_cam</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">2</span><span class="p">:</span><span class="mi">3</span><span class="p">]),</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">v_pix</span><span class="p">,</span> <span class="n">v_cam</span></div>
+
+
+
+<div class="viewcode-block" id="project_points_grad">
+<a class="viewcode-back" href="../../../api_reference/projection.html#drtk.utils.projection.project_points_grad">[docs]</a>
+<span class="nd">@th</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">ignore</span>
+<span class="k">def</span> <span class="nf">project_points_grad</span><span class="p">(</span>
+    <span class="n">v_grad</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">v</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">campos</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">camrot</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">focal</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">distortion_mode</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">distortion_coeff</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Computes the gradient of projected (pixel-space) vertex positions with</span>
+<span class="sd">    respect to the 3D world-space vertex positions given the gradient of the 3D</span>
+<span class="sd">    world-space vertex positions.</span>
+
+<span class="sd">    project_points_grad(dv, v) = d project_points(v) / dv * dv</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        v_grad: Gradient of 3D world-space vertices. Shape: N x V x 3</span>
+<span class="sd">        v: 3D world-space vertices. Shape: N x V x 3</span>
+<span class="sd">        camrot: Camera rotation. Shape:  N x 3 x 3</span>
+<span class="sd">        camrot: Camera position. Shape:  N x 3</span>
+<span class="sd">        focal: Focal length. Shape: N x 2 x 2</span>
+<span class="sd">        distortion_mode: Distortion currently not implemented and must be None.</span>
+<span class="sd">        distortion_coeff: Distortion currently not implemented and must be None.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">         Gradient of 2D pixel-space vertices: N x V x 2</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="n">distortion_mode</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">assert</span> <span class="n">distortion_coeff</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">,</span> <span class="s2">&quot;Missing distortion coefficients.&quot;</span>
+
+    <span class="c1"># d v_cam = d (Rv + T) = Rdv</span>
+    <span class="n">v_cam_grad</span> <span class="o">=</span> <span class="p">(</span><span class="n">camrot</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">@</span> <span class="n">v_grad</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">])[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">v_cam</span> <span class="o">=</span> <span class="p">(</span><span class="n">camrot</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">@</span> <span class="p">(</span><span class="n">v</span> <span class="o">-</span> <span class="n">campos</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">])[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">])[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="n">distortion_mode</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">z</span> <span class="o">=</span> <span class="n">v_cam</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">2</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span>
+        <span class="n">z_grad</span> <span class="o">=</span> <span class="n">v_cam_grad</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">2</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span>
+        <span class="n">z</span> <span class="o">=</span> <span class="n">th</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">z</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">z</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="nb">max</span><span class="o">=-</span><span class="mf">1e-8</span><span class="p">),</span> <span class="n">z</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="nb">min</span><span class="o">=</span><span class="mf">1e-8</span><span class="p">))</span>
+
+        <span class="c1"># Using quotient rule:</span>
+        <span class="c1"># d (v_cam / z) = (d v_cam * z - v_cam * dz) / z^2</span>
+        <span class="n">v_proj_grad</span> <span class="o">=</span> <span class="p">(</span><span class="n">v_cam_grad</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">2</span><span class="p">]</span> <span class="o">*</span> <span class="n">z</span> <span class="o">-</span> <span class="n">v_cam</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">2</span><span class="p">]</span> <span class="o">*</span> <span class="n">z_grad</span><span class="p">)</span> <span class="o">/</span> <span class="n">z</span><span class="o">**</span><span class="mf">2.0</span>
+
+        <span class="c1"># d v_pix = d (Kv + cp) = Kdv</span>
+        <span class="n">v_pix_grad</span> <span class="o">=</span> <span class="p">(</span><span class="n">focal</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">@</span> <span class="n">v_proj_grad</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">])[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+
+    <span class="k">elif</span> <span class="n">distortion_mode</span> <span class="o">==</span> <span class="s2">&quot;radial-tangential&quot;</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span>
+    <span class="k">elif</span> <span class="n">distortion_mode</span> <span class="o">==</span> <span class="s2">&quot;fisheye&quot;</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Invalid distortion mode: </span><span class="si">{</span><span class="n">distortion_mode</span><span class="si">}</span><span class="s2">. Valid options: </span><span class="si">{</span><span class="n">DISTORTION_MODES</span><span class="si">}</span><span class="s2">.&quot;</span>
+        <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">v_pix_grad</span></div>
+
+</pre></div>
+
+                </article>
+              
+              
+              
+              
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../../../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b"></script>
+<script src="../../../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2024, Meta.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 8.0.2.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.15.4.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

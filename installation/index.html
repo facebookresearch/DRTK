@@ -1,0 +1,716 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Installation &#8212; DRTK  documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/bootstrap.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+
+  
+  <link href="../_static/vendor/fontawesome/6.5.2/css/all.min.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=9dd9a163" />
+  
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
+  <script src="../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+    <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'installation/index';</script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Tutorials" href="../tutorials/index.html" />
+    <link rel="prev" title="DRTK – Differentiable Rendering Toolkit" href="../index.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-primary-sidebar-checkbox"/>
+  <label class="overlay overlay-primary" for="pst-primary-sidebar-checkbox"></label>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-secondary-sidebar-checkbox"/>
+  <label class="overlay overlay-secondary" for="pst-secondary-sidebar-checkbox"></label>
+  
+  <div class="search-button__wrapper">
+    <div class="search-button__overlay"></div>
+    <div class="search-button__search-container">
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+  </div>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">DRTK</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="#">
+    Installation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../tutorials/index.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../api_reference/index.html">
+    DRTK API
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-external" href="https://github.com/facebookresearch/DRTK">
+    GitHub
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+ <script>
+ document.write(`
+   <button class="btn search-button-field search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <span class="search-button__default-text">Search</span>
+    <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+   </button>
+ `);
+ </script>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<script>
+document.write(`
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"></i>
+  </button>
+`);
+</script></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/facebookresearch/DRTK" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-github fa-2xl fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+ <script>
+ document.write(`
+   <button class="btn search-button-field search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <span class="search-button__default-text">Search</span>
+    <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+   </button>
+ `);
+ </script>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <div class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="#">
+    Installation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../tutorials/index.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../api_reference/index.html">
+    DRTK API
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-external" href="https://github.com/facebookresearch/DRTK">
+    GitHub
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<script>
+document.write(`
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"></i>
+  </button>
+`);
+</script></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/facebookresearch/DRTK" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-github fa-2xl fa-lg" aria-hidden="true"></i>
+            <span class="sr-only">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"></div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    <li class="breadcrumb-item active" aria-current="page">Installation</li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="installation">
+<h1>Installation<a class="headerlink" href="#installation" title="Link to this heading">#</a></h1>
+<p>Currently, we do not provide pre-compiled binaries for DRTK.
+You will need to build the package from source. The current version of DRTK is 0.1.0.</p>
+<section id="prerequisites">
+<h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading">#</a></h2>
+<p>Before installing DRTK, ensure you have the following prerequisites installed:</p>
+<ul class="simple">
+<li><p>PyTorch &gt;= 2.1.0</p></li>
+<li><p>CUDA Toolkit</p></li>
+</ul>
+<p>Additionally, we recommend installing the following packages to run tests and examples:</p>
+<ul class="simple">
+<li><p>torchvision</p></li>
+<li><p>opencv_python</p></li>
+</ul>
+</section>
+<section id="installing-drtk-from-github-using-pip">
+<h2>Installing DRTK from GitHub using pip<a class="headerlink" href="#installing-drtk-from-github-using-pip" title="Link to this heading">#</a></h2>
+<p>The easiest way to install DRTK is by using pip with the GitHub repository directly:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># To install latest</span>
+pip<span class="w"> </span>install<span class="w"> </span>git+https://github.com/facebookresearch/DRTK.git
+</pre></div>
+</div>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># To install stable</span>
+pip<span class="w"> </span>install<span class="w"> </span>git+https://github.com/facebookresearch/DRTK.git@stable
+</pre></div>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>It may take significant amount of time to compile. The time could be 30 minutes or more.</p>
+</div>
+<p>This should be enough in most cases, given that PyTorch, CUDA Toolkit, and Build Essentials for your platform
+are installed and the environment is correctly configured.</p>
+</section>
+<section id="specifying-architectures">
+<span id="id1"></span><h2>Specifying Architectures<a class="headerlink" href="#specifying-architectures" title="Link to this heading">#</a></h2>
+<p>If you know the CUDA architecture of the device where the code will run, then it would be better to specify it directly, e.g.:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># TORCH_CUDA_ARCH_LIST can use &quot;named&quot; architecture, see table below</span>
+<span class="nv">TORCH_CUDA_ARCH_LIST</span><span class="o">=</span><span class="s2">&quot;Ampere&quot;</span><span class="w"> </span>install<span class="w"> </span>git+https://github.com/facebookresearch/DRTK.git
+</pre></div>
+</div>
+<p>or specify numerical values for architectures explicitly:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># TORCH_CUDA_ARCH_LIST can combine several architectures separated with semicolon or space.</span>
+<span class="c1"># Add `+PTX` if you want also to save intermediate byte code for better compatibility.</span>
+<span class="nv">TORCH_CUDA_ARCH_LIST</span><span class="o">=</span><span class="s2">&quot;8.0;8.6+PTX&quot;</span><span class="w"> </span>install<span class="w"> </span>git+https://github.com/facebookresearch/DRTK.git
+</pre></div>
+</div>
+<p>If <code class="docutils literal notranslate"><span class="pre">TORCH_CUDA_ARCH_LIST</span></code> is not specified, DRTK will build for the following architectures by default: 7.2, 7.5, 8.0, 8.6, 9.0.</p>
+<p><code class="docutils literal notranslate"><span class="pre">TORCH_CUDA_ARCH_LIST</span></code> can take one or more values from the supported named or numerical architectures list.
+When combining values, use a semicolon <cite>;</cite> or space to combine numerical values and the <cite>+</cite> symbol to combine named values.</p>
+<p>List of numerical architectures values supported by PyTorch: <code class="docutils literal notranslate"><span class="pre">'3.5',</span> <span class="pre">'3.7',</span> <span class="pre">'5.0',</span> <span class="pre">'5.2',</span> <span class="pre">'5.3',</span> <span class="pre">'6.0',</span> <span class="pre">'6.1',</span> <span class="pre">'6.2',</span> <span class="pre">'7.0',</span> <span class="pre">'7.2',</span> <span class="pre">'7.5',</span> <span class="pre">'8.0',</span> <span class="pre">'8.6',</span> <span class="pre">'8.7',</span> <span class="pre">'8.9',</span> <span class="pre">'9.0',</span> <span class="pre">'9.0a'</span></code>.</p>
+<p>The “named” architectures supported by PyTorch are listed in the table below:</p>
+<div class="pst-scrollable-table-container"><table class="table" id="id2">
+<caption><span class="caption-text">Named architectures</span><a class="headerlink" href="#id2" title="Link to this table">#</a></caption>
+<thead>
+<tr class="row-odd"><th class="head"><p>Name</p></th>
+<th class="head"><p>Arch</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Kepler+Tesla</p></td>
+<td><p>3.7</p></td>
+</tr>
+<tr class="row-odd"><td><p>Kepler</p></td>
+<td><p>3.5+PTX</p></td>
+</tr>
+<tr class="row-even"><td><p>Maxwell+Tegra</p></td>
+<td><p>5.3</p></td>
+</tr>
+<tr class="row-odd"><td><p>Maxwell</p></td>
+<td><p>5.0;5.2+PTX</p></td>
+</tr>
+<tr class="row-even"><td><p>Pascal</p></td>
+<td><p>6.0;6.1+PTX</p></td>
+</tr>
+<tr class="row-odd"><td><p>Volta+Tegra</p></td>
+<td><p>7.2</p></td>
+</tr>
+<tr class="row-even"><td><p>Volta</p></td>
+<td><p>7.0+PTX</p></td>
+</tr>
+<tr class="row-odd"><td><p>Turing</p></td>
+<td><p>7.5+PTX</p></td>
+</tr>
+<tr class="row-even"><td><p>Ampere+Tegra</p></td>
+<td><p>8.7</p></td>
+</tr>
+<tr class="row-odd"><td><p>Ampere</p></td>
+<td><p>8.0;8.6+PTX</p></td>
+</tr>
+<tr class="row-even"><td><p>Ada</p></td>
+<td><p>8.9+PTX</p></td>
+</tr>
+<tr class="row-odd"><td><p>Hopper</p></td>
+<td><p>9.0+PTX</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>We do not test the DRTK package on architectures before Volta.</p>
+</div>
+<p>For more information about <code class="docutils literal notranslate"><span class="pre">TORCH_CUDA_ARCH_LIST</span></code>, refer to the <a class="reference external" href="https://pytorch.org/docs/stable/cpp_extension.html#torch.utils.cpp_extension.CUDAExtension">PyTorch documentation</a> or view the <a class="reference external" href="https://github.com/pytorch/pytorch/blob/c9653bf2ca6dd88b991d71abf836bd9a7a1d9dc3/torch/utils/cpp_extension.py#L1980">source code on GitHub</a>.</p>
+</section>
+<section id="installing-from-a-cloned-repository">
+<h2>Installing from a Cloned Repository<a class="headerlink" href="#installing-from-a-cloned-repository" title="Link to this heading">#</a></h2>
+<p>Alternatively, you can install the package from a local repository clone.
+It could be helpful if you need to modify the package code.</p>
+<p>Clone the repository and <code class="docutils literal notranslate"><span class="pre">cd</span></code> into it:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/facebookresearch/DRTK
+<span class="nb">cd</span><span class="w"> </span>DRTK
+</pre></div>
+</div>
+<p>Then, install the package from the path using <code class="docutils literal notranslate"><span class="pre">pip</span></code>. Note the <code class="docutils literal notranslate"><span class="pre">--no-build-isolation</span></code> flag, it is needed for modern build
+system to disable building in a separate, clean Python environment.
+The reason is that it will install a default <code class="docutils literal notranslate"><span class="pre">torch</span></code> version from pip, which likely will not match the one already installed in the system (due to usage of <code class="docutils literal notranslate"><span class="pre">--index-url</span></code>).</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>.<span class="w"> </span>--no-build-isolation
+</pre></div>
+</div>
+</section>
+<section id="building-and-installing-a-wheel">
+<h2>Building and installing a wheel<a class="headerlink" href="#building-and-installing-a-wheel" title="Link to this heading">#</a></h2>
+<p>To build a wheel run:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># You might need to install `build` first</span>
+<span class="c1"># pip install --upgrade build</span>
+python<span class="w"> </span>-m<span class="w"> </span>build<span class="w"> </span>--wheel<span class="w"> </span>--no-isolation
+</pre></div>
+</div>
+<p>Alternatively, you can use the deprecated CLI of <code class="docutils literal notranslate"><span class="pre">setuptools</span></code>:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># You might need to install `wheel` first, though newer versions of setuptools do not require it anymore.</span>
+<span class="c1"># pip install --upgrade wheel</span>
+python<span class="w"> </span>setup.py<span class="w"> </span>bdist_wheel
+</pre></div>
+</div>
+<p>Then, you will find a wheel in the <code class="docutils literal notranslate"><span class="pre">dist/</span></code> folder. You can install this wheel by running:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>dist/drtk-&lt;tags&gt;.whl
+</pre></div>
+</div>
+<p>where <code class="docutils literal notranslate"><span class="pre">&lt;tags&gt;</span></code> are compatibility tags. You can figure them out by listing the <code class="docutils literal notranslate"><span class="pre">dist/</span></code> directory. E.g.:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>dist/drtk-0.1.0-cp310-cp310-linux_x86_64.whl
+</pre></div>
+</div>
+</section>
+<section id="reinstalling-the-wheel">
+<h2>Reinstalling the Wheel<a class="headerlink" href="#reinstalling-the-wheel" title="Link to this heading">#</a></h2>
+<p>If you have already installed the package using <code class="docutils literal notranslate"><span class="pre">pip</span></code>, it will not reinstall the package unless the version number has been incremented.
+This behavior can be problematic if you are modifying the package locally and need to reinstall it.</p>
+<p>To force a reinstall, add the following arguments: <code class="docutils literal notranslate"><span class="pre">--upgrade</span> <span class="pre">--force-reinstall</span> <span class="pre">--no-deps</span></code>. For example:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>--upgrade<span class="w"> </span>--force-reinstall<span class="w"> </span>--no-deps<span class="w"> </span>.
+</pre></div>
+</div>
+</section>
+<section id="in-place-build">
+<h2>In place build<a class="headerlink" href="#in-place-build" title="Link to this heading">#</a></h2>
+<p>For package development, it can be beneficial to do an inplace build with:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="c1"># There can be issues with concurrent build jobs, it is safer to specify `-inplace -j 1`</span>
+python<span class="w"> </span>setup.py<span class="w"> </span>build_ext<span class="w"> </span>--inplace<span class="w"> </span>-j<span class="w"> </span><span class="m">1</span>
+</pre></div>
+</div>
+<p>Then you can use the root of the cloned repository as a working directory, and you should be able to do <code class="docutils literal notranslate"><span class="pre">import</span> <span class="pre">drtk</span></code> and run tests and examples.</p>
+</section>
+</section>
+<section id="troubleshooting">
+<h1>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h1>
+<section id="cuda-error-no-kernel-image-available">
+<h2>1. CUDA Error: No Kernel Image Available<a class="headerlink" href="#cuda-error-no-kernel-image-available" title="Link to this heading">#</a></h2>
+<p><strong>Example Error Message:</strong></p>
+<blockquote>
+<div><p>RuntimeError: CUDA error: no kernel image is available for execution on the device</p>
+</div></blockquote>
+<p><strong>Cause:</strong> This error occurs when the CUDA code was not built for the architecture of the device on which the code is running.</p>
+<p><strong>Solution:</strong> Specify the correct architecture using the <code class="docutils literal notranslate"><span class="pre">TORCH_CUDA_ARCH_LIST</span></code> environment variable when building the package. Refer to the examples in the <a class="reference internal" href="#specifying-architectures"><span class="std std-ref">Specifying Architectures</span></a> section above.</p>
+</section>
+<section id="import-error-so-not-found">
+<h2>2. Import Error: <code class="docutils literal notranslate"><span class="pre">*.so</span></code> Not Found<a class="headerlink" href="#import-error-so-not-found" title="Link to this heading">#</a></h2>
+<p><strong>Example Error Message:</strong></p>
+<blockquote>
+<div><p>ImportError: libcudnn.so.9: cannot open shared object file: No such file or directory</p>
+</div></blockquote>
+<p><strong>Cause:</strong> This issue is likely due to build isolation. Since DRTK currently does not distribute pre-compiled binaries, it is hard to get version mismatch otherwise.</p>
+<p><strong>Solution:</strong> Ensure you include the <code class="docutils literal notranslate"><span class="pre">--no-build-isolation</span></code> flag when installing from a local clone to use the correct CUDA and PyTorch libraries from your current environment:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>build<span class="w"> </span>--wheel<span class="w"> </span>--no-isolation
+</pre></div>
+</div>
+<p>and</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>.<span class="w"> </span>--no-build-isolation
+</pre></div>
+</div>
+</section>
+<section id="compilation-errors-in-cuda-or-pytorch-headers">
+<h2>3. Compilation Errors in CUDA or PyTorch headers<a class="headerlink" href="#compilation-errors-in-cuda-or-pytorch-headers" title="Link to this heading">#</a></h2>
+<p><strong>Example Error Message:</strong></p>
+<blockquote>
+<div><p>error: no suitable conversion function from “const __half” to “unsigned short” exists</p>
+</div></blockquote>
+<p><strong>Cause:</strong> This error typically indicates a compiler version mismatch. It is likely that your C++ or CUDA compiler version is too old to support some of the features.</p>
+<p><strong>Solution:</strong> Please consult PyTorch and CUDA documentation to figure out what CUDA version is supported by your PyTorch version and what C++ compiler version is needed.</p>
+</section>
+<section id="c-compilation-errors-in-pytorch-header-aten-src-aten-core-boxing-impl-boxing-h">
+<h2>4. C++ Compilation Errors in PyTorch header aten/src/ATen/core/boxing/impl/boxing.h<a class="headerlink" href="#c-compilation-errors-in-pytorch-header-aten-src-aten-core-boxing-impl-boxing-h" title="Link to this heading">#</a></h2>
+<p><strong>Example Error Message:</strong></p>
+<blockquote>
+<div><p>aten/src/ATen/core/boxing/impl/boxing.h:41:105: error: expected primary-expression before ‘&gt;’ token</p>
+</div></blockquote>
+<p><strong>Cause:</strong> This issue is related to problematic SFINAE logic in template code. It has been observed in some recent versions of PyTorch.</p>
+<p><strong>Solution:</strong> One recommended solution is to add <code class="docutils literal notranslate"><span class="pre">-std=c++20</span></code> to the <strong>nvcc</strong> arguments, as suggested in <a class="reference external" href="https://github.com/pytorch/pytorch/issues/122169">this GitHub issue</a>.
+This line has already been added to <code class="docutils literal notranslate"><span class="pre">setup.py`</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">nvcc_args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;-std=c++20&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>If you are using an older version of the CUDA Toolkit, adding this flag might result in an error:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span>unrecognized<span class="w"> </span><span class="nb">command</span><span class="w"> </span>line<span class="w"> </span>option<span class="w"> </span><span class="s1">&#39;-std=c++20&#39;</span>
+</pre></div>
+</div>
+<p>In this case, you may need to remove the <code class="docutils literal notranslate"><span class="pre">-std=c++20</span></code> flag from <code class="docutils literal notranslate"><span class="pre">setup.py</span></code>, or update your CUDA Toolkit to a version that supports C++20.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>According to the comments in the <a class="reference external" href="https://github.com/pytorch/pytorch/issues/122169">GitHub issue</a>, this was fixed in PyTorch v2.4.0 release.</p>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+            </div>
+            
+            
+              
+                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#">Installation</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#prerequisites">Prerequisites</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#installing-drtk-from-github-using-pip">Installing DRTK from GitHub using pip</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#specifying-architectures">Specifying Architectures</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#installing-from-a-cloned-repository">Installing from a Cloned Repository</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#building-and-installing-a-wheel">Building and installing a wheel</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#reinstalling-the-wheel">Reinstalling the Wheel</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#in-place-build">In place build</a></li>
+</ul>
+</li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#cuda-error-no-kernel-image-available">1. CUDA Error: No Kernel Image Available</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#import-error-so-not-found">2. Import Error: <code class="docutils literal notranslate"><span class="pre">*.so</span></code> Not Found</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#compilation-errors-in-cuda-or-pytorch-headers">3. Compilation Errors in CUDA or PyTorch headers</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#c-compilation-errors-in-pytorch-header-aten-src-aten-core-boxing-impl-boxing-h">4. C++ Compilation Errors in PyTorch header aten/src/ATen/core/boxing/impl/boxing.h</a></li>
+</ul>
+</li>
+</ul>
+
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b"></script>
+<script src="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2024, Meta.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 8.0.2.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.15.4.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>
