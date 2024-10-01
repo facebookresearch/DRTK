@@ -1,0 +1,10 @@
+sphinx
+sphinx_markdown_builder
+sphinx-panels
+sphinxcontrib-katex
+pydata_sphinx_theme
+accessible-pygments
+myst_parser
+sphinx_design
+nbsphinx
+ipython

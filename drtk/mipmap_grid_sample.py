@@ -67,12 +67,13 @@ def mipmap_grid_sample(
             pyramid to be present. Such relaxed requirement leads to ambiguity when it needs to sample from
             the missing layer. The flag clip_grad only impacts the cases when needed layers from the mipmap
             pyramid are missing. In this scenario:
-                - when False: it will sample from the last available layer. This will lead to aliasing and
-                  sparsely placed taps. The downside is that it may sample from arbitrary far regions of
-                  the texture.
-                - when True: it will sample from the last available layer, but it will adjust the step size
-                  to match the sampling rate of the available layer. This will lead to aliasing but densely
-                  placed taps. Which in turn forbids it to sample from arbitrary far regions of the texture.
+
+            - when False: it will sample from the last available layer. This will lead to aliasing and
+              sparsely placed taps. The downside is that it may sample from arbitrary far regions of
+              the texture.
+            - when True: it will sample from the last available layer, but it will adjust the step size
+              to match the sampling rate of the available layer. This will lead to aliasing but densely
+              placed taps. Which in turn forbids it to sample from arbitrary far regions of the texture.
 
     Returns:
         output (Tensor): Result of sampling from inputs given the grid.
@@ -137,9 +138,10 @@ def mipmap_grid_sample_ref(
     """
     A reference implementation for `mipmap_grid_sample`. See the doc string from `mipmap_grid_sample`
     The CUDA version of `mipmap_grid_sample` should behave the same as this referense implementation when:
-        - `force_max_aniso` argument of `mipmap_grid_sample` is set to True
-        - `clip_grad` argument of `mipmap_grid_sample` is set to False
-        - `high_quality` argument of `mipmap_grid_sample_ref` is set to False
+
+    - `force_max_aniso` argument of `mipmap_grid_sample` is set to True
+    - `clip_grad` argument of `mipmap_grid_sample` is set to False
+    - `high_quality` argument of `mipmap_grid_sample_ref` is set to False
     """
 
     q = len(input)

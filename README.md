@@ -50,18 +50,16 @@ img = bary * (index_img != -1)
 save_image(img, "render.png")
 ```
 
-![hello triangle](doc/hellow_triangle.png)
+![hello triangle](docs/source/_static/hellow_triangle.png)
 
 ## Dependencies
 * PyTorch >= 2.1.0
 
-## Building
+## Installing
 
 To build a wheel and install it:
 ```
-pip install wheel
-python setup.py  bdist_wheel
-pip install dist/drtk-<wheel_name>.whl
+pip install git+https://github.com/facebookresearch/DRTK.git
 ```
 
 To build inplace, which is useful for package development:
