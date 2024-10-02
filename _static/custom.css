@@ -69,3 +69,10 @@ ul.bd-breadcrumbs {
 p.bd-links__title {
   visibility: collapse;
 }
+
+.external_link::after {
+  font: var(--fa-font-solid);
+  content: var(--pst-icon-external-link);
+  font-size: 0.75em;
+  margin-left: 0.3em;
+}
