@@ -26,6 +26,14 @@ DRTK provides a set of differentiable components to build custom differentiable 
 * **edge_grad**: Computes gradients at discontinuities.
 * **CUSTOM SHADING** and **LOSS FUNCTION**: User-defined components for shading and loss calculation.
 
+```{video} _static/teaser_video.mp4
+  :loop:
+  :autoplay:
+  :class: full-width
+```
+Fitting of a simple hand model with simple lambertian material to a single photo. See tutorial [Single Image Hand Fitting](tutorials/DRTK_Tutorial_hand_fitting).
+
+
 ## Hello Triangle!
 
 Here's a simple "Hello Triangle" example with DRTK:

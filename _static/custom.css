@@ -1,3 +1,9 @@
+/* Copyright (c) Meta Platforms, Inc. and affiliates.
+
+   This source code is licensed under the MIT license found in the
+   LICENSE file in the root directory of this source tree.
+*/
+
 #rtd-footer-container {
     margin-top: 0px !important;
     margin-bottom: 0px !important;
@@ -75,4 +81,8 @@ p.bd-links__title {
   content: var(--pst-icon-external-link);
   font-size: 0.75em;
   margin-left: 0.3em;
+}
+
+.full-width {
+  width: 100%
 }
