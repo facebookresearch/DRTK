@@ -82,3 +82,7 @@ p.bd-links__title {
   font-size: 0.75em;
   margin-left: 0.3em;
 }
+
+.full-width {
+  width: 100%
+}

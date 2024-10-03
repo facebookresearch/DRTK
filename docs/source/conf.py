@@ -41,6 +41,7 @@ extensions = [
     "sphinx.ext.intersphinx",
     "myst_parser",
     "sphinx_design",
+    "sphinxcontrib.video",
 ]
 autosummary_generate = True
 katex_prerender = True

@@ -8,3 +8,4 @@ myst_parser
 sphinx_design
 nbsphinx
 ipython
+sphinxcontrib-video
