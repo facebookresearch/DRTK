@@ -137,12 +137,32 @@ __global__ void interpolate_backward_kernel(
 
   int64_t index = blockIdx.x * blockDim.x + threadIdx.x;
 
+  constexpr int block_size = 256;
+#ifdef __HIP_PLATFORM_AMD__
+#ifdef __AMDGCN_WAVEFRONT_SIZE
+  constexpr int warp_size = __AMDGCN_WAVEFRONT_SIZE;
+#else
+  constexpr int warp_size = 64;
+#endif
+  using WarpMask = uint64_t;
+  constexpr WarpMask warp_mask = ~WarpMask{0};
+#else
   constexpr int warp_size = 32;
+  using WarpMask = unsigned;
+  constexpr WarpMask warp_mask = 0xFFFFFFFFU;
+#endif
+  // Keep the mask, shuffle width, and CUB logical warp size aligned. AMD CDNA
+  // wavefronts are 64 lanes, so treating them as 32-lane warps aliases lanes.
+  static_assert(block_size % warp_size == 0, "block_size must be divisible by warp_size");
+  constexpr int warps_per_block = block_size / warp_size;
+  using WarpReduce = cub::WarpReduce<scalar_t, warp_size>;
+
+  int warp_id = threadIdx.x / warp_size;
   int lane = threadIdx.x % warp_size;
 
-  __shared__ typename cub::WarpReduce<scalar_t>::TempStorage temp_storage_0;
-  __shared__ typename cub::WarpReduce<scalar_t>::TempStorage temp_storage_1;
-  __shared__ typename cub::WarpReduce<scalar_t>::TempStorage temp_storage_2;
+  __shared__ typename WarpReduce::TempStorage temp_storage_0[warps_per_block];
+  __shared__ typename WarpReduce::TempStorage temp_storage_1[warps_per_block];
+  __shared__ typename WarpReduce::TempStorage temp_storage_2[warps_per_block];
 
   {
     const index_t w = index % W;
@@ -159,9 +179,8 @@ __global__ void interpolate_backward_kernel(
         bary_img_grad.data + bary_img_grad_sN * n + bary_img_grad_sH * h + bary_img_grad_sW * w;
 
     bool thread_is_used = tr_index != -1;
-
     // True if at least one thread in the warp is used.
-    bool warp_is_used = __any_sync(0xFFFFFFFFU, thread_is_used);
+    bool warp_is_used = __any_sync(warp_mask, thread_is_used);
 
     if (warp_is_used) {
       int32_t vi_0 = -1, vi_1 = -1, vi_2 = -1;
@@ -171,13 +190,15 @@ __global__ void interpolate_backward_kernel(
         vi_1 = vi_ptr[1 * vi_sF];
         vi_2 = vi_ptr[2 * vi_sF];
       }
-      unsigned m = 0xFFFFFFFFU;
-      int vi_0_head = (__shfl_up_sync(m, vi_0, 1) != vi_0) || (lane == 0);
-      int vi_0_tail = (__shfl_down_sync(m, vi_0, 1) != vi_0) || (lane == (warp_size - 1));
-      int vi_1_head = (__shfl_up_sync(m, vi_1, 1) != vi_1) || (lane == 0);
-      int vi_1_tail = (__shfl_down_sync(m, vi_1, 1) != vi_1) || (lane == (warp_size - 1));
-      int vi_2_head = (__shfl_up_sync(m, vi_2, 1) != vi_2) || (lane == 0);
-      int vi_2_tail = (__shfl_down_sync(m, vi_2, 1) != vi_2) || (lane == (warp_size - 1));
+      int vi_0_head = (__shfl_up_sync(warp_mask, vi_0, 1, warp_size) != vi_0) || (lane == 0);
+      int vi_0_tail =
+          (__shfl_down_sync(warp_mask, vi_0, 1, warp_size) != vi_0) || (lane == (warp_size - 1));
+      int vi_1_head = (__shfl_up_sync(warp_mask, vi_1, 1, warp_size) != vi_1) || (lane == 0);
+      int vi_1_tail =
+          (__shfl_down_sync(warp_mask, vi_1, 1, warp_size) != vi_1) || (lane == (warp_size - 1));
+      int vi_2_head = (__shfl_up_sync(warp_mask, vi_2, 1, warp_size) != vi_2) || (lane == 0);
+      int vi_2_tail =
+          (__shfl_down_sync(warp_mask, vi_2, 1, warp_size) != vi_2) || (lane == (warp_size - 1));
 
       const scalar_t* __restrict vert_ptr = vert_attributes.data + vert_attributes_sN * n;
       const scalar_t* vert_0_ptr = vert_ptr + vert_attributes_sV * vi_0;
@@ -217,11 +238,11 @@ __global__ void interpolate_backward_kernel(
 
         if (vert_requires_grad) {
           scalar_t grad_v_0 =
-              cub::WarpReduce<scalar_t>(temp_storage_0).TailSegmentedSum(g_out * bary_0, vi_0_tail);
+              WarpReduce(temp_storage_0[warp_id]).TailSegmentedSum(g_out * bary_0, vi_0_tail);
           scalar_t grad_v_1 =
-              cub::WarpReduce<scalar_t>(temp_storage_1).TailSegmentedSum(g_out * bary_1, vi_1_tail);
+              WarpReduce(temp_storage_1[warp_id]).TailSegmentedSum(g_out * bary_1, vi_1_tail);
           scalar_t grad_v_2 =
-              cub::WarpReduce<scalar_t>(temp_storage_2).TailSegmentedSum(g_out * bary_2, vi_2_tail);
+              WarpReduce(temp_storage_2[warp_id]).TailSegmentedSum(g_out * bary_2, vi_2_tail);
 
           __syncthreads();
 
