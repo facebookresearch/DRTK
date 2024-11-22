@@ -174,7 +174,9 @@ class EdgeGradEstimatorFunction(th.autograd.Function):
 
     @staticmethod
     # pyre-fixme[14]: `backward` overrides method defined in `Function` inconsistently.
-    def backward(ctx, grad_output: th.Tensor) -> Tuple[
+    def backward(
+        ctx, grad_output: th.Tensor
+    ) -> Tuple[
         Optional[th.Tensor],
         Optional[th.Tensor],
         Optional[th.Tensor],
