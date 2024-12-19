@@ -54,16 +54,16 @@ class MipmapGridSample2DFunction : public torch::autograd::Function<MipmapGridSa
       bool force_max_ansio,
       bool clip_grad,
       const torch::Tensor& input0,
-      const c10::optional<torch::Tensor>& input1,
-      const c10::optional<torch::Tensor>& input2,
-      const c10::optional<torch::Tensor>& input3,
-      const c10::optional<torch::Tensor>& input4,
-      const c10::optional<torch::Tensor>& input5,
-      const c10::optional<torch::Tensor>& input6,
-      const c10::optional<torch::Tensor>& input7,
-      const c10::optional<torch::Tensor>& input8,
-      const c10::optional<torch::Tensor>& input9,
-      const c10::optional<torch::Tensor>& input10) {
+      const std::optional<torch::Tensor>& input1,
+      const std::optional<torch::Tensor>& input2,
+      const std::optional<torch::Tensor>& input3,
+      const std::optional<torch::Tensor>& input4,
+      const std::optional<torch::Tensor>& input5,
+      const std::optional<torch::Tensor>& input6,
+      const std::optional<torch::Tensor>& input7,
+      const std::optional<torch::Tensor>& input8,
+      const std::optional<torch::Tensor>& input9,
+      const std::optional<torch::Tensor>& input10) {
     std::vector<torch::Tensor> input = {input0};
     if (input1.has_value())
       input.push_back(input1.value());
@@ -207,16 +207,16 @@ torch::Tensor mipmap_grid_sampler_2d_autograd(
       force_max_ansio,
       clip_grad,
       input[0],
-      input.size() > 1 ? input[1] : c10::optional<torch::Tensor>(),
-      input.size() > 2 ? input[2] : c10::optional<torch::Tensor>(),
-      input.size() > 3 ? input[3] : c10::optional<torch::Tensor>(),
-      input.size() > 4 ? input[4] : c10::optional<torch::Tensor>(),
-      input.size() > 5 ? input[5] : c10::optional<torch::Tensor>(),
-      input.size() > 6 ? input[6] : c10::optional<torch::Tensor>(),
-      input.size() > 7 ? input[7] : c10::optional<torch::Tensor>(),
-      input.size() > 8 ? input[8] : c10::optional<torch::Tensor>(),
-      input.size() > 9 ? input[9] : c10::optional<torch::Tensor>(),
-      input.size() > 10 ? input[10] : c10::optional<torch::Tensor>())[0];
+      input.size() > 1 ? input[1] : std::optional<torch::Tensor>(),
+      input.size() > 2 ? input[2] : std::optional<torch::Tensor>(),
+      input.size() > 3 ? input[3] : std::optional<torch::Tensor>(),
+      input.size() > 4 ? input[4] : std::optional<torch::Tensor>(),
+      input.size() > 5 ? input[5] : std::optional<torch::Tensor>(),
+      input.size() > 6 ? input[6] : std::optional<torch::Tensor>(),
+      input.size() > 7 ? input[7] : std::optional<torch::Tensor>(),
+      input.size() > 8 ? input[8] : std::optional<torch::Tensor>(),
+      input.size() > 9 ? input[9] : std::optional<torch::Tensor>(),
+      input.size() > 10 ? input[10] : std::optional<torch::Tensor>())[0];
 }
 
 torch::Tensor mipmap_grid_sampler_2d_autocast(
