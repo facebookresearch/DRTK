@@ -160,16 +160,20 @@ def project_fisheye_distort_62(
     princpt: th.Tensor,
     D: th.Tensor,
     fov: Optional[th.Tensor] = None,
+    lut_vector_field: Optional[th.Tensor] = None,
+    lut_spacing: Optional[th.Tensor] = None,
 ) -> th.Tensor:
     """Project camera-space points to distort pixel-space points using the
     Fisheye62 distortion model. See the perception camera model implementation
     where this was copied from here: https://fburl.com/code/oqpu8xdm
 
-    v_cam:      N x V x 3
-    focal:      N x 2 x 2
-    princpt:    N x 2
-    D:          N x 8
-    fov:        N x 1
+    v_cam:              N x V x 3
+    focal:              N x 2 x 2
+    princpt:            N x 2
+    D:                  N x 8
+    fov:                N x 1
+    lut_vector_field:   N x 2 x H_lut x W_lut
+    lut_spacing:        N x 2
     """
     assert (
         D.shape[1] == 8
@@ -229,6 +233,38 @@ def project_fisheye_distort_62(
     v_proj_dist = v_proj_dist + pTangential
 
     v_pix_dist = (focal[:, None] @ v_proj_dist[..., None])[..., 0] + princpt[:, None]
+
+    if lut_vector_field is not None:
+        assert (
+            lut_spacing is not None
+        ), "lookup table spacing must be provided along with vector field"
+        # Normalize pixel position to [-1, 1] range for torch.nn.functional.grid_sample
+        normalized_pixel_pos = v_pix_dist / lut_spacing[:, None, :]
+        lut_col, lut_row = lut_vector_field.shape[2:4]
+        normalized_pixel_pos[..., 0] = (
+            normalized_pixel_pos[..., 0] / (lut_col - 1) * 2.0 - 1.0
+        )
+        normalized_pixel_pos[..., 1] = (
+            normalized_pixel_pos[..., 1] / (lut_row - 1) * 2.0 - 1.0
+        )
+        # do grid sample
+        pixel_offset = th.nn.functional.grid_sample(
+            input=lut_vector_field,
+            grid=normalized_pixel_pos.unsqueeze(1),
+            align_corners=True,
+        ).permute(0, 2, 3, 1)[:, 0, ...]
+
+        # mask for pixels out of the lookup table, whose offset need to be set to 0.0
+        out_bound_mask = (
+            (normalized_pixel_pos[..., 0] < -1.0)
+            | (normalized_pixel_pos[..., 0] > 1.0)
+            | (normalized_pixel_pos[..., 1] < -1.0)
+            | (normalized_pixel_pos[..., 1] > 1.0)
+        )
+
+        pixel_offset[out_bound_mask] = 0.0
+
+        v_pix_dist = v_pix_dist + pixel_offset
 
     return v_pix_dist
 
