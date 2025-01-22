@@ -33,7 +33,7 @@ def rasterize(
         vi (th.Tensor): face vertex index list tensor. The most significant nibble of vi is
             reserved for controlling visibility of the edges in wireframe mode. In non-wireframe
             mode, content of the most significant nibble of vi will be ignored.
-            V x 3
+            F x 3 or N x F x 3
 
         height (int): height of the image in pixels.
 
@@ -56,6 +56,9 @@ def rasterize(
         This function is not differentiable. The gradients should be computed with
         :func:`edge_grad_estimator` instead.
     """
+    if vi.ndim == 2:
+        vi = vi[None].expand(v.shape[0], -1, -1)
+
     _, index_img = th.ops.rasterize_ext.rasterize(v, vi, height, width, wireframe)
     return index_img
 
@@ -89,6 +92,9 @@ def rasterize_with_depth(
         [N, H, W]. Values in of pixels in the depth image not covered by any pixel are 0.
 
     """
+    if vi.ndim == 2:
+        vi = vi[None].expand(v.shape[0], -1, -1)
+
     depth_img, index_img = th.ops.rasterize_ext.rasterize(
         v, vi, height, width, wireframe
     )

@@ -29,7 +29,7 @@ __global__ void rasterize_kernel(
   const index_t H = packed_index_depth_img.sizes[1];
   const index_t W = packed_index_depth_img.sizes[2];
   const index_t V = v.sizes[1];
-  const index_t n_prim = vi.sizes[0];
+  const index_t n_prim = vi.sizes[1];
 
   const index_t index_sN = packed_index_depth_img.strides[0];
   const index_t index_sH = packed_index_depth_img.strides[1];
@@ -39,19 +39,23 @@ __global__ void rasterize_kernel(
   const index_t v_sV = v.strides[1];
   const index_t v_sC = v.strides[2];
 
-  const index_t vi_sF = vi.strides[0];
-  const index_t vi_sI = vi.strides[1];
+  const index_t vi_sN = vi.strides[0];
+  const index_t vi_sF = vi.strides[1];
+  const index_t vi_sI = vi.strides[2];
 
   CUDA_KERNEL_LOOP_TYPE(index, nthreads, index_t) {
     const index_t n = index / n_prim;
     const index_t id = index % n_prim;
 
-    const int32_t* __restrict vi_ptr = vi.data + vi_sF * id;
+    const int32_t* __restrict vi_ptr = vi.data + vi_sN * n + vi_sF * id;
     const int32_t vi_0 = (int32_t)(((uint32_t)vi_ptr[vi_sI * 0]) & 0x0FFFFFFFU);
     const int32_t vi_1 = vi_ptr[vi_sI * 1];
     const int32_t vi_2 = vi_ptr[vi_sI * 2];
 
     assert(vi_0 < V && vi_1 < V && vi_2 < V);
+
+    // Skip degenerate triangles. Useful for padding of vi buffer for batched rasterization
+    bool triangle_is_degenerate = (vi_0 == vi_1) && (vi_1 == vi_2);
 
     const scalar_t* __restrict v_ptr = v.data + n * v_sN;
     const scalar2_t p_0 = {v_ptr[v_sV * vi_0 + v_sC * 0], v_ptr[v_sV * vi_0 + v_sC * 1]};
@@ -70,7 +74,7 @@ __global__ void rasterize_kernel(
     const bool in_canvas = math::all_less_or_eq(min_p, {(scalar_t)(W - 1), (scalar_t)(H - 1)}) &&
         math::all_greater(max_p, {0.f, 0.f});
 
-    if (all_z_greater_0 && in_canvas) {
+    if (all_z_greater_0 && in_canvas && ~triangle_is_degenerate) {
       const scalar2_t v_01 = p_1 - p_0;
       const scalar2_t v_02 = p_2 - p_0;
       const scalar2_t v_12 = p_2 - p_1;
@@ -247,7 +251,7 @@ __global__ void rasterize_lines_kernel(
   const index_t H = packed_index_depth_img.sizes[1];
   const index_t W = packed_index_depth_img.sizes[2];
   const index_t V = v.sizes[1];
-  const index_t n_prim = vi.sizes[0];
+  const index_t n_prim = vi.sizes[1];
 
   const index_t index_sN = packed_index_depth_img.strides[0];
   const index_t index_sH = packed_index_depth_img.strides[1];
@@ -257,18 +261,23 @@ __global__ void rasterize_lines_kernel(
   const index_t v_sV = v.strides[1];
   const index_t v_sC = v.strides[2];
 
-  const index_t vi_sF = vi.strides[0];
-  const index_t vi_sI = vi.strides[1];
+  const index_t vi_sN = vi.strides[0];
+  const index_t vi_sF = vi.strides[1];
+  const index_t vi_sI = vi.strides[2];
 
   CUDA_KERNEL_LOOP_TYPE(index, nthreads, index_t) {
     const index_t n = index / n_prim;
     const index_t id = index % n_prim;
 
-    const int32_t* __restrict vi_ptr = vi.data + vi_sF * id;
+    const int32_t* __restrict vi_ptr = vi.data + vi_sN * n + vi_sF * id;
     const int32_t flag = (int32_t)((((uint32_t)vi_ptr[vi_sI * 0] & 0xF0000000U)) >> 28U);
     const int32_t vi_0 = (int32_t)(((uint32_t)vi_ptr[vi_sI * 0]) & 0x0FFFFFFFU);
     const int32_t vi_1 = vi_ptr[vi_sI * 1];
     const int32_t vi_2 = vi_ptr[vi_sI * 2];
+
+    // Skip degenerate triangles. Useful for padding of vi buffer for batched rasterization
+    bool triangle_is_degenerate = (vi_0 == vi_1) && (vi_1 == vi_2);
+
     const bool edge_0_visible = (flag & 0b00000001) != 0;
     const bool edge_1_visible = (flag & 0b00000010) != 0;
     const bool edge_2_visible = (flag & 0b00000100) != 0;
@@ -292,7 +301,7 @@ __global__ void rasterize_lines_kernel(
     const bool in_canvas = math::all_less_or_eq(min_p, {(scalar_t)(W - 1), (scalar_t)(H - 1)}) &&
         math::all_greater(max_p, {0.f, 0.f});
 
-    if (all_z_greater_0 && in_canvas) {
+    if (all_z_greater_0 && in_canvas && ~triangle_is_degenerate) {
       const scalar2_t v_01 = p_1 - p_0;
       const scalar2_t v_02 = p_2 - p_0;
       const scalar2_t v_12 = p_2 - p_1;
@@ -412,19 +421,26 @@ std::vector<torch::Tensor> rasterize_cuda(
       v.layout() == torch::kStrided && vi.layout() == torch::kStrided,
       "rasterize(): expected all inputs to have torch.strided layout");
   TORCH_CHECK(
-      (v.dim() == 3) && (vi.dim() == 2),
-      "rasterize(): expected v.ndim == 3, vi.ndim == 2, "
+      (v.dim() == 3) && (vi.dim() == 3),
+      "rasterize(): expected v.ndim == 3, vi.ndim == 3, "
       "but got v with sizes ",
       v.sizes(),
       " and vi with sizes ",
       vi.sizes());
   TORCH_CHECK(
-      v.size(2) == 3 && vi.size(1) == 3,
-      "rasterize(): expected third dim of v to be of size 3, and second dim of vi to be of size 3, but got ",
+      v.size(2) == 3 && vi.size(2) == 3,
+      "rasterize(): expected third dim of v to be of size 3, and last dim of vi to be of size 3, but got ",
       v.size(2),
       " in the third dim of v, and ",
-      vi.size(1),
-      " in the second dim of vi");
+      vi.size(2),
+      " in the last dim of vi");
+  TORCH_CHECK(
+      (vi.size(0) == v.size(0)),
+      "rasterize(): expected first dim of vi to match first dim of v, but got ",
+      v.size(0),
+      " in first dim of v, and ",
+      vi.size(0),
+      " in the first dim of vi");
   TORCH_CHECK(
       v.size(1) < 0x10000000U,
       "rasterize(): expected second dim of v to be less or eual to 268435456, but got ",
@@ -440,7 +456,7 @@ std::vector<torch::Tensor> rasterize_cuda(
   auto stream = at::cuda::getCurrentCUDAStream();
 
   auto N = v.size(0);
-  auto T = vi.size(0);
+  auto T = vi.size(1);
   auto H = height;
   auto W = width;
   const auto count_rasterize = N * T;
