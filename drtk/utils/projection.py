@@ -367,6 +367,8 @@ def project_points(
     distortion_mode: Optional[Union[List[str], str]] = None,
     distortion_coeff: Optional[th.Tensor] = None,
     fov: Optional[th.Tensor] = None,
+    lut_vector_field: Optional[th.Tensor] = None,
+    lut_spacing: Optional[th.Tensor] = None,
 ) -> Tuple[th.Tensor, th.Tensor]:
     """Project 3D world-space vertices to pixel-space, optionally applying a
     distortion model with provided coefficients.
@@ -410,9 +412,15 @@ def project_points(
             v_pix = project_fisheye_distort(
                 v_cam, focal, princpt, distortion_coeff, fov
             )
-        elif distortion_mode == "fisheye62":
+        elif distortion_mode == "fisheye62" or distortion_mode == "fisheye62_lut":
             v_pix = project_fisheye_distort_62(
-                v_cam, focal, princpt, distortion_coeff, fov
+                v_cam=v_cam,
+                focal=focal,
+                princpt=princpt,
+                D=distortion_coeff,
+                fov=fov,
+                lut_vector_field=lut_vector_field,
+                lut_spacing=lut_spacing,
             )
         else:
             raise ValueError(

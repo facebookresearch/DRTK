@@ -74,6 +74,8 @@ def transform_with_v_cam(
     distortion_mode: Optional[Union[List[str], str]] = None,
     distortion_coeff: Optional[th.Tensor] = None,
     fov: Optional[th.Tensor] = None,
+    lut_vector_field: Optional[th.Tensor] = None,
+    lut_spacing: Optional[th.Tensor] = None,
 ) -> Tuple[th.Tensor, th.Tensor]:
     """
     Same as transform, but also returns the camera-space coordinates.
@@ -100,7 +102,16 @@ def transform_with_v_cam(
     assert princpt is not None
     # Compute camera-space 3D coordinates and 2D pixel-space projections.
     v_pix, v_cam = project_points(
-        v, campos, camrot, focal, princpt, distortion_mode, distortion_coeff, fov
+        v=v,
+        campos=campos,
+        camrot=camrot,
+        focal=focal,
+        princpt=princpt,
+        distortion_mode=distortion_mode,
+        distortion_coeff=distortion_coeff,
+        fov=fov,
+        lut_vector_field=lut_vector_field,
+        lut_spacing=lut_spacing,
     )
 
     return v_pix, v_cam
