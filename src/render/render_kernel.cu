@@ -36,8 +36,9 @@ __global__ void render_kernel(
   const index_t v_sV = v.strides[1];
   const index_t v_sC = v.strides[2];
 
-  const index_t vi_sV = vi.strides[0];
-  const index_t vi_sF = vi.strides[1];
+  const index_t vi_sN = vi.strides[0];
+  const index_t vi_sV = vi.strides[1];
+  const index_t vi_sF = vi.strides[2];
 
   const index_t index_img_sN = index_img.strides[0];
   const index_t index_img_sH = index_img.strides[1];
@@ -64,7 +65,7 @@ __global__ void render_kernel(
         depth_img.data + depth_img_sN * n + depth_img_sH * h + depth_img_sW * w;
 
     if (tr_index != -1) {
-      const int32_t* __restrict vi_ptr = vi.data + tr_index * vi_sV;
+      const int32_t* __restrict vi_ptr = vi.data + n * vi_sN + tr_index * vi_sV;
       const int32_t vi_0 = vi_ptr[0 * vi_sF];
       const int32_t vi_1 = vi_ptr[1 * vi_sF];
       const int32_t vi_2 = vi_ptr[2 * vi_sF];
@@ -136,8 +137,9 @@ __global__ void render_backward_kernel(
   const index_t v_sV = v.strides[1];
   const index_t v_sC = v.strides[2];
 
-  const index_t vi_sV = vi.strides[0];
-  const index_t vi_sF = vi.strides[1];
+  const index_t vi_sN = vi.strides[0];
+  const index_t vi_sV = vi.strides[1];
+  const index_t vi_sF = vi.strides[2];
 
   const index_t index_img_sN = index_img.strides[0];
   const index_t index_img_sH = index_img.strides[1];
@@ -170,7 +172,7 @@ __global__ void render_backward_kernel(
     scalar_t* __restrict grad_v_ptr = grad_v.data + grad_v_sN * n;
 
     if (tr_index != -1) {
-      const int32_t* __restrict vi_ptr = vi.data + tr_index * vi_sV;
+      const int32_t* __restrict vi_ptr = vi.data + n * vi_sN + tr_index * vi_sV;
       const int32_t vi_0 = vi_ptr[0 * vi_sF];
       const int32_t vi_1 = vi_ptr[1 * vi_sF];
       const int32_t vi_2 = vi_ptr[2 * vi_sF];
@@ -304,8 +306,8 @@ render_cuda(const torch::Tensor& v, const torch::Tensor& vi, const torch::Tensor
           index_img.layout() == torch::kStrided,
       "render(): expected all inputs to have torch.strided layout");
   TORCH_CHECK(
-      (v.dim() == 3) && (vi.dim() == 2) && (index_img.dim() == 3),
-      "render(): expected v.ndim == 3, vi.ndim == 2, index_img.ndim == 3, "
+      (v.dim() == 3) && (vi.dim() == 3) && (index_img.dim() == 3),
+      "render(): expected v.ndim == 3, vi.ndim == 3, index_img.ndim == 3, "
       "but got v with sizes ",
       v.sizes(),
       " and vi with sizes ",
@@ -320,12 +322,19 @@ render_cuda(const torch::Tensor& v, const torch::Tensor& vi, const torch::Tensor
       " and index_img with sizes ",
       index_img.sizes());
   TORCH_CHECK(
-      v.size(2) == 3 && vi.size(1) == 3,
-      "render(): expected third dim of v to be of size 3, and second dim of vi to be of size 3, but got ",
+      vi.size(0) == v.size(0),
+      "rasterize(): expected first dim of vi to match first dim of v but got ",
+      v.size(0),
+      " in first dim of v, and ",
+      vi.size(0),
+      " in the first dim of vi");
+  TORCH_CHECK(
+      v.size(2) == 3 && vi.size(2) == 3,
+      "render(): expected third dim of v to be of size 3, and third dim of vi to be of size 3, but got ",
       v.size(2),
       " in the third dim of v, and ",
-      vi.size(1),
-      " in the second dim of vi");
+      vi.size(2),
+      " in the third dim of vi");
 
   const at::cuda::OptionalCUDAGuard device_guard(device_of(v));
 
