@@ -46,7 +46,7 @@ def edge_grad_estimator(
     Args:
         v_pix (Tensor): Pixel-space vertex coordinates, preserving the original camera-space
             Z-values. Shape: :math:`(N, V, 3)`.
-        vi (Tensor): Face vertex index list tensor. Shape: :math:`(V, 3)`.
+        vi (Tensor): Face vertex index list tensor. Shape: :math:`(F, 3)` or :math:`(N, F, 3)`.
         bary_img (Tensor): 3D barycentric coordinate image tensor. Shape: :math:`(N, 3, H, W)`.
         img (Tensor): The rendered image. Shape: :math:`(N, C, H, W)`.
         index_img (Tensor): Index image tensor. Shape: :math:`(N, H, W)`.
@@ -121,6 +121,9 @@ def edge_grad_estimator(
         image_loss.backward()
         optim.step()
     """
+
+    if vi.ndim == 2:
+        vi = vi[None, ...].expand(v_pix.shape[0], -1, -1)
 
     # TODO: avoid call to interpolate, use backward kernel of interpolate directly
     # Doing so will make `edge_grad_estimator` zero-overhead in forward pass

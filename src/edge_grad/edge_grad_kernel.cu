@@ -176,8 +176,9 @@ __global__ void edge_grad_backward_kernel(
   const index_t grad_v_pix_img_sH = grad_v_pix_img.strides[2];
   const index_t grad_v_pix_img_sW = grad_v_pix_img.strides[3];
 
-  const index_t vi_sV = vi.strides[0];
-  const index_t vi_sF = vi.strides[1];
+  const index_t vi_sN = vi.strides[0];
+  const index_t vi_sV = vi.strides[1];
+  const index_t vi_sF = vi.strides[2];
 
   CUDA_KERNEL_LOOP_TYPE(index, nthreads, index_t) {
     const index_t x = index % W;
@@ -211,11 +212,11 @@ __global__ void edge_grad_backward_kernel(
       // vertex indices of triangles of CRD pixels
       // 0,0,0 - if not valid
       const int3 vi_pt_center = load_vec3_if_valid<int32_t, index_t>(
-          vi.data + center_index * vi_sV, vi_sF, c_valid, {0, 0, 0});
+          vi.data + n * vi_sN + center_index * vi_sV, vi_sF, c_valid, {0, 0, 0});
       const int3 vi_pt_right = load_vec3_if_valid<int32_t, index_t>(
-          vi.data + right_index * vi_sV, vi_sF, r_valid, {0, 0, 0});
+          vi.data + n * vi_sN + right_index * vi_sV, vi_sF, r_valid, {0, 0, 0});
       const int3 vi_pt_down = load_vec3_if_valid<int32_t, index_t>(
-          vi.data + down_index * vi_sV, vi_sF, d_valid, {0, 0, 0});
+          vi.data + n * vi_sN + down_index * vi_sV, vi_sF, d_valid, {0, 0, 0});
 
       // center <-> right differ
       const bool lr_diff = (center_index != right_index);
