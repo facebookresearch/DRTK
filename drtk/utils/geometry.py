@@ -55,6 +55,17 @@ def face_dpdt(
         where: N - batch size; F - number of triangles
     """
 
+    if v.ndim != 3:
+        raise ValueError(f"Expected v to be 3D, got {v.ndim}D")
+
+    if vt.ndim != 3:
+        raise ValueError(f"Expected vt to be 3D, got {vt.ndim}D")
+
+    if vt.shape[0] != v.shape[0]:
+        raise ValueError(
+            f"Expected vt to have the same batch size as v, got {vt.shape[0]} and {v.shape[0]}"
+        )
+
     v012 = v[:, vi]
     vt012 = vt[:, vti]
 
