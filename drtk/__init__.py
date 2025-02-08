@@ -3,6 +3,8 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+# pyre-strict
+
 from . import utils  # noqa  # noqa
 from .edge_grad_estimator import edge_grad_estimator, edge_grad_estimator_ref  # noqa
 from .grid_scatter import grid_scatter, grid_scatter_ref  # noqa
