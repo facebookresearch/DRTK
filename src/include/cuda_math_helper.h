@@ -78,6 +78,9 @@ HD_FUNC double saturate(double a) {
 // `cuda/crt/math_functions.hpp` thus no need for explicit usage of e.g. fabsf
 #if defined(MH_NVCC)
 using ::abs;
+using ::isfinite;
+using ::isinf;
+using ::isnan;
 using ::max;
 using ::min;
 using ::rsqrt;
@@ -85,6 +88,9 @@ using ::sqrt;
 #else
 // Otherwise use the ones from cmath
 using std::abs;
+using std::isfinite;
+using std::isinf;
+using std::isnan;
 using std::max;
 using std::min;
 using std::sqrt;
@@ -469,11 +475,19 @@ HD_FUNC double rnorm4d(double a, double b, double c, double d) {
   CHD_FUNC T2 operator^(T2 const& v, T scalar) {                         \
     return {v.x ^ scalar, v.y ^ scalar};                                 \
   }                                                                      \
+  CHD_FUNC T2 operator^=(T2& v, T scalar) {                              \
+    v = {v.x ^ scalar, v.y ^ scalar};                                    \
+    return v;                                                            \
+  }                                                                      \
   CHD_FUNC T2 operator^(T scalar, T2 const& v) {                         \
     return {scalar ^ v.x, scalar ^ v.y};                                 \
   }                                                                      \
   CHD_FUNC T2 operator^(T2 const& v1, T2 const& v2) {                    \
     return {v1.x ^ v2.x, v1.y ^ v2.y};                                   \
+  }                                                                      \
+  CHD_FUNC T2 operator^=(T2& v1, T2 const& v2) {                         \
+    v1 = {v1.x ^ v2.x, v1.y ^ v2.y};                                     \
+    return v1;                                                           \
   }                                                                      \
   CHD_FUNC T2 operator<<(T2 const& v, T scalar) {                        \
     return {v.x << scalar, v.y << scalar};                               \
@@ -517,11 +531,19 @@ HD_FUNC double rnorm4d(double a, double b, double c, double d) {
   CHD_FUNC T3 operator^(T3 const& v, T scalar) {                         \
     return {v.x ^ scalar, v.y ^ scalar, v.z ^ scalar};                   \
   }                                                                      \
+  CHD_FUNC T3 operator^=(T3& v, T scalar) {                              \
+    v = {v.x ^ scalar, v.y ^ scalar, v.z ^ scalar};                      \
+    return v;                                                            \
+  }                                                                      \
   CHD_FUNC T3 operator^(T scalar, T3 const& v) {                         \
     return {scalar ^ v.x, scalar ^ v.y, scalar ^ v.z};                   \
   }                                                                      \
   CHD_FUNC T3 operator^(T3 const& v1, T3 const& v2) {                    \
     return {v1.x ^ v2.x, v1.y ^ v2.y, v1.z ^ v2.z};                      \
+  }                                                                      \
+  CHD_FUNC T3 operator^=(T3& v1, T3 const& v2) {                         \
+    v1 = {v1.x ^ v2.x, v1.y ^ v2.y, v1.z ^ v2.z};                        \
+    return v1;                                                           \
   }                                                                      \
   CHD_FUNC T3 operator<<(T3 const& v, T scalar) {                        \
     return {v.x << scalar, v.y << scalar, v.z << scalar};                \
@@ -565,11 +587,19 @@ HD_FUNC double rnorm4d(double a, double b, double c, double d) {
   CHD_FUNC T4 operator^(T4 const& v, T scalar) {                         \
     return {v.x ^ scalar, v.y ^ scalar, v.z ^ scalar, v.w ^ scalar};     \
   }                                                                      \
+  CHD_FUNC T4 operator^=(T4& v, T scalar) {                              \
+    v = {v.x ^ scalar, v.y ^ scalar, v.z ^ scalar, v.w ^ scalar};        \
+    return v;                                                            \
+  }                                                                      \
   CHD_FUNC T4 operator^(T scalar, T4 const& v) {                         \
     return {scalar ^ v.x, scalar ^ v.y, scalar ^ v.z, scalar ^ v.w};     \
   }                                                                      \
   CHD_FUNC T4 operator^(T4 const& v1, T4 const& v2) {                    \
     return {v1.x ^ v2.x, v1.y ^ v2.y, v1.z ^ v2.z, v1.w ^ v2.w};         \
+  }                                                                      \
+  CHD_FUNC T4 operator^=(T4& v1, T4 const& v2) {                         \
+    v1 = {v1.x ^ v2.x, v1.y ^ v2.y, v1.z ^ v2.z, v1.w ^ v2.w};           \
+    return v1;                                                           \
   }                                                                      \
   CHD_FUNC T4 operator<<(T4 const& v, T scalar) {                        \
     return {v.x << scalar, v.y << scalar, v.z << scalar, v.w << scalar}; \
@@ -857,6 +887,15 @@ HD_FUNC double rnorm4d(double a, double b, double c, double d) {
   }                                                                                          \
   CHD_FUNC T3 cross(T3 a, T3 b) {                                                            \
     return {a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x};            \
+  }                                                                                          \
+  HD_FUNC T2 sqrt(T2 a) {                                                                    \
+    return {sqrt(a.x), sqrt(a.y)};                                                           \
+  }                                                                                          \
+  HD_FUNC T3 sqrt(T3 a) {                                                                    \
+    return {sqrt(a.x), sqrt(a.y), sqrt(a.z)};                                                \
+  }                                                                                          \
+  HD_FUNC T4 sqrt(T4 a) {                                                                    \
+    return {sqrt(a.x), sqrt(a.y), sqrt(a.z), sqrt(a.w)};                                     \
   }                                                                                          \
   HD_FUNC T norm(T2 a) {                                                                     \
     return sqrt(dot(a, a));                                                                  \
