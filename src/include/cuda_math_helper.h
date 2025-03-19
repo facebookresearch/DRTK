@@ -73,6 +73,34 @@ HD_FUNC double saturate(double a) {
   return fmin(fmax(a, 0.0), 1.0);
 }
 
+// Do IEEE-compliant division even if `-use_fast_math` or `-prec-div=false` is set.
+// Useful when most of the code can be compiled with `-use_fast_math` but individual division
+// operations need to be precise. In particular, when diving a number by itself has to return
+// exactly 1.0 guaranteed
+HD_FUNC float precise_div(float a, float b) {
+  return HOST_DEVICE_DISPATCH(a / b, __fdiv_rn(a, b));
+}
+
+// See function above. This is overload for double. There is no fast division for doubles, but
+// it can be merged with additions into mad operation. Using this function would guarantee
+// that it won't be merged.
+HD_FUNC double precise_div(double a, double b) {
+  return HOST_DEVICE_DISPATCH(a / b, __ddiv_rn(a, b));
+}
+
+// Using this function will always result in using fast division, no matter if  `-use_fast_math` or
+// `-prec-div=false` is set or not. Warning, this might produce result slightly larger or smaller
+// than 1.0 when dividing exactly the same (bit-wise) numbers, which can lead to unexpected results.
+HD_FUNC float approx_div(float a, float b) {
+  return HOST_DEVICE_DISPATCH(a / b, __fdividef(a, b));
+}
+
+// See functions above. This variant is not actually useful since there is no fast division for
+// double. But it exists to enable writing templated code that works with both float and double
+HD_FUNC double approx_div(double a, double b) {
+  return a / b;
+}
+
 // If NVCC then use builtin abs/max/min/sqrt/rsqrt.
 // All of them have overloads for ints, floats, and doubles,defined in
 // `cuda/crt/math_functions.hpp` thus no need for explicit usage of e.g. fabsf
