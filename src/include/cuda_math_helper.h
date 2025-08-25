@@ -131,6 +131,15 @@ inline float rsqrt(float v) {
 }
 #endif
 
+HD_FUNC bool approx_eq(float a, float b, float tol) {
+  float d = abs(a - b);
+  return d <= tol;
+}
+HD_FUNC bool approx_eq(double a, double b, double tol) {
+  double d = abs(a - b);
+  return d <= tol;
+}
+
 namespace detail {
 // Provide overloads of norm3d/norm4d for floats and doubles
 HD_FUNC float norm3d(float a, float b, float c) {
@@ -900,201 +909,211 @@ HD_FUNC double rnorm4d(double a, double b, double c, double d) {
     return {floor_div(v1.x, v2), floor_div(v1.y, v2), floor_div(v1.z, v2), floor_div(v1.w, v2)}; \
   }
 
-#define OTHER_FUNC_FP(T, T2, T3, T4)                                                         \
-  CHD_FUNC T dot(T2 a, T2 b) {                                                               \
-    return a.x * b.x + a.y * b.y;                                                            \
-  }                                                                                          \
-  CHD_FUNC T dot(T3 a, T3 b) {                                                               \
-    return a.x * b.x + a.y * b.y + a.z * b.z;                                                \
-  }                                                                                          \
-  CHD_FUNC T dot(T4 a, T4 b) {                                                               \
-    return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;                                    \
-  }                                                                                          \
-  CHD_FUNC T cross(T2 a, T2 b) {                                                             \
-    return a.x * b.y - a.y * b.x;                                                            \
-  }                                                                                          \
-  CHD_FUNC T3 cross(T3 a, T3 b) {                                                            \
-    return {a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x};            \
-  }                                                                                          \
-  HD_FUNC T2 sqrt(T2 a) {                                                                    \
-    return {sqrt(a.x), sqrt(a.y)};                                                           \
-  }                                                                                          \
-  HD_FUNC T3 sqrt(T3 a) {                                                                    \
-    return {sqrt(a.x), sqrt(a.y), sqrt(a.z)};                                                \
-  }                                                                                          \
-  HD_FUNC T4 sqrt(T4 a) {                                                                    \
-    return {sqrt(a.x), sqrt(a.y), sqrt(a.z), sqrt(a.w)};                                     \
-  }                                                                                          \
-  HD_FUNC T norm(T2 a) {                                                                     \
-    return sqrt(dot(a, a));                                                                  \
-  }                                                                                          \
-  HD_FUNC T norm(T3 a) {                                                                     \
-    return detail::norm3d(a.x, a.y, a.z);                                                    \
-  }                                                                                          \
-  HD_FUNC T norm(T4 a) {                                                                     \
-    return detail::norm4d(a.x, a.y, a.z, a.w);                                               \
-  }                                                                                          \
-  HD_FUNC T rnorm(T2 a) {                                                                    \
-    return rsqrt(dot(a, a));                                                                 \
-  }                                                                                          \
-  HD_FUNC T rnorm(T3 a) {                                                                    \
-    return detail::rnorm3d(a.x, a.y, a.z);                                                   \
-  }                                                                                          \
-  HD_FUNC T rnorm(T4 a) {                                                                    \
-    return detail::rnorm4d(a.x, a.y, a.z, a.w);                                              \
-  }                                                                                          \
-  HD_FUNC T2 normalize(T2 v) {                                                               \
-    T invLen = rnorm(v);                                                                     \
-    return v * invLen;                                                                       \
-  }                                                                                          \
-  HD_FUNC T3 normalize(T3 v) {                                                               \
-    T invLen = rnorm(v);                                                                     \
-    return v * invLen;                                                                       \
-  }                                                                                          \
-  HD_FUNC T4 normalize(T4 v) {                                                               \
-    T invLen = rnorm(v);                                                                     \
-    return v * invLen;                                                                       \
-  }                                                                                          \
-  HD_FUNC T2 saturate(T2 v) {                                                                \
-    return {saturate(v.x), saturate(v.y)};                                                   \
-  }                                                                                          \
-  HD_FUNC T3 saturate(T3 v) {                                                                \
-    return {saturate(v.x), saturate(v.y), saturate(v.z)};                                    \
-  }                                                                                          \
-  HD_FUNC T4 saturate(T4 v) {                                                                \
-    return {saturate(v.x), saturate(v.y), saturate(v.z), saturate(v.w)};                     \
-  }                                                                                          \
-  CHD_FUNC T sign(T v) {                                                                     \
-    return v > 0 ? 1 : (v < 0 ? -1 : 0);                                                     \
-  }                                                                                          \
-  CHD_FUNC T2 sign(T2 v) {                                                                   \
-    return {sign(v.x), sign(v.y)};                                                           \
-  }                                                                                          \
-  CHD_FUNC T3 sign(T3 v) {                                                                   \
-    return {sign(v.x), sign(v.y), sign(v.z)};                                                \
-  }                                                                                          \
-  CHD_FUNC T4 sign(T4 v) {                                                                   \
-    return {sign(v.x), sign(v.y), sign(v.z), sign(v.w)};                                     \
-  }                                                                                          \
-  CHD_FUNC T mix(T v1, T v2, T a) {                                                          \
-    return v1 * (T(1.0) - a) + v2 * a;                                                       \
-  }                                                                                          \
-  CHD_FUNC T2 mix(T2 v1, T2 v2, T a) {                                                       \
-    return v1 * (T(1.0) - a) + v2 * a;                                                       \
-  }                                                                                          \
-  CHD_FUNC T3 mix(T3 v1, T3 v2, T a) {                                                       \
-    return v1 * (T(1.0) - a) + v2 * a;                                                       \
-  }                                                                                          \
-  CHD_FUNC T4 mix(T4 v1, T4 v2, T a) {                                                       \
-    return v1 * (T(1.0) - a) + v2 * a;                                                       \
-  }                                                                                          \
-  CHD_FUNC T2 mix(T2 v1, T2 v2, T2 a) {                                                      \
-    return v1 * (T(1.0) - a) + v2 * a;                                                       \
-  }                                                                                          \
-  CHD_FUNC T3 mix(T3 v1, T3 v2, T3 a) {                                                      \
-    return v1 * (T(1.0) - a) + v2 * a;                                                       \
-  }                                                                                          \
-  CHD_FUNC T4 mix(T4 v1, T4 v2, T4 a) {                                                      \
-    return v1 * (T(1.0) - a) + v2 * a;                                                       \
-  }                                                                                          \
-  CHD_FUNC T sum(T2 const& v) {                                                              \
-    return v.x + v.y;                                                                        \
-  }                                                                                          \
-  CHD_FUNC T sum(T3 const& v) {                                                              \
-    return v.x + v.y + v.z;                                                                  \
-  }                                                                                          \
-  CHD_FUNC T sum(T4 const& v) {                                                              \
-    return v.x + v.y + v.z + v.w;                                                            \
-  }                                                                                          \
-  HD_FUNC T epsclamp(T v, T eps) {                                                           \
-    return (v < 0) ? min(v, -eps) : max(v, eps);                                             \
-  }                                                                                          \
-  HD_FUNC T epsclamp(T v) {                                                                  \
-    return epsclamp(v, epsilon<T>::value);                                                   \
-  }                                                                                          \
-  HD_FUNC T2 epsclamp(T2 v) {                                                                \
-    return {epsclamp(v.x), epsclamp(v.y)};                                                   \
-  }                                                                                          \
-  HD_FUNC T3 epsclamp(T3 v) {                                                                \
-    return {epsclamp(v.x), epsclamp(v.y), epsclamp(v.z)};                                    \
-  }                                                                                          \
-  HD_FUNC T4 epsclamp(T4 v) {                                                                \
-    return {epsclamp(v.x), epsclamp(v.y), epsclamp(v.z), epsclamp(v.w)};                     \
-  }                                                                                          \
-  HD_FUNC T2 epsclamp(T2 v, T eps) {                                                         \
-    return {epsclamp(v.x, eps), epsclamp(v.y, eps)};                                         \
-  }                                                                                          \
-  HD_FUNC T3 epsclamp(T3 v, T eps) {                                                         \
-    return {epsclamp(v.x, eps), epsclamp(v.y, eps), epsclamp(v.z, eps)};                     \
-  }                                                                                          \
-  HD_FUNC T4 epsclamp(T4 v, T eps) {                                                         \
-    return {epsclamp(v.x, eps), epsclamp(v.y, eps), epsclamp(v.z, eps), epsclamp(v.w, eps)}; \
-  }                                                                                          \
-  CHD_FUNC void inverse(const T2(&m)[2], T2(&out)[2]) {                                      \
-    T det_m = T(1.0) / (m[0].x * m[1].y - m[0].y * m[1].x);                                  \
-    out[0] = det_m * T2({m[1].y, -m[0].y});                                                  \
-    out[1] = det_m * T2({-m[1].x, m[0].x});                                                  \
-  }                                                                                          \
-  CHD_FUNC void inverse(const T3(&m)[3], T3(&out)[3]) {                                      \
-    T det_m = T(1.0) /                                                                       \
-        (+m[0].x * (m[1].y * m[2].z - m[1].z * m[2].y) -                                     \
-         m[0].y * (m[1].x * m[2].z - m[1].z * m[2].x) +                                      \
-         m[0].z * (m[1].x * m[2].y - m[1].y * m[2].x));                                      \
-    out[0] = det_m *                                                                         \
-        T3({                                                                                 \
-            +(m[1].y * m[2].z - m[2].y * m[1].z),                                            \
-            -(m[0].y * m[2].z - m[2].y * m[0].z),                                            \
-            +(m[0].y * m[1].z - m[1].y * m[0].z),                                            \
-        });                                                                                  \
-    out[1] = det_m *                                                                         \
-        T3({                                                                                 \
-            -(m[1].x * m[2].z - m[2].x * m[1].z),                                            \
-            +(m[0].x * m[2].z - m[2].x * m[0].z),                                            \
-            -(m[0].x * m[1].z - m[1].x * m[0].z),                                            \
-        });                                                                                  \
-    out[2] = det_m *                                                                         \
-        T3({                                                                                 \
-            +(m[1].x * m[2].y - m[2].x * m[1].y),                                            \
-            -(m[0].x * m[2].y - m[2].x * m[0].y),                                            \
-            +(m[0].x * m[1].y - m[1].x * m[0].y),                                            \
-        });                                                                                  \
-  }                                                                                          \
-  CHD_FUNC T2 mul(const T2(&r)[2], T2 v) {                                                   \
-    return T2({dot(r[0], v), dot(r[1], v)});                                                 \
-  }                                                                                          \
-  CHD_FUNC T3 mul(const T3(&r)[3], T3 v) {                                                   \
-    return T3({dot(r[0], v), dot(r[1], v), dot(r[2], v)});                                   \
-  }                                                                                          \
-  CHD_FUNC T4 mul(const T4(&r)[4], T4 v) {                                                   \
-    return T4({dot(r[0], v), dot(r[1], v), dot(r[2], v), dot(r[3], v)});                     \
-  }                                                                                          \
-  CHD_FUNC void mul(const T2(&a)[2], const T2(&b)[2], T2(&out)[2]) {                         \
-    out[0] = T2({dot(a[0], T2({b[0].x, b[1].x})), dot(a[0], T2({b[0].y, b[1].y}))});         \
-    out[1] = T2({dot(a[1], T2({b[0].x, b[1].x})), dot(a[1], T2({b[0].y, b[1].y}))});         \
-  }                                                                                          \
-  CHD_FUNC void mul(const T2(&a)[2], const T3(&b)[2], T3(&out)[2]) {                         \
-    out[0] =                                                                                 \
-        T3({dot(a[0], T2({b[0].x, b[1].x})),                                                 \
-            dot(a[0], T2({b[0].y, b[1].y})),                                                 \
-            dot(a[0], T2({b[0].z, b[1].z}))});                                               \
-    out[1] =                                                                                 \
-        T3({dot(a[1], T2({b[0].x, b[1].x})),                                                 \
-            dot(a[1], T2({b[0].y, b[1].y})),                                                 \
-            dot(a[1], T2({b[0].z, b[1].z}))});                                               \
-  }                                                                                          \
-  CHD_FUNC void mul(const T3(&a)[3], const T3(&b)[3], T3(&out)[3]) {                         \
-    out[0] =                                                                                 \
-        T3({dot(a[0], T3({b[0].x, b[1].x, b[2].x})),                                         \
-            dot(a[0], T3({b[0].y, b[1].y, b[2].y})),                                         \
-            dot(a[0], T3({b[0].z, b[1].z, b[2].z}))});                                       \
-    out[1] =                                                                                 \
-        T3({dot(a[1], T3({b[0].x, b[1].x, b[2].x})),                                         \
-            dot(a[1], T3({b[0].y, b[1].y, b[2].y})),                                         \
-            dot(a[1], T3({b[0].z, b[1].z, b[2].z}))});                                       \
-    out[2] =                                                                                 \
-        T3({dot(a[2], T3({b[0].x, b[1].x, b[2].x})),                                         \
-            dot(a[2], T3({b[0].y, b[1].y, b[2].y})),                                         \
-            dot(a[2], T3({b[0].z, b[1].z, b[2].z}))});                                       \
+#define OTHER_FUNC_FP(T, T2, T3, T4)                                                               \
+  CHD_FUNC T dot(T2 a, T2 b) {                                                                     \
+    return a.x * b.x + a.y * b.y;                                                                  \
+  }                                                                                                \
+  CHD_FUNC T dot(T3 a, T3 b) {                                                                     \
+    return a.x * b.x + a.y * b.y + a.z * b.z;                                                      \
+  }                                                                                                \
+  CHD_FUNC T dot(T4 a, T4 b) {                                                                     \
+    return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;                                          \
+  }                                                                                                \
+  CHD_FUNC T cross(T2 a, T2 b) {                                                                   \
+    return a.x * b.y - a.y * b.x;                                                                  \
+  }                                                                                                \
+  CHD_FUNC T3 cross(T3 a, T3 b) {                                                                  \
+    return {a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x};                  \
+  }                                                                                                \
+  HD_FUNC T2 sqrt(T2 a) {                                                                          \
+    return {sqrt(a.x), sqrt(a.y)};                                                                 \
+  }                                                                                                \
+  HD_FUNC T3 sqrt(T3 a) {                                                                          \
+    return {sqrt(a.x), sqrt(a.y), sqrt(a.z)};                                                      \
+  }                                                                                                \
+  HD_FUNC T4 sqrt(T4 a) {                                                                          \
+    return {sqrt(a.x), sqrt(a.y), sqrt(a.z), sqrt(a.w)};                                           \
+  }                                                                                                \
+  HD_FUNC T norm(T2 a) {                                                                           \
+    return sqrt(dot(a, a));                                                                        \
+  }                                                                                                \
+  HD_FUNC T norm(T3 a) {                                                                           \
+    return detail::norm3d(a.x, a.y, a.z);                                                          \
+  }                                                                                                \
+  HD_FUNC T norm(T4 a) {                                                                           \
+    return detail::norm4d(a.x, a.y, a.z, a.w);                                                     \
+  }                                                                                                \
+  HD_FUNC T rnorm(T2 a) {                                                                          \
+    return rsqrt(dot(a, a));                                                                       \
+  }                                                                                                \
+  HD_FUNC T rnorm(T3 a) {                                                                          \
+    return detail::rnorm3d(a.x, a.y, a.z);                                                         \
+  }                                                                                                \
+  HD_FUNC T rnorm(T4 a) {                                                                          \
+    return detail::rnorm4d(a.x, a.y, a.z, a.w);                                                    \
+  }                                                                                                \
+  HD_FUNC T2 normalize(T2 v) {                                                                     \
+    T invLen = rnorm(v);                                                                           \
+    return v * invLen;                                                                             \
+  }                                                                                                \
+  HD_FUNC T3 normalize(T3 v) {                                                                     \
+    T invLen = rnorm(v);                                                                           \
+    return v * invLen;                                                                             \
+  }                                                                                                \
+  HD_FUNC T4 normalize(T4 v) {                                                                     \
+    T invLen = rnorm(v);                                                                           \
+    return v * invLen;                                                                             \
+  }                                                                                                \
+  HD_FUNC T2 saturate(T2 v) {                                                                      \
+    return {saturate(v.x), saturate(v.y)};                                                         \
+  }                                                                                                \
+  HD_FUNC T3 saturate(T3 v) {                                                                      \
+    return {saturate(v.x), saturate(v.y), saturate(v.z)};                                          \
+  }                                                                                                \
+  HD_FUNC T4 saturate(T4 v) {                                                                      \
+    return {saturate(v.x), saturate(v.y), saturate(v.z), saturate(v.w)};                           \
+  }                                                                                                \
+  CHD_FUNC T sign(T v) {                                                                           \
+    return v > 0 ? 1 : (v < 0 ? -1 : 0);                                                           \
+  }                                                                                                \
+  CHD_FUNC T2 sign(T2 v) {                                                                         \
+    return {sign(v.x), sign(v.y)};                                                                 \
+  }                                                                                                \
+  CHD_FUNC T3 sign(T3 v) {                                                                         \
+    return {sign(v.x), sign(v.y), sign(v.z)};                                                      \
+  }                                                                                                \
+  CHD_FUNC T4 sign(T4 v) {                                                                         \
+    return {sign(v.x), sign(v.y), sign(v.z), sign(v.w)};                                           \
+  }                                                                                                \
+  CHD_FUNC T mix(T v1, T v2, T a) {                                                                \
+    return v1 * (T(1.0) - a) + v2 * a;                                                             \
+  }                                                                                                \
+  CHD_FUNC T2 mix(T2 v1, T2 v2, T a) {                                                             \
+    return v1 * (T(1.0) - a) + v2 * a;                                                             \
+  }                                                                                                \
+  CHD_FUNC T3 mix(T3 v1, T3 v2, T a) {                                                             \
+    return v1 * (T(1.0) - a) + v2 * a;                                                             \
+  }                                                                                                \
+  CHD_FUNC T4 mix(T4 v1, T4 v2, T a) {                                                             \
+    return v1 * (T(1.0) - a) + v2 * a;                                                             \
+  }                                                                                                \
+  CHD_FUNC T2 mix(T2 v1, T2 v2, T2 a) {                                                            \
+    return v1 * (T(1.0) - a) + v2 * a;                                                             \
+  }                                                                                                \
+  CHD_FUNC T3 mix(T3 v1, T3 v2, T3 a) {                                                            \
+    return v1 * (T(1.0) - a) + v2 * a;                                                             \
+  }                                                                                                \
+  CHD_FUNC T4 mix(T4 v1, T4 v2, T4 a) {                                                            \
+    return v1 * (T(1.0) - a) + v2 * a;                                                             \
+  }                                                                                                \
+  CHD_FUNC T sum(T2 const& v) {                                                                    \
+    return v.x + v.y;                                                                              \
+  }                                                                                                \
+  CHD_FUNC T sum(T3 const& v) {                                                                    \
+    return v.x + v.y + v.z;                                                                        \
+  }                                                                                                \
+  CHD_FUNC T sum(T4 const& v) {                                                                    \
+    return v.x + v.y + v.z + v.w;                                                                  \
+  }                                                                                                \
+  HD_FUNC T epsclamp(T v, T eps) {                                                                 \
+    return (v < 0) ? min(v, -eps) : max(v, eps);                                                   \
+  }                                                                                                \
+  HD_FUNC T epsclamp(T v) {                                                                        \
+    return epsclamp(v, epsilon<T>::value);                                                         \
+  }                                                                                                \
+  HD_FUNC T2 epsclamp(T2 v) {                                                                      \
+    return {epsclamp(v.x), epsclamp(v.y)};                                                         \
+  }                                                                                                \
+  HD_FUNC T3 epsclamp(T3 v) {                                                                      \
+    return {epsclamp(v.x), epsclamp(v.y), epsclamp(v.z)};                                          \
+  }                                                                                                \
+  HD_FUNC T4 epsclamp(T4 v) {                                                                      \
+    return {epsclamp(v.x), epsclamp(v.y), epsclamp(v.z), epsclamp(v.w)};                           \
+  }                                                                                                \
+  HD_FUNC T2 epsclamp(T2 v, T eps) {                                                               \
+    return {epsclamp(v.x, eps), epsclamp(v.y, eps)};                                               \
+  }                                                                                                \
+  HD_FUNC T3 epsclamp(T3 v, T eps) {                                                               \
+    return {epsclamp(v.x, eps), epsclamp(v.y, eps), epsclamp(v.z, eps)};                           \
+  }                                                                                                \
+  HD_FUNC T4 epsclamp(T4 v, T eps) {                                                               \
+    return {epsclamp(v.x, eps), epsclamp(v.y, eps), epsclamp(v.z, eps), epsclamp(v.w, eps)};       \
+  }                                                                                                \
+  HD_FUNC bool approx_eq(T2 v1, T2 v2, T tol) {                                                    \
+    return approx_eq(v1.x, v2.x, tol) && approx_eq(v1.y, v2.y, tol);                               \
+  }                                                                                                \
+  HD_FUNC bool approx_eq(T3 v1, T3 v2, T tol) {                                                    \
+    return approx_eq(v1.x, v2.x, tol) && approx_eq(v1.y, v2.y, tol) && approx_eq(v1.z, v2.z, tol); \
+  }                                                                                                \
+  HD_FUNC bool approx_eq(T4 v1, T4 v2, T tol) {                                                    \
+    return approx_eq(v1.x, v2.x, tol) && approx_eq(v1.y, v2.y, tol) &&                             \
+        approx_eq(v1.z, v2.z, tol) && approx_eq(v1.w, v2.w, tol);                                  \
+  }                                                                                                \
+  CHD_FUNC void inverse(const T2(&m)[2], T2(&out)[2]) {                                            \
+    T det_m = T(1.0) / (m[0].x * m[1].y - m[0].y * m[1].x);                                        \
+    out[0] = det_m * T2({m[1].y, -m[0].y});                                                        \
+    out[1] = det_m * T2({-m[1].x, m[0].x});                                                        \
+  }                                                                                                \
+  CHD_FUNC void inverse(const T3(&m)[3], T3(&out)[3]) {                                            \
+    T det_m = T(1.0) /                                                                             \
+        (+m[0].x * (m[1].y * m[2].z - m[1].z * m[2].y) -                                           \
+         m[0].y * (m[1].x * m[2].z - m[1].z * m[2].x) +                                            \
+         m[0].z * (m[1].x * m[2].y - m[1].y * m[2].x));                                            \
+    out[0] = det_m *                                                                               \
+        T3({                                                                                       \
+            +(m[1].y * m[2].z - m[2].y * m[1].z),                                                  \
+            -(m[0].y * m[2].z - m[2].y * m[0].z),                                                  \
+            +(m[0].y * m[1].z - m[1].y * m[0].z),                                                  \
+        });                                                                                        \
+    out[1] = det_m *                                                                               \
+        T3({                                                                                       \
+            -(m[1].x * m[2].z - m[2].x * m[1].z),                                                  \
+            +(m[0].x * m[2].z - m[2].x * m[0].z),                                                  \
+            -(m[0].x * m[1].z - m[1].x * m[0].z),                                                  \
+        });                                                                                        \
+    out[2] = det_m *                                                                               \
+        T3({                                                                                       \
+            +(m[1].x * m[2].y - m[2].x * m[1].y),                                                  \
+            -(m[0].x * m[2].y - m[2].x * m[0].y),                                                  \
+            +(m[0].x * m[1].y - m[1].x * m[0].y),                                                  \
+        });                                                                                        \
+  }                                                                                                \
+  CHD_FUNC T2 mul(const T2(&r)[2], T2 v) {                                                         \
+    return T2({dot(r[0], v), dot(r[1], v)});                                                       \
+  }                                                                                                \
+  CHD_FUNC T3 mul(const T3(&r)[3], T3 v) {                                                         \
+    return T3({dot(r[0], v), dot(r[1], v), dot(r[2], v)});                                         \
+  }                                                                                                \
+  CHD_FUNC T4 mul(const T4(&r)[4], T4 v) {                                                         \
+    return T4({dot(r[0], v), dot(r[1], v), dot(r[2], v), dot(r[3], v)});                           \
+  }                                                                                                \
+  CHD_FUNC void mul(const T2(&a)[2], const T2(&b)[2], T2(&out)[2]) {                               \
+    out[0] = T2({dot(a[0], T2({b[0].x, b[1].x})), dot(a[0], T2({b[0].y, b[1].y}))});               \
+    out[1] = T2({dot(a[1], T2({b[0].x, b[1].x})), dot(a[1], T2({b[0].y, b[1].y}))});               \
+  }                                                                                                \
+  CHD_FUNC void mul(const T2(&a)[2], const T3(&b)[2], T3(&out)[2]) {                               \
+    out[0] =                                                                                       \
+        T3({dot(a[0], T2({b[0].x, b[1].x})),                                                       \
+            dot(a[0], T2({b[0].y, b[1].y})),                                                       \
+            dot(a[0], T2({b[0].z, b[1].z}))});                                                     \
+    out[1] =                                                                                       \
+        T3({dot(a[1], T2({b[0].x, b[1].x})),                                                       \
+            dot(a[1], T2({b[0].y, b[1].y})),                                                       \
+            dot(a[1], T2({b[0].z, b[1].z}))});                                                     \
+  }                                                                                                \
+  CHD_FUNC void mul(const T3(&a)[3], const T3(&b)[3], T3(&out)[3]) {                               \
+    out[0] =                                                                                       \
+        T3({dot(a[0], T3({b[0].x, b[1].x, b[2].x})),                                               \
+            dot(a[0], T3({b[0].y, b[1].y, b[2].y})),                                               \
+            dot(a[0], T3({b[0].z, b[1].z, b[2].z}))});                                             \
+    out[1] =                                                                                       \
+        T3({dot(a[1], T3({b[0].x, b[1].x, b[2].x})),                                               \
+            dot(a[1], T3({b[0].y, b[1].y, b[2].y})),                                               \
+            dot(a[1], T3({b[0].z, b[1].z, b[2].z}))});                                             \
+    out[2] =                                                                                       \
+        T3({dot(a[2], T3({b[0].x, b[1].x, b[2].x})),                                               \
+            dot(a[2], T3({b[0].y, b[1].y, b[2].y})),                                               \
+            dot(a[2], T3({b[0].z, b[1].z, b[2].z}))});                                             \
   }
 
 #define DEFINE_FUNC_FOR_UNSIGNED_INT(T, T2, T3, T4) \
