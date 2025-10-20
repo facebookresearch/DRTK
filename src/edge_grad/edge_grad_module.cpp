@@ -168,7 +168,7 @@ torch::Tensor edge_grad_estimator_autocast(
       at::autocast::cached_cast(torch::kFloat32, v_pix_img),
       vi,
       at::autocast::cached_cast(torch::kFloat32, img),
-      index_img)[0];
+      index_img);
 }
 
 #ifndef NO_PYBIND
