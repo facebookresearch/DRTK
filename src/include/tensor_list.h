@@ -27,7 +27,7 @@ template <
 struct TensorInfoCompact {
   typedef typename PtrTraits<T>::PtrType PtrType;
 
-  TensorInfoCompact(){};
+  TensorInfoCompact() {};
   __host__ TensorInfoCompact<T, index_t, N_DIMS, PtrTraits>& operator=(
       const TensorInfoCompact<T, index_t, N_DIMS>& other) {
     data = other.data;
