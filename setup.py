@@ -9,7 +9,6 @@ import re
 import sys
 
 from pkg_resources import DistributionNotFound, get_distribution
-
 from setuptools import setup
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 
@@ -47,7 +46,7 @@ def main(debug: bool) -> None:
 
     # There is som issue effecting latest NVCC and pytorch 2.3.0 https://github.com/pytorch/pytorch/issues/122169
     # The workaround is adding -std=c++20 to NVCC args
-    nvcc_args.append("-std=c++20")
+    nvcc_args.append("-std=c++17")
 
     def get_dist(name):
         try:

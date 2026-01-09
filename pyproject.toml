@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel", "torch>=2.1.0", "ninja"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "drtk"
+dynamic = ["version"]
+description = "Differentiable Rendering Toolkit"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+dependencies = [
+    "torch>=2.1.0",
+    "torchvision",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pillow",
+]
+
+[tool.setuptools.dynamic]
+version = {attr = "drtk.__version__"}
+
+[tool.setuptools.packages.find]
+include = ["drtk*"]
