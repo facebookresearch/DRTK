@@ -177,9 +177,9 @@ def project_fisheye_distort_62(
     lut_vector_field:   N x 2 x H_lut x W_lut
     lut_spacing:        N x 2
     """
-    assert (
-        D.shape[1] == 8
-    ), f"Fisheye62 model requires 8 distortion parameters: {D.shape}"
+    assert D.shape[1] == 8, (
+        f"Fisheye62 model requires 8 distortion parameters: {D.shape}"
+    )
 
     if fov is None:
         with th.no_grad():
@@ -237,9 +237,9 @@ def project_fisheye_distort_62(
     v_pix_dist = (focal[:, None] @ v_proj_dist[..., None])[..., 0] + princpt[:, None]
 
     if lut_vector_field is not None:
-        assert (
-            lut_spacing is not None
-        ), "lookup table spacing must be provided along with vector field"
+        assert lut_spacing is not None, (
+            "lookup table spacing must be provided along with vector field"
+        )
         # Normalize pixel position to [-1, 1] range for torch.nn.functional.grid_sample
         normalized_pixel_pos = v_pix_dist / lut_spacing[:, None, :]
         lut_col, lut_row = lut_vector_field.shape[2:4]
