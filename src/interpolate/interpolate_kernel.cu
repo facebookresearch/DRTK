@@ -159,9 +159,13 @@ __global__ void interpolate_backward_kernel(
         bary_img_grad.data + bary_img_grad_sN * n + bary_img_grad_sH * h + bary_img_grad_sW * w;
 
     bool thread_is_used = tr_index != -1;
-
+#ifndef __HIP_PLATFORM_AMD__
+    unsigned m = 0xFFFFFFFFU;
+#else
+    uint64_t m = 0xFFFFFFFFFFFFFFFFull;
+#endif
     // True if at least one thread in the warp is used.
-    bool warp_is_used = __any_sync(0xFFFFFFFFU, thread_is_used);
+    bool warp_is_used = __any_sync(m, thread_is_used);
 
     if (warp_is_used) {
       int32_t vi_0 = -1, vi_1 = -1, vi_2 = -1;
@@ -171,7 +175,6 @@ __global__ void interpolate_backward_kernel(
         vi_1 = vi_ptr[1 * vi_sF];
         vi_2 = vi_ptr[2 * vi_sF];
       }
-      unsigned m = 0xFFFFFFFFU;
       int vi_0_head = (__shfl_up_sync(m, vi_0, 1) != vi_0) || (lane == 0);
       int vi_0_tail = (__shfl_down_sync(m, vi_0, 1) != vi_0) || (lane == (warp_size - 1));
       int vi_1_head = (__shfl_up_sync(m, vi_1, 1) != vi_1) || (lane == 0);

@@ -1130,6 +1130,7 @@ HD_FUNC double rnorm4d(double a, double b, double c, double d) {
   DEFINE_FUNC_FOR_UNSIGNED_INT(T, T2, T3, T4)     \
   ABS_FUNC(T, T2, T3, T4)
 
+#ifndef __HIP_PLATFORM_AMD__
 #define DEFINE_FUNC_FOR_FLOAT(T, T2, T3, T4) \
   UNARY_OP(T, T2, T3, T4)                    \
   BINARY_ARITHM_OP(T, T2, T3, T4)            \
@@ -1138,6 +1139,14 @@ HD_FUNC double rnorm4d(double a, double b, double c, double d) {
   OTHER_FUNC_FP(T, T2, T3, T4)               \
   ABS_FUNC(T, T2, T3, T4)                    \
   MAKE_FUNC(T, T2, T3, T4)
+#else
+#define DEFINE_FUNC_FOR_FLOAT(T, T2, T3, T4) \
+  OTHER_FUNC_ALL(T, T2, T3, T4)              \
+  OTHER_FUNC_FP(T, T2, T3, T4)               \
+  ABS_FUNC(T, T2, T3, T4)                    \
+  MAKE_FUNC(T, T2, T3, T4)
+#endif
+
 
 DEFINE_FUNC_FOR_UNSIGNED_INT(unsigned int, uint2, uint3, uint4);
 DEFINE_FUNC_FOR_SIGNED_INT(int, int2, int3, int4);
