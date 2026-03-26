@@ -11,7 +11,7 @@ import sys
 from pkg_resources import DistributionNotFound, get_distribution
 from setuptools import setup
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension
-
+import torch
 
 def main(debug: bool) -> None:
     extra_link_args = {
@@ -31,8 +31,8 @@ def main(debug: bool) -> None:
         ),
     }
 
-    nvcc_args = ["-O0", "-g", "-DDEBUG"] if debug else ["-O3", "--use_fast_math"]
-    if not os.getenv("TORCH_CUDA_ARCH_LIST"):
+    nvcc_args = ["-O0", "-g", "-DDEBUG"] if debug else ["-O3", "--use_fast_math" if not torch.version.hip else "-ffast-math"]
+    if not os.getenv("TORCH_CUDA_ARCH_LIST") and torch.version.hip is None:
         # Respect TORCH_CUDA_ARCH_LIST when set, otherwise fall back to a default list of archs
         nvcc_args.extend(
             [
@@ -41,6 +41,12 @@ def main(debug: bool) -> None:
                 "-gencode=arch=compute_80,code=sm_80",
                 "-gencode=arch=compute_86,code=sm_86",
                 "-gencode=arch=compute_90,code=sm_90",
+            ]
+        )
+    if torch.version.hip is not None:
+        nvcc_args.extend(
+            [
+                "-DHIP_ENABLE_WARP_SYNC_BUILTINS",
             ]
         )
 
