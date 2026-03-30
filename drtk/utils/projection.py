@@ -223,6 +223,8 @@ def project_fisheye_distort_62(
     r = th.where(r < 0, r.clamp(max=-1e-8), r.clamp(min=1e-8))
     v_proj_dist = v_proj * (thetad / r)[..., None]
 
+    if fov is not None:
+        v_proj_dist = v_proj_dist.clamp(min=-fov[..., None], max=fov[..., None])
     x_r = v_proj_dist[:, :, 0]
     y_r = v_proj_dist[:, :, 1]
 
