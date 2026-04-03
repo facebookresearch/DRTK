@@ -526,7 +526,7 @@ std::vector<torch::Tensor> rasterize_cuda(
         at::native::canUse32BitIndexMath(index_img)) {
       typedef int index_type;
 
-      unpack_kernel<index_type><<<GET_BLOCKS(count_rasterize, 256), 256, 0, stream>>>(
+      unpack_kernel<index_type><<<GET_BLOCKS(count_unpack, 256), 256, 0, stream>>>(
           static_cast<index_type>(count_unpack),
           getTensorInfo<int64_t, index_type>(packed_index_depth_img),
           getTensorInfo<float, index_type>(depth_img),
@@ -535,7 +535,7 @@ std::vector<torch::Tensor> rasterize_cuda(
     } else {
       typedef int64_t index_type;
 
-      unpack_kernel<index_type><<<GET_BLOCKS(count_rasterize, 256), 256, 0, stream>>>(
+      unpack_kernel<index_type><<<GET_BLOCKS(count_unpack, 256), 256, 0, stream>>>(
           static_cast<index_type>(count_unpack),
           getTensorInfo<int64_t, index_type>(packed_index_depth_img),
           getTensorInfo<float, index_type>(depth_img),
