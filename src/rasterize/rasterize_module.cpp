@@ -27,7 +27,7 @@ torch::autograd::tensor_list rasterize(
 }
 
 // Ideally we would need to turn off autograd handling and re-dispatch, but we just call
-// cuda kernels directly
+// kernels directly
 class RasterizeFunction : public torch::autograd::Function<RasterizeFunction> {
  public:
   static torch::autograd::tensor_list forward(
@@ -38,7 +38,8 @@ class RasterizeFunction : public torch::autograd::Function<RasterizeFunction> {
       int64_t width,
       bool wireframe) {
     ctx->set_materialize_grads(false);
-    auto outputs = rasterize_cuda(v, vi, height, width, wireframe);
+    auto outputs = v.is_cuda() ? rasterize_cuda(v, vi, height, width, wireframe)
+                               : rasterize_cpu(v, vi, height, width, wireframe);
     ctx->mark_non_differentiable(outputs);
     return outputs;
   }
@@ -87,4 +88,8 @@ TORCH_LIBRARY_IMPL(rasterize_ext, Autocast, m) {
 
 TORCH_LIBRARY_IMPL(rasterize_ext, CUDA, m) {
   m.impl("rasterize", &rasterize_cuda);
+}
+
+TORCH_LIBRARY_IMPL(rasterize_ext, CPU, m) {
+  m.impl("rasterize", &rasterize_cpu);
 }

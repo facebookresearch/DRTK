@@ -11,3 +11,10 @@ std::vector<torch::Tensor> rasterize_cuda(
     int64_t height,
     int64_t width,
     bool wireframe);
+
+std::vector<torch::Tensor> rasterize_cpu(
+    const torch::Tensor& v,
+    const torch::Tensor& vi,
+    int64_t height,
+    int64_t width,
+    bool wireframe);
