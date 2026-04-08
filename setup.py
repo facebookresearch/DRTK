@@ -100,6 +100,7 @@ def main(debug: bool) -> None:
                 sources=[
                     "src/rasterize/rasterize_module.cpp",
                     "src/rasterize/rasterize_kernel.cu",
+                    "src/rasterize/rasterize_kernel_cpu.cpp",
                 ],
                 extra_compile_args={"cxx": cxx_args[target_os], "nvcc": nvcc_args},
                 extra_link_args=extra_link_args[target_os],
