@@ -14,3 +14,13 @@ torch::Tensor render_cuda_backward(
     const torch::Tensor& index_img,
     const torch::Tensor& grad_depth_img,
     const torch::Tensor& grad_bary_img);
+
+std::vector<torch::Tensor>
+render_cpu(const torch::Tensor& v, const torch::Tensor& vi, const torch::Tensor& index_img);
+
+torch::Tensor render_cpu_backward(
+    const torch::Tensor& v,
+    const torch::Tensor& vi,
+    const torch::Tensor& index_img,
+    const torch::Tensor& grad_depth_img,
+    const torch::Tensor& grad_bary_img);

@@ -23,7 +23,7 @@ render(const torch::Tensor& v, const torch::Tensor& vi, const torch::Tensor& ind
 }
 
 // Ideally we would need to turn off autograd handling and re-dispatch, but we just call
-// cuda kernels directly
+// kernels directly (CUDA or CPU based on input device)
 class RenderFunction : public torch::autograd::Function<RenderFunction> {
  public:
   static torch::autograd::tensor_list forward(
@@ -40,7 +40,7 @@ class RenderFunction : public torch::autograd::Function<RenderFunction> {
 
     ctx->saved_data["data"] = std::make_tuple((bool)v.requires_grad());
 
-    auto outputs = render_cuda(v, vi, index_img);
+    auto outputs = v.is_cuda() ? render_cuda(v, vi, index_img) : render_cpu(v, vi, index_img);
     return outputs;
   }
 
@@ -60,7 +60,9 @@ class RenderFunction : public torch::autograd::Function<RenderFunction> {
       out.resize(3);
       return out;
     }
-    auto grad_v = render_cuda_backward(v, vi, index_img, grad_outputs[0], grad_outputs[1]);
+    auto grad_v = v.is_cuda()
+        ? render_cuda_backward(v, vi, index_img, grad_outputs[0], grad_outputs[1])
+        : render_cpu_backward(v, vi, index_img, grad_outputs[0], grad_outputs[1]);
 
     out.push_back(grad_v);
     out.emplace_back();
@@ -98,4 +100,8 @@ TORCH_LIBRARY_IMPL(render_ext, Autocast, m) {
 
 TORCH_LIBRARY_IMPL(render_ext, CUDA, m) {
   m.impl("render", &render_cuda);
+}
+
+TORCH_LIBRARY_IMPL(render_ext, CPU, m) {
+  m.impl("render", &render_cpu);
 }

@@ -4,10 +4,10 @@
 // LICENSE file in the root directory of this source tree.
 
 #include <ATen/Parallel.h>
+#include <cpu_atomic.h>
 #include <cuda_math_helper.h>
 #include <torch/types.h>
 
-#include <atomic>
 #include <cstring>
 #include <limits>
 
@@ -16,11 +16,6 @@
 using namespace math;
 
 namespace {
-
-static_assert(
-    sizeof(std::atomic<int64_t>) == sizeof(int64_t) &&
-        alignof(std::atomic<int64_t>) == alignof(int64_t),
-    "atomic<int64_t> must match int64_t layout for reinterpret_cast");
 
 inline uint32_t float_as_uint(float f) {
   uint32_t u;
@@ -34,27 +29,11 @@ inline float uint_as_float(uint32_t u) {
   return f;
 }
 
-// Atomically store the minimum value into *target (lock-free on x86-64 and
-// aarch64 for aligned int64_t).
-inline void atomic_min_i64(std::atomic<int64_t>* target, int64_t val) {
-  int64_t cur = target->load(std::memory_order_relaxed);
-  // The packed value encodes depth in the upper 32 bits (as a uint32 bit-cast
-  // of a float) and the triangle index in the lower 32 bits.  Smaller packed
-  // values correspond to closer triangles, so an unsigned comparison on the
-  // full 64-bit word gives us a correct z-buffer test.
-  while (static_cast<uint64_t>(val) < static_cast<uint64_t>(cur)) {
-    if (target->compare_exchange_weak(
-            cur, val, std::memory_order_relaxed, std::memory_order_relaxed)) {
-      break;
-    }
-  }
-}
-
 template <typename scalar_t>
 void rasterize_triangles_cpu(
     const scalar_t* v_ptr,
     const int32_t* vi_ptr,
-    std::atomic<int64_t>* packed_buf,
+    int64_t* packed_buf,
     int64_t N,
     int64_t V,
     int64_t n_prim,
@@ -185,7 +164,8 @@ void rasterize_triangles_cpu(
           const uint64_t packed_val = (static_cast<uint64_t>(float_as_uint(depth)) << 32u) |
               static_cast<uint64_t>(static_cast<uint32_t>(id));
 
-          atomic_min_i64(packed_buf + n * H * W + y * W + x, static_cast<int64_t>(packed_val));
+          drtk::atomic_min_unsigned(
+              packed_buf + n * H * W + y * W + x, static_cast<int64_t>(packed_val));
         }
       }
     }
@@ -280,7 +260,7 @@ std::vector<torch::Tensor> rasterize_cpu(
       rasterize_triangles_cpu<scalar_t>(
           v_c.data_ptr<scalar_t>(),
           vi_c.data_ptr<int32_t>(),
-          reinterpret_cast<std::atomic<int64_t>*>(packed_buf.data_ptr<int64_t>()),
+          packed_buf.data_ptr<int64_t>(),
           N,
           V,
           T,

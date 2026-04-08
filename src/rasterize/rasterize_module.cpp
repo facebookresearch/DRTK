@@ -27,7 +27,7 @@ torch::autograd::tensor_list rasterize(
 }
 
 // Ideally we would need to turn off autograd handling and re-dispatch, but we just call
-// kernels directly
+// kernels directly (CUDA or CPU based on input device)
 class RasterizeFunction : public torch::autograd::Function<RasterizeFunction> {
  public:
   static torch::autograd::tensor_list forward(
