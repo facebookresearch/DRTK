@@ -26,7 +26,7 @@ torch::Tensor interpolate(
 }
 
 // Ideally we would need to turn off autograd handling and re-dispatch, but we just call
-// cuda kernels directly
+// kernels directly (CUDA or CPU based on input device)
 class InterpolateFunction : public torch::autograd::Function<InterpolateFunction> {
  public:
   static torch::autograd::tensor_list forward(
@@ -42,7 +42,10 @@ class InterpolateFunction : public torch::autograd::Function<InterpolateFunction
     save_list.push_back(index_img);
     save_list.push_back(bary_img);
     ctx->save_for_backward(save_list);
-    return {interpolate_cuda(vert_attributes, vi, index_img, bary_img)};
+    auto fwd = vert_attributes.is_cuda()
+        ? interpolate_cuda(vert_attributes, vi, index_img, bary_img)
+        : interpolate_cpu(vert_attributes, vi, index_img, bary_img);
+    return {fwd};
   }
 
   static torch::autograd::tensor_list backward(
@@ -61,8 +64,9 @@ class InterpolateFunction : public torch::autograd::Function<InterpolateFunction
       out.resize(4);
       return out;
     }
-    auto grad_out =
-        interpolate_cuda_backward(grad_outputs[0], vert_attributes, vi, index_img, bary_img);
+    auto grad_out = vert_attributes.is_cuda()
+        ? interpolate_cuda_backward(grad_outputs[0], vert_attributes, vi, index_img, bary_img)
+        : interpolate_cpu_backward(grad_outputs[0], vert_attributes, vi, index_img, bary_img);
 
     out.push_back(std::get<0>(grad_out));
     out.emplace_back();
@@ -114,4 +118,8 @@ TORCH_LIBRARY_IMPL(interpolate_ext, Autocast, m) {
 
 TORCH_LIBRARY_IMPL(interpolate_ext, CUDA, m) {
   m.impl("interpolate", &interpolate_cuda);
+}
+
+TORCH_LIBRARY_IMPL(interpolate_ext, CPU, m) {
+  m.impl("interpolate", &interpolate_cpu);
 }
