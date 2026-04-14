@@ -124,7 +124,11 @@ class EdgeGradEstimatorFunction : public torch::autograd::Function<EdgeGradEstim
       const torch::Tensor& index_img,
       double max_dp_dr) {
     // Validate input sizes
-    edge_grad_estimator_fwd(v_pix, v_pix_img, vi, img, index_img, max_dp_dr);
+    if (v_pix.is_cuda()) {
+      edge_grad_estimator_fwd(v_pix, v_pix_img, vi, img, index_img, max_dp_dr);
+    } else {
+      edge_grad_estimator_cpu_fwd(v_pix, v_pix_img, vi, img, index_img, max_dp_dr);
+    }
     ctx->set_materialize_grads(false);
     ctx->save_for_backward({v_pix, img, index_img, vi});
     ctx->saved_data["v_pix_img_requires_grad"] = v_pix_img.requires_grad();
@@ -152,8 +156,9 @@ class EdgeGradEstimatorFunction : public torch::autograd::Function<EdgeGradEstim
     const auto& vi = saved[3];
     const double max_dp_dr = ctx->saved_data["max_dp_dr"].toDouble();
 
-    auto grad_v_pix_img =
-        edge_grad_estimator_cuda_backward(v_pix, img, index_img, vi, grad_outputs[0], max_dp_dr);
+    auto grad_v_pix_img = v_pix.is_cuda()
+        ? edge_grad_estimator_cuda_backward(v_pix, img, index_img, vi, grad_outputs[0], max_dp_dr)
+        : edge_grad_estimator_cpu_backward(v_pix, img, index_img, vi, grad_outputs[0], max_dp_dr);
     return {
         torch::Tensor(),
         grad_v_pix_img,
@@ -212,4 +217,8 @@ TORCH_LIBRARY_IMPL(edge_grad_ext, Autocast, m) {
 
 TORCH_LIBRARY_IMPL(edge_grad_ext, CUDA, m) {
   m.impl("edge_grad_estimator", &edge_grad_estimator_fwd);
+}
+
+TORCH_LIBRARY_IMPL(edge_grad_ext, CPU, m) {
+  m.impl("edge_grad_estimator", &edge_grad_estimator_cpu_fwd);
 }
