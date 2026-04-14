@@ -19,11 +19,12 @@ torch::Tensor edge_grad_estimator(
     const torch::Tensor& v_pix_img,
     const torch::Tensor& vi,
     const torch::Tensor& img,
-    const torch::Tensor& index_img) {
+    const torch::Tensor& index_img,
+    double max_dp_dr) {
   static auto op = torch::Dispatcher::singleton()
                        .findSchemaOrThrow("edge_grad_ext::edge_grad_estimator", "")
                        .typed<decltype(edge_grad_estimator)>();
-  return op.call(v_pix, v_pix_img, vi, img, index_img);
+  return op.call(v_pix, v_pix_img, vi, img, index_img, max_dp_dr);
 }
 
 torch::Tensor edge_grad_estimator_fwd(
@@ -31,7 +32,8 @@ torch::Tensor edge_grad_estimator_fwd(
     const torch::Tensor& v_pix_img,
     const torch::Tensor& vi,
     const torch::Tensor& img,
-    const torch::Tensor& index_img) {
+    const torch::Tensor& index_img,
+    double max_dp_dr) {
   TORCH_CHECK(
       v_pix.defined() && v_pix_img.defined() && vi.defined() && img.defined() &&
           index_img.defined(),
@@ -119,12 +121,14 @@ class EdgeGradEstimatorFunction : public torch::autograd::Function<EdgeGradEstim
       const torch::Tensor& v_pix_img,
       const torch::Tensor& vi,
       const torch::Tensor& img,
-      const torch::Tensor& index_img) {
-    // Call edge_grad_estimator_fwd to check the input sizes
-    edge_grad_estimator_fwd(v_pix, v_pix_img, vi, img, index_img);
+      const torch::Tensor& index_img,
+      double max_dp_dr) {
+    // Validate input sizes
+    edge_grad_estimator_fwd(v_pix, v_pix_img, vi, img, index_img, max_dp_dr);
     ctx->set_materialize_grads(false);
     ctx->save_for_backward({v_pix, img, index_img, vi});
     ctx->saved_data["v_pix_img_requires_grad"] = v_pix_img.requires_grad();
+    ctx->saved_data["max_dp_dr"] = max_dp_dr;
     return {img};
   }
 
@@ -133,17 +137,30 @@ class EdgeGradEstimatorFunction : public torch::autograd::Function<EdgeGradEstim
       torch::autograd::tensor_list grad_outputs) {
     // If v_pix_img doesn't require grad, we don't need to do anything.
     if (!ctx->saved_data["v_pix_img_requires_grad"].toBool()) {
-      return {torch::Tensor(), torch::Tensor(), torch::Tensor(), grad_outputs[0], torch::Tensor()};
+      return {
+          torch::Tensor(),
+          torch::Tensor(),
+          torch::Tensor(),
+          grad_outputs[0],
+          torch::Tensor(),
+          torch::Tensor()};
     }
     const auto saved = ctx->get_saved_variables();
     const auto& v_pix = saved[0];
     const auto& img = saved[1];
     const auto& index_img = saved[2];
     const auto& vi = saved[3];
+    const double max_dp_dr = ctx->saved_data["max_dp_dr"].toDouble();
 
     auto grad_v_pix_img =
-        edge_grad_estimator_cuda_backward(v_pix, img, index_img, vi, grad_outputs[0]);
-    return {torch::Tensor(), grad_v_pix_img, torch::Tensor(), grad_outputs[0], torch::Tensor()};
+        edge_grad_estimator_cuda_backward(v_pix, img, index_img, vi, grad_outputs[0], max_dp_dr);
+    return {
+        torch::Tensor(),
+        grad_v_pix_img,
+        torch::Tensor(),
+        grad_outputs[0],
+        torch::Tensor(),
+        torch::Tensor()};
   }
 };
 
@@ -152,8 +169,9 @@ torch::Tensor edge_grad_estimator_autograd(
     const torch::Tensor& v_pix_img,
     const torch::Tensor& vi,
     const torch::Tensor& img,
-    const torch::Tensor& index_img) {
-  return EdgeGradEstimatorFunction::apply(v_pix, v_pix_img, vi, img, index_img)[0];
+    const torch::Tensor& index_img,
+    double max_dp_dr) {
+  return EdgeGradEstimatorFunction::apply(v_pix, v_pix_img, vi, img, index_img, max_dp_dr)[0];
 }
 
 torch::Tensor edge_grad_estimator_autocast(
@@ -161,14 +179,16 @@ torch::Tensor edge_grad_estimator_autocast(
     const torch::Tensor& v_pix_img,
     const torch::Tensor& vi,
     const torch::Tensor& img,
-    const torch::Tensor& index_img) {
+    const torch::Tensor& index_img,
+    double max_dp_dr) {
   c10::impl::ExcludeDispatchKeyGuard no_autocast(c10::DispatchKey::Autocast);
   return edge_grad_estimator(
       at::autocast::cached_cast(torch::kFloat32, v_pix),
       at::autocast::cached_cast(torch::kFloat32, v_pix_img),
       vi,
       at::autocast::cached_cast(torch::kFloat32, img),
-      index_img);
+      index_img,
+      max_dp_dr);
 }
 
 #ifndef NO_PYBIND
@@ -179,7 +199,7 @@ PYBIND11_MODULE(edge_grad_ext, m) {}
 
 TORCH_LIBRARY(edge_grad_ext, m) {
   m.def(
-      "edge_grad_estimator(Tensor v_pix, Tensor v_pix_img, Tensor vi, Tensor img, Tensor index_img) -> Tensor");
+      "edge_grad_estimator(Tensor v_pix, Tensor v_pix_img, Tensor vi, Tensor img, Tensor index_img, float max_dp_dr=1e4) -> Tensor");
 }
 
 TORCH_LIBRARY_IMPL(edge_grad_ext, Autograd, m) {

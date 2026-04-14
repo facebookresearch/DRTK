@@ -24,6 +24,7 @@ def edge_grad_estimator(
     img: th.Tensor,
     index_img: th.Tensor,
     v_pix_img_hook: Optional[Callable[[th.Tensor], None]] = None,
+    max_dp_dr: float = 1e4,
 ) -> th.Tensor:
     """Makes the rasterized image ``img`` differentiable at visibility discontinuities
     and backpropagates the gradients to ``v_pix``.
@@ -55,6 +56,43 @@ def edge_grad_estimator(
         v_pix_img_hook (Optional[Callable[[th.Tensor], None]]): An optional backward hook that will
             be registered to ``v_pix_img``. Useful for examining the generated image space. Default
             is None.
+        max_dp_dr (float): Maximum allowed magnitude for the edge-to-fragment
+            derivative ∂p/∂r (Eqn. 14 of the paper). Prevents gradient blowup
+            for nearly-coplanar triangles by clamping ‖∂p/∂r‖ ≤ max_dp_dr.
+            Set to 0.0 to disable clamping (for comparison with analytic
+            solutions or finite differences). Default is 1e4.
+
+            **How to choose max_dp_dr:** Because ``v_pix`` has x,y in pixel
+            units but z in world (camera-space) units, the normals computed
+            from ``v_pix`` are in a mixed-unit space. This means the effective
+            world-space dihedral angle below which clamping activates depends
+            on the camera's focal length and the distance to the geometry::
+
+                θ ≈ f / (max_dp_dr · Z)
+
+            where ``f`` is the focal length in pixels and ``Z`` is the depth
+            in world units. Examples with default max_dp_dr=1e4:
+
+            ==========  ======  ==============
+            f (pixels)  Z       θ (degrees)
+            ==========  ======  ==============
+            500         5       0.6°
+            1111        4       1.6°
+            5000        1       29°
+            10000       1000    0.06°
+            ==========  ======  ==============
+
+            For typical rendering setups (moderate focal length, geometry not
+            too close), the default 1e4 clips only at sub-degree to few-degree
+            dihedral angles. For very high ``f/Z`` ratios (telephoto lens or
+            close-up geometry), consider increasing max_dp_dr.
+
+            Ideally, the clamping would operate on normals in world space
+            (where the dihedral angle is independent of camera parameters).
+            This would require passing the focal length to the kernel and
+            rescaling the z-component of the projected normals to pixel units
+            before computing ∂p/∂r. This is not yet implemented — the current
+            approach operates directly on the mixed-unit ``v_pix`` normals.
 
     Returns:
         Tensor: Returns the input ``img`` unchanged. However, the returned image now has added
@@ -133,7 +171,9 @@ def edge_grad_estimator(
     # edge_grad_estimator so that backward kernel can be called with the computed gradient.
     v_pix_img = interpolate(v_pix, vi, index_img, bary_img.detach())
 
-    img = th.ops.edge_grad_ext.edge_grad_estimator(v_pix, v_pix_img, vi, img, index_img)
+    img = th.ops.edge_grad_ext.edge_grad_estimator(
+        v_pix, v_pix_img, vi, img, index_img, max_dp_dr
+    )
 
     if v_pix_img_hook is not None:
         v_pix_img.register_hook(v_pix_img_hook)
@@ -147,6 +187,7 @@ def edge_grad_estimator_ref(
     img: th.Tensor,
     index_img: th.Tensor,
     v_pix_img_hook: Optional[Callable[[th.Tensor], None]] = None,
+    max_dp_dr: float = 1e4,
 ) -> th.Tensor:
     """
     Python reference implementation for
@@ -156,7 +197,9 @@ def edge_grad_estimator_ref(
     # could use v_pix_img output from DRTK, but bary_img needs to be detached.
     v_pix_img = interpolate(v_pix, vi, index_img, bary_img.detach())
     # pyre-fixme[16]: `EdgeGradEstimatorFunction` has no attribute `apply`.
-    img = EdgeGradEstimatorFunction.apply(v_pix, v_pix_img, vi, img, index_img)
+    img = EdgeGradEstimatorFunction.apply(
+        v_pix, v_pix_img, vi, img, index_img, max_dp_dr
+    )
 
     if v_pix_img_hook is not None:
         v_pix_img.register_hook(v_pix_img_hook)
@@ -173,8 +216,10 @@ class EdgeGradEstimatorFunction(th.autograd.Function):
         vi: th.Tensor,
         img: th.Tensor,
         index_img: th.Tensor,
+        max_dp_dr: float = 1e4,
     ) -> th.Tensor:
         ctx.save_for_backward(v_pix, img, index_img, vi)
+        ctx.max_dp_dr = max_dp_dr
         return img
 
     @staticmethod
@@ -187,10 +232,13 @@ class EdgeGradEstimatorFunction(th.autograd.Function):
         Optional[th.Tensor],
         Optional[th.Tensor],
         Optional[th.Tensor],
+        None,
     ]:
         # early exit in case geometry is not optimized.
         if not ctx.needs_input_grad[1]:
-            return None, None, None, grad_output, None
+            return None, None, None, grad_output, None, None
+
+        max_dp_dr = ctx.max_dp_dr
 
         v_pix, img, index_img, vi = ctx.saved_tensors
 
@@ -339,42 +387,57 @@ class EdgeGradEstimatorFunction(th.autograd.Function):
         n_up = n[..., :-1, :]
         n_down = n[..., 1:, :]
 
-        def get_dp_db(v_varying: th.Tensor, v_fixed: th.Tensor) -> th.Tensor:
+        def get_dp_dr(v_varying: th.Tensor, v_fixed: th.Tensor) -> th.Tensor:
             """
-            Computes derivative of the point position with respect to edge displacement
-            See drtk/src/edge_grad/edge_grad_kernel.cu
-            Please refer to the paper "Rasterized Edge Gradients: Handling Discontinuities Differentiably"
-            for details.
+            Computes ∂p/∂r — the derivative of the edge position p with
+            respect to fragment position r, projected onto a 2D plane (XZ
+            for vertical edges, YZ for horizontal edges). See Eqn. 14 of
+            the paper.
+
+            When max_dp_dr > 0, the result magnitude is clamped to at most
+            max_dp_dr to stay within the linear model's domain of validity.
+
+            See drtk/src/edge_grad/edge_grad_kernel.cu get_dp_dr() for the
+            full derivation.
             """
 
             v_varying = thf.normalize(v_varying, dim=1)
             v_fixed = thf.normalize(v_fixed, dim=1)
             b = th.stack([-v_fixed[:, 1], v_fixed[:, 0]], dim=1)
-            b_dot_varying = (b * v_varying).sum(dim=1, keepdim=True)
-            return b[:, 0:1] / epsclamp(b_dot_varying) * v_varying
+            d = (b * v_varying).sum(dim=1, keepdim=True)
+            if max_dp_dr > 0:
+                # Clamp |b.x/d| ≤ M by ensuring |d| ≥ |b.x|/M.
+                # Use where() instead of sign() because sign(0)=0 would zero out safe_d.
+                sign_d = th.where(d >= 0, th.ones_like(d), -th.ones_like(d))
+                safe_d = sign_d * th.maximum(d.abs(), b[:, 0:1].abs() / max_dp_dr)
+                # safe_d can only be zero if both d and b.x are zero, which means
+                # n_fixed is along the first axis — epsclamp handles this edge case.
+                return b[:, 0:1] / epsclamp(safe_d) * v_varying
+            else:
+                return b[:, 0:1] / epsclamp(d) * v_varying
 
         # We compute partial derivatives by fixing one triangle and moving the
         # other, and then vice versa.
 
         # Left triangle moves, right fixed
-        dp_dbx = get_dp_db(n_left[:, [0, 2]], -n_right[:, [0, 2]])
-        x_grad_spread[:, :, :-1] += x_grad_int * dp_dbx[:, 0]
-        z_grad_spread[:, :, :-1] += x_grad_int * dp_dbx[:, 1]
+        dpx_dr = get_dp_dr(n_left[:, [0, 2]], -n_right[:, [0, 2]])
+        x_grad_spread[:, :, :-1] += x_grad_int * dpx_dr[:, 0]
+        z_grad_spread[:, :, :-1] += x_grad_int * dpx_dr[:, 1]
 
         # Left triangle fixed, right moves
-        dp_dbx = get_dp_db(n_right[:, [0, 2]], n_left[:, [0, 2]])
-        x_grad_spread[:, :, 1:] += x_grad_int * dp_dbx[:, 0]
-        z_grad_spread[:, :, 1:] += x_grad_int * dp_dbx[:, 1]
+        dpx_dr = get_dp_dr(n_right[:, [0, 2]], n_left[:, [0, 2]])
+        x_grad_spread[:, :, 1:] += x_grad_int * dpx_dr[:, 0]
+        z_grad_spread[:, :, 1:] += x_grad_int * dpx_dr[:, 1]
 
         # Upper triangle moves, lower fixed
-        dp_dby = get_dp_db(n_up[:, [1, 2]], -n_down[:, [1, 2]])
-        y_grad_spread[:, :-1, :] += y_grad_int * dp_dby[:, 0]
-        z_grad_spread[:, :-1, :] += y_grad_int * dp_dby[:, 1]
+        dpy_dr = get_dp_dr(n_up[:, [1, 2]], -n_down[:, [1, 2]])
+        y_grad_spread[:, :-1, :] += y_grad_int * dpy_dr[:, 0]
+        z_grad_spread[:, :-1, :] += y_grad_int * dpy_dr[:, 1]
 
         # Lower triangle moves, upper fixed
-        dp_dby = get_dp_db(n_down[:, [1, 2]], n_up[:, [1, 2]])
-        y_grad_spread[:, 1:, :] += y_grad_int * dp_dby[:, 0]
-        z_grad_spread[:, 1:, :] += y_grad_int * dp_dby[:, 1]
+        dpy_dr = get_dp_dr(n_down[:, [1, 2]], n_up[:, [1, 2]])
+        y_grad_spread[:, 1:, :] += y_grad_int * dpy_dr[:, 0]
+        z_grad_spread[:, 1:, :] += y_grad_int * dpy_dr[:, 1]
 
         m = index_img == -1
         x_grad_spread[m] = 0.0
@@ -382,4 +445,4 @@ class EdgeGradEstimatorFunction(th.autograd.Function):
 
         grad_v_pix = -th.stack([x_grad_spread, y_grad_spread, z_grad_spread], dim=3)
 
-        return None, grad_v_pix, None, grad_output, None
+        return None, grad_v_pix, None, grad_output, None, None

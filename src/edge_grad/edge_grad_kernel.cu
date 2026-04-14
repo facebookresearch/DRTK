@@ -100,26 +100,106 @@ get_tri_normal(const scalar_t* v_ptr, index_t v_sV, index_t v_sC, int3 vi) {
 }
 
 template <typename scalar_t>
-__device__ math::TVec2<scalar_t> get_db_dp(
+__device__ math::TVec2<scalar_t> get_dp_dr(
     const math::TVec2<scalar_t>& n_varying_,
-    const math::TVec2<scalar_t>& n_fixed_) {
+    const math::TVec2<scalar_t>& n_fixed_,
+    scalar_t max_magnitude = scalar_t(0)) {
   /*
-      Computes derivative of the point position with respect to edge displacement
+      Computes ∂p/∂r — the derivative of the edge position p with respect
+      to fragment position r, projected onto a 2D plane (XZ for vertical
+      edges, YZ for horizontal edges). See Eqn. 14 and §S.3 of the paper
+      "Rasterized Edge Gradients: Handling Discontinuities Differentiably".
+
+      This relates edge movement to fragment movement for the intersection
+      case. The result is a 2D vector whose components are used to scatter
+      ∂L/∂p (the edge gradient from Eqn. 11) onto the per-fragment gradient
+      image (grad_v_pix_img), which is then reduced to per-vertex gradients
+      via the backward pass of the interpolate module.
+
       Args:
-        - n_varying_: Projection of the normal of the movable triangle onto the plane of
-     consideration (XZ or YZ) N x 3 x H x W.
-        - n_fixed_:  Projection of the normal of the fixed triangle onto the plane of consideration
-     (XZ or YZ) N x 3 x H x W.
-     Please refer to the paper "Rasterized Edge Gradients: Handling Discontinuities Differentiably"
-     for details.
+        - n_varying_: face normal of the movable triangle, projected onto the
+          plane of consideration (XZ or YZ).
+        - n_fixed_: face normal of the fixed triangle, projected onto the same
+          plane.
+        - max_magnitude: maximum allowed magnitude for ‖∂p/∂r‖. When > 0,
+          the result is clamped so that |b₁/d| ≤ max_magnitude.
+          When 0, no clamping is applied (for comparison with analytic
+          solutions or finite differences).
+          Default: 0 (no clamping; the caller passes the value from Python).
+
+      Derivation (from §S.3 of the paper):
+        Let n̂_v, n̂_f be the normalized projected normals. Define:
+          b = (−n̂_f₂, n̂_f₁)    — n̂_f rotated 90°, in-plane tangent of
+                                   the fixed primitive
+          d = b · n̂_v           — 2D cross product n̂_f × n̂_v = sin(α)
+                                   where α is the angle between the normals
+        The edge displacement s lies along b (the edge can only slide along
+        the fixed primitive). Projecting onto the x-axis (or y-axis) gives:
+          ∂p/∂r = (b₁ / d) · n̂_v
+
+      Numerical stability — clamping ‖∂p/∂r‖ to max_magnitude M:
+
+        The edge gradient estimator uses a first-order linear model:
+
+          L(p + Δp) ≈ L(p) + G · Δp
+
+        where G = ∂L/∂p is the upstream edge gradient (Eqn. 11) and Δp is
+        the edge displacement. This linear approximation is only valid for
+        |Δp| ≤ 1 pixel — beyond that the edge crosses into a new pixel pair,
+        the edge classification changes, and we would need to re-render.
+
+        The full fragment gradient is:
+
+          ∂L/∂r = G · ∂p/∂r
+
+        The magnitude ‖∂p/∂r‖ = |b₁/d| represents the amplification: how
+        many pixels of edge movement per pixel of fragment movement. When
+        the two triangles are nearly coplanar (d = sin(α) → 0), this blows
+        up — a tiny fragment perturbation predicts an edge sweep of millions
+        of pixels, far outside the linear model's domain of validity.
+
+        We clamp the amplification to at most M by ensuring |d| ≥ |b₁|/M:
+
+          d_safe = sign(d) · max(|d|, |b₁| / M)
+
+        This bounds ‖∂p/∂r‖ ≤ M: one pixel of fragment movement predicts at
+        most M pixels of edge movement. For well-separated triangles where
+        |b₁/d| < M already, the clamp has no effect. It only engages for
+        nearly-coplanar geometry where the unclamped magnitude exceeds M.
+
+        Note on the angle interpretation: v_pix has x,y in pixel units but
+        z in world (camera-space) units. This mismatch squishes the
+        projected normals, making d = sin(α) much smaller than the naive
+        geometric angle would suggest. The effective world-space dihedral
+        angle threshold is approximately θ ≈ f / (M · Z), where f is the
+        focal length in pixels and Z is depth. So M = 1e4 (default) with
+        f=500, Z=5 clips at θ ≈ 0.6°, but with f=5000, Z=1 clips at
+        θ ≈ 29°. Ideally, the focal length would be passed to this
+        function to rescale the z-component to pixel units, making the
+        threshold independent of camera parameters.
+
+      See: "Rasterized Edge Gradients: Handling Discontinuities
+      Differentiably" for the base derivation. The clamping is an extension
+      that stabilizes the gradient for nearly-coplanar triangle pairs.
   */
   typedef typename math::TVec2<scalar_t> scalar2_t;
 
   const auto n_varying = normalize(n_varying_);
   const auto n_fixed = normalize(n_fixed_);
   const scalar2_t b = {-n_fixed.y, n_fixed.x};
-  const auto b_dot_varyingg = dot(b, n_varying);
-  return b.x / epsclamp(b_dot_varyingg) * n_varying;
+  const auto d = dot(b, n_varying);
+  if (max_magnitude > scalar_t(0)) {
+    // Clamp |b.x/d| ≤ M by ensuring |d| ≥ |b.x|/M.
+    const auto abs_d = abs(d);
+    const auto abs_bx_over_M = abs(b.x) / max_magnitude;
+    // When both d and b.x are zero (n_fixed along first axis), max(0,0)=0.
+    // epsclamp prevents 0/0; the result is 0 anyway since b.x=0.
+    const auto safe_d =
+        (d >= scalar_t(0) ? scalar_t(1) : scalar_t(-1)) * epsclamp(max(abs_d, abs_bx_over_M));
+    return (b.x / safe_d) * n_varying;
+  } else {
+    return b.x / epsclamp(d) * n_varying;
+  }
 }
 
 template <typename scalar_t, typename index_t>
@@ -144,7 +224,8 @@ __global__ void edge_grad_backward_kernel(
     TensorInfo<int32_t, index_t> vi,
     TensorInfo<scalar_t, index_t> grad_output,
     TensorInfo<scalar_t, index_t> grad_v_pix_img,
-    const index_t memory_span) {
+    const index_t memory_span,
+    const scalar_t max_dp_dr) {
   typedef typename math::TVec2<scalar_t> scalar2_t;
   typedef typename math::TVec3<scalar_t> scalar3_t;
 
@@ -311,16 +392,16 @@ __global__ void edge_grad_backward_kernel(
         grad_v_pix_right.x += (!r_valid || l_over_r || horiz_adjacent) ? 0.f : grad_dot_x;
       } else {
         // Center triangle moves, right fixed.
-        scalar2_t dbx_dp = get_db_dp<scalar_t>(
-            {center_normal.x, center_normal.z}, {right_normal.x, right_normal.z});
-        grad_v_pix_center.x += grad_dot_x * dbx_dp.x;
-        grad_v_pix_center.z += grad_dot_x * dbx_dp.y;
+        scalar2_t dpx_dr = get_dp_dr<scalar_t>(
+            {center_normal.x, center_normal.z}, {right_normal.x, right_normal.z}, max_dp_dr);
+        grad_v_pix_center.x += grad_dot_x * dpx_dr.x;
+        grad_v_pix_center.z += grad_dot_x * dpx_dr.y;
 
         // Center triangle fixed, right moves.
-        dbx_dp = get_db_dp<scalar_t>(
-            {right_normal.x, right_normal.z}, {center_normal.x, center_normal.z});
-        grad_v_pix_right.x += grad_dot_x * dbx_dp.x;
-        grad_v_pix_right.z += grad_dot_x * dbx_dp.y;
+        dpx_dr = get_dp_dr<scalar_t>(
+            {right_normal.x, right_normal.z}, {center_normal.x, center_normal.z}, max_dp_dr);
+        grad_v_pix_right.x += grad_dot_x * dpx_dr.x;
+        grad_v_pix_right.z += grad_dot_x * dpx_dr.y;
       }
 
       if (!vert_int) {
@@ -328,16 +409,16 @@ __global__ void edge_grad_backward_kernel(
         grad_v_pix_down.y += (!d_valid || u_over_d || vert_adjacent) ? 0.f : grad_dot_y;
       } else {
         // Center triangle moves, lower fixed.
-        scalar2_t dby_dp =
-            get_db_dp<scalar_t>({center_normal.y, center_normal.z}, {down_normal.y, down_normal.z});
-        grad_v_pix_center.y += grad_dot_y * dby_dp.x;
-        grad_v_pix_center.z += grad_dot_y * dby_dp.x;
+        scalar2_t dpy_dr = get_dp_dr<scalar_t>(
+            {center_normal.y, center_normal.z}, {down_normal.y, down_normal.z}, max_dp_dr);
+        grad_v_pix_center.y += grad_dot_y * dpy_dr.x;
+        grad_v_pix_center.z += grad_dot_y * dpy_dr.y;
 
         // Center triangle fixed, lower moves.
-        dby_dp =
-            get_db_dp<scalar_t>({down_normal.y, down_normal.z}, {center_normal.y, center_normal.z});
-        grad_v_pix_down.y += grad_dot_y * dby_dp.x;
-        grad_v_pix_down.z += grad_dot_y * dby_dp.x;
+        dpy_dr = get_dp_dr<scalar_t>(
+            {down_normal.y, down_normal.z}, {center_normal.y, center_normal.z}, max_dp_dr);
+        grad_v_pix_down.y += grad_dot_y * dpy_dr.x;
+        grad_v_pix_down.z += grad_dot_y * dpy_dr.y;
       }
 
       // Writing grads out
@@ -374,7 +455,8 @@ void edge_grad_estimator_cuda_backward_(
     const torch::Tensor& index_img,
     const torch::Tensor& vi,
     const torch::Tensor& grad_outputs,
-    const torch::Tensor& grad_v_pix_img) {
+    const torch::Tensor& grad_v_pix_img,
+    double max_dp_dr) {
   edge_grad_backward_kernel<scalar_t, index_type>
       <<<GET_BLOCKS(count, 256), 256, 0, at::cuda::getCurrentCUDAStream()>>>(
           static_cast<index_type>(count),
@@ -384,7 +466,8 @@ void edge_grad_estimator_cuda_backward_(
           getTensorInfo<int32_t, index_type>(vi),
           getTensorInfo<scalar_t, index_type>(grad_outputs),
           getTensorInfo<scalar_t, index_type>(grad_v_pix_img),
-          grad_v_pix_img.numel());
+          grad_v_pix_img.numel(),
+          static_cast<scalar_t>(max_dp_dr));
   C10_CUDA_KERNEL_LAUNCH_CHECK();
 }
 
@@ -393,7 +476,8 @@ torch::Tensor edge_grad_estimator_cuda_backward(
     const torch::Tensor& img,
     const torch::Tensor& index_img,
     const torch::Tensor& vi,
-    const torch::Tensor& grad_outputs) {
+    const torch::Tensor& grad_outputs,
+    double max_dp_dr) {
   const at::cuda::OptionalCUDAGuard device_guard(device_of(img));
 
   const auto N = img.sizes()[0];
@@ -412,10 +496,10 @@ torch::Tensor edge_grad_estimator_cuda_backward(
           at::native::canUse32BitIndexMath(grad_outputs) &&
           at::native::canUse32BitIndexMath(grad_v_pix_img)) {
         edge_grad_estimator_cuda_backward_<scalar_t, int>(
-            count, v_pix, img, index_img, vi, grad_outputs, grad_v_pix_img);
+            count, v_pix, img, index_img, vi, grad_outputs, grad_v_pix_img, max_dp_dr);
       } else {
         edge_grad_estimator_cuda_backward_<scalar_t, int64_t>(
-            count, v_pix, img, index_img, vi, grad_outputs, grad_v_pix_img);
+            count, v_pix, img, index_img, vi, grad_outputs, grad_v_pix_img, max_dp_dr);
       }
     });
   }
