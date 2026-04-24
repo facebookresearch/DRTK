@@ -17,6 +17,18 @@ DISTORTION_MODES: Set[Optional[str]] = {
     "fisheye",
 }
 
+_FISHEYE62_MODES: Set[str] = {"fisheye62", "fisheye62_lut"}
+
+
+def _any_mode_is_fisheye62(
+    distortion_mode: Optional[Union[List[str], str]],
+) -> bool:
+    # Check list/tuple first -- `list in set` raises TypeError because lists
+    # are unhashable.
+    if isinstance(distortion_mode, (list, tuple)):
+        return any(m in _FISHEYE62_MODES for m in distortion_mode)
+    return distortion_mode in _FISHEYE62_MODES
+
 
 def project_pinhole(
     v_cam: th.Tensor, focal: th.Tensor, princpt: th.Tensor
@@ -534,7 +546,33 @@ def project_points(
             f"Invalid distortion mode: {distortion_mode}. Valid options: {DISTORTION_MODES}."
         )
 
-    v_pix = th.cat((v_pix[:, :, 0:2], v_cam[:, :, 2:3]), dim=-1)
+    z_cam = v_cam[:, :, 2:3]
+    # fisheye62's per-axis clamp + tangential terms silently project rays
+    # whose `r = ||(x/z, y/z)|| > fov` into the image, giving garbage pixel
+    # coordinates. Drive `z = -1` on those vertices so DRTK's rasterizer
+    # near-plane check culls any triangle that touches them.
+    if fov is not None and _any_mode_is_fisheye62(distortion_mode):
+        z_safe = th.where(
+            z_cam.abs() < 1e-8,
+            th.where(z_cam < 0, z_cam.clamp(max=-1e-8), z_cam.clamp(min=1e-8)),
+            z_cam,
+        )
+        r_raw = (v_cam[:, :, :2] / z_safe).pow(2).sum(-1, keepdim=True).sqrt()
+        outside_fov = r_raw > fov.view(-1, 1, 1)
+        # Mixed-mode batches (defensive): only cull batch elements whose
+        # distortion mode is fisheye62 / fisheye62_lut. The other per-element
+        # branches above handle their own out-of-FOV clamping. Note the list
+        # path for fisheye62 is not wired through the dispatch above today --
+        # this guard keeps the cull safe if that's added later.
+        if isinstance(distortion_mode, (list, tuple)):
+            fisheye_mask = th.tensor(
+                [m in _FISHEYE62_MODES for m in distortion_mode],
+                device=z_cam.device,
+            ).view(-1, 1, 1)
+            outside_fov = outside_fov & fisheye_mask
+        z_cam = th.where(outside_fov, th.full_like(z_cam, -1.0), z_cam)
+
+    v_pix = th.cat((v_pix[:, :, 0:2], z_cam), dim=-1)
 
     return v_pix, v_cam
 
