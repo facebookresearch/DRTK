@@ -315,6 +315,34 @@ def estimate_rt_fov(D: Union[np.ndarray, th.Tensor]) -> th.Tensor:
     return fov
 
 
+def _solve_monotonic_fisheye_fov(
+    derivative_coefs: np.ndarray, D: Union[np.ndarray, th.Tensor]
+) -> th.Tensor:
+    """Shared fisheye FOV solver. For each row of `derivative_coefs`
+    (polynomial coefficients in descending order), returns
+    `tan(min(smallest positive real root, pi/2))`. Falls back to `tan(pi/2)`
+    when the derivative has no positive real root.
+
+    Return shape is `[N, 1]`, dtype float32, moved to `D`'s device if `D` is
+    a tensor.
+    """
+    fov = []
+    for coef in derivative_coefs:
+        roots = np.roots(coef)
+        real_valued = roots.real[abs(roots.imag) < 1e-5]
+        positive_roots = real_valued[real_valued > 0]
+        if len(positive_roots) == 0:
+            fov.append(np.pi / 2)
+        else:
+            fov.append(min(positive_roots.min(), np.pi / 2))
+    fov = np.asarray(np.tan(fov), dtype=np.float32)[..., None]
+
+    if th.is_tensor(D):
+        fov = th.from_numpy(fov).to(D)
+
+    return fov
+
+
 def estimate_fisheye_fov(D: Union[np.ndarray, th.Tensor]) -> th.Tensor:
     """Estimate the maximum field of view based on the assumption that the 9th order
     polynomial is non-decreasing.
@@ -344,21 +372,53 @@ def estimate_fisheye_fov(D: Union[np.ndarray, th.Tensor]) -> th.Tensor:
         axis=-1,
     )
 
-    fov = []
-    for coef in coefs:
-        roots = np.roots(coef)
-        real_valued = roots.real[abs(roots.imag) < 1e-5]
-        positive_roots = real_valued[real_valued > 0]
-        if len(positive_roots) == 0:
-            fov.append(np.pi / 2)
-        else:
-            fov.append(min(positive_roots.min(), np.pi / 2))
-    fov = np.asarray(np.tan(fov), dtype=np.float32)[..., None]
+    return _solve_monotonic_fisheye_fov(coefs, D)
+
+
+def estimate_fisheye62_fov(D: Union[np.ndarray, th.Tensor]) -> th.Tensor:
+    """Estimate the maximum field of view based on the assumption that the 13th
+    order fisheye62 polynomial (k0..k5) is non-decreasing.
+
+    `estimate_fisheye_fov` truncates at k0..k3 (9th order), which misses the
+    first root in `[0, pi/2]` for calibrations whose `k4*theta^11 + k5*theta^13`
+    tail pushes the polynomial non-monotonic before pi/2. Callers that use the
+    fisheye62 distortion model (8 coefficients: k0..k5, p0, p1) should prefer
+    this function.
+
+    D:  N x >= 6 (only the first six entries are read)
+    """
 
     if th.is_tensor(D):
-        fov = th.from_numpy(fov).to(D)
+        coefs = D.cpu().numpy()
+    else:
+        coefs = D
 
-    return fov
+    assert coefs.shape[-1] >= 6, (
+        f"fisheye62 FOV requires at least 6 coefficients, got shape {coefs.shape}"
+    )
+
+    ones = np.ones_like(coefs[:, 0])
+    zeros = np.zeros_like(coefs[:, 0])
+    coefs = np.stack(
+        [
+            13 * coefs[:, 5],
+            zeros,
+            11 * coefs[:, 4],
+            zeros,
+            9 * coefs[:, 3],
+            zeros,
+            7 * coefs[:, 2],
+            zeros,
+            5 * coefs[:, 1],
+            zeros,
+            3 * coefs[:, 0],
+            zeros,
+            ones,
+        ],
+        axis=-1,
+    )
+
+    return _solve_monotonic_fisheye_fov(coefs, D)
 
 
 @th.jit.ignore
