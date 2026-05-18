@@ -86,13 +86,32 @@ def face_attribute_to_vert(v: th.Tensor, vi: th.Tensor, attr: th.Tensor) -> Tens
     """
     For each vertex, computes a summation of the face attributes to which the
     vertex belongs.
+
+    Args:
+        v:    vertex positions, shape [N, V, *]
+        vi:   face vertex indices, shape [F, 3] (shared topology, broadcast
+              across the batch) or [B, F, 3] where B is 1 or N
+        attr: per-face attribute, shape [N, F, A]
+
+    Returns:
+        Per-vertex sum, shape [N, V, A]
     """
     attr = (
         attr[:, :, None]
         .expand(-1, -1, 3, -1)
         .reshape(attr.shape[0], -1, attr.shape[-1])
     )
-    vi_flat = vi.view(vi.shape[0], -1).expand(v.shape[0], -1)
+    n = v.shape[0]
+    if vi.dim() == 2:
+        # Shared topology: flatten [F, 3] -> [F*3] and broadcast across batch.
+        vi_flat = vi.reshape(-1).unsqueeze(0).expand(n, -1)
+    elif vi.dim() == 3:
+        # Batched topology: B must be 1 (broadcasts) or equal to N.
+        vi_flat = vi.reshape(vi.shape[0], -1).expand(n, -1)
+    else:
+        raise ValueError(
+            f"Expected vi to be 2D [F, 3] or 3D [B, F, 3], got {vi.dim()}D"
+        )
     vattr = th.zeros(v.shape[:-1], dtype=v.dtype, device=v.device)
 
     vattr = th.stack(
