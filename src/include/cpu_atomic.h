@@ -45,7 +45,7 @@ inline std::atomic<T>& atomic_ref_at(T* addr) {
 // Mirrors CUDA's fastAtomicAdd using a CAS loop.
 template <typename scalar_t>
 inline void atomic_add(scalar_t* addr, scalar_t val) {
-  auto target = detail::atomic_ref_at(addr);
+  auto&& target = detail::atomic_ref_at(addr);
   scalar_t cur = target.load(std::memory_order_relaxed);
   scalar_t desired;
   do {
@@ -59,7 +59,7 @@ inline void atomic_add(scalar_t* addr, scalar_t val) {
 // unsigned values represent closer triangles.
 template <typename T>
 inline void atomic_min_unsigned(T* addr, T val) {
-  auto target = detail::atomic_ref_at(addr);
+  auto&& target = detail::atomic_ref_at(addr);
   T cur = target.load(std::memory_order_relaxed);
   using U = std::make_unsigned_t<T>;
   while (static_cast<U>(val) < static_cast<U>(cur)) {
