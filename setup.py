@@ -100,6 +100,7 @@ def main(debug: bool) -> None:
                 sources=[
                     "src/rasterize/rasterize_module.cpp",
                     "src/rasterize/rasterize_kernel.cu",
+                    "src/rasterize/rasterize_kernel_cpu.cpp",
                 ],
                 extra_compile_args={"cxx": cxx_args[target_os], "nvcc": nvcc_args},
                 extra_link_args=extra_link_args[target_os],
@@ -107,7 +108,11 @@ def main(debug: bool) -> None:
             ),
             CUDAExtension(
                 "drtk.render_ext",
-                sources=["src/render/render_kernel.cu", "src/render/render_module.cpp"],
+                sources=[
+                    "src/render/render_module.cpp",
+                    "src/render/render_kernel.cu",
+                    "src/render/render_kernel_cpu.cpp",
+                ],
                 extra_compile_args={"cxx": cxx_args[target_os], "nvcc": nvcc_args},
                 include_dirs=include_dir,
             ),
@@ -116,6 +121,7 @@ def main(debug: bool) -> None:
                 sources=[
                     "src/edge_grad/edge_grad_module.cpp",
                     "src/edge_grad/edge_grad_kernel.cu",
+                    "src/edge_grad/edge_grad_kernel_cpu.cpp",
                 ],
                 extra_compile_args={"cxx": cxx_args[target_os], "nvcc": nvcc_args},
                 include_dirs=include_dir,
@@ -143,6 +149,7 @@ def main(debug: bool) -> None:
                 sources=[
                     "src/interpolate/interpolate_module.cpp",
                     "src/interpolate/interpolate_kernel.cu",
+                    "src/interpolate/interpolate_kernel_cpu.cpp",
                 ],
                 extra_compile_args={"cxx": cxx_args[target_os], "nvcc": nvcc_args},
                 include_dirs=include_dir,
