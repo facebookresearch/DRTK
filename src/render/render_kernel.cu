@@ -31,6 +31,7 @@ __global__ void render_kernel(
   const index_t H = bary_img.sizes[2];
   const index_t W = bary_img.sizes[3];
   const index_t V = v.sizes[1];
+  (void)V;
 
   const index_t v_sN = v.strides[0];
   const index_t v_sV = v.strides[1];
@@ -132,6 +133,7 @@ __global__ void render_backward_kernel(
   const index_t H = grad_bary_img.sizes[2];
   const index_t W = grad_bary_img.sizes[3];
   const index_t V = v.sizes[1];
+  (void)V;
 
   const index_t v_sN = v.strides[0];
   const index_t v_sV = v.strides[1];
@@ -283,9 +285,6 @@ render_cuda(const torch::Tensor& v, const torch::Tensor& vi, const torch::Tensor
   TORCH_CHECK(
       v.defined() && vi.defined() && index_img.defined(),
       "render(): expected all inputs to be defined");
-  auto v_opt = v.options();
-  auto vi_opt = vi.options();
-  auto index_img_opt = index_img.options();
   TORCH_CHECK(
       (v.device() == vi.device()) && (v.device() == index_img.device()) && (v.is_cuda()),
       "render(): expected all inputs to be on same cuda device");

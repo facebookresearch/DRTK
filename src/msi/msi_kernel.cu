@@ -18,7 +18,6 @@ template <typename scalar_t, typename index_t>
 __device__ inline typename math::TVec4<scalar_t> msi_sample_bilinear_cubic(
     const TensorInfo<scalar_t, index_t>& input,
     math::TVec3<scalar_t> uvw) {
-  typedef typename math::TVec2<scalar_t> scalar2_t;
   typedef typename math::TVec3<scalar_t> scalar3_t;
   typedef typename math::TVec4<scalar_t> scalar4_t;
 
@@ -94,9 +93,7 @@ __device__ inline void msi_sample_bilinear_cubic_backward(
     math::TVec4<scalar_t> grad_output,
     math::TVec3<scalar_t> uvw,
     index_t grad_input_memory_span) {
-  typedef typename math::TVec2<scalar_t> scalar2_t;
   typedef typename math::TVec3<scalar_t> scalar3_t;
-  typedef typename math::TVec4<scalar_t> scalar4_t;
 
   index_t gInp_sN = grad_input.strides[0];
   index_t gInp_sC = grad_input.strides[1];
@@ -218,7 +215,6 @@ __global__ void msi_forward_kernel(
     double min_inv_r,
     double max_inv_r,
     double stop_thresh) {
-  typedef typename math::TVec4<scalar_t> scalar4_t;
   typedef typename math::TVec3<scalar_t> scalar3_t;
 
   const int n_layers = texture.sizes[0];
@@ -450,8 +446,6 @@ __host__ torch::Tensor msi_forward_cuda(
 
   auto device = ray_o_opt.device();
   auto tex_dtype = texture_opt.dtype();
-  auto ray_dtype = ray_o_opt.dtype();
-
   TORCH_CHECK(
       device.is_cuda(), "msi(): expected inputs to be on CUDA device, but got ray_o on ", device);
 
@@ -577,20 +571,14 @@ torch::Tensor msi_backward_cuda(
     double max_inv_r,
     double stop_thresh) {
   auto ray_o_opt = ray_o.options();
-  auto ray_d_opt = ray_d.options();
-  auto texture_opt = texture.options();
-
   auto device = ray_o_opt.device();
   const at::cuda::OptionalCUDAGuard device_guard(device);
-
-  auto tex_dtype = texture_opt.dtype();
-  auto ray_dtype = ray_o_opt.dtype();
 
   int N = ray_o.size(0);
   auto texture_grad = torch::zeros_like(texture);
 
   if (N > 0) {
-    DISPATCH_FLOAT(texture.scalar_type(), "msi_forward_kernel", [&] {
+    DISPATCH_FLOAT(texture.scalar_type(), "msi_backward_kernel", [&] {
       if (at::native::canUse32BitIndexMath(ray_o) && at::native::canUse32BitIndexMath(ray_d) &&
           at::native::canUse32BitIndexMath(rgba_img) &&
           at::native::canUse32BitIndexMath(rgba_img_grad) &&

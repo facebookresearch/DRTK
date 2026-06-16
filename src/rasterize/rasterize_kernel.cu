@@ -24,11 +24,11 @@ __global__ void rasterize_kernel(
     TensorInfo<int64_t, index_t> packed_index_depth_img) {
   typedef typename math::TVec2<scalar_t> scalar2_t;
   typedef typename math::TVec3<scalar_t> scalar3_t;
-  typedef typename math::TVec4<scalar_t> scalar4_t;
 
   const index_t H = packed_index_depth_img.sizes[1];
   const index_t W = packed_index_depth_img.sizes[2];
   const index_t V = v.sizes[1];
+  (void)V;
   const index_t n_prim = vi.sizes[1];
 
   const index_t index_sN = packed_index_depth_img.strides[0];
@@ -74,7 +74,7 @@ __global__ void rasterize_kernel(
     const bool in_canvas = math::all_less_or_eq(min_p, {(scalar_t)(W - 1), (scalar_t)(H - 1)}) &&
         math::all_greater(max_p, {0.f, 0.f});
 
-    if (all_z_greater_0 && in_canvas && ~triangle_is_degenerate) {
+    if (all_z_greater_0 && in_canvas && !triangle_is_degenerate) {
       const scalar2_t v_01 = p_1 - p_0;
       const scalar2_t v_02 = p_2 - p_0;
       const scalar2_t v_12 = p_2 - p_1;
@@ -111,18 +111,18 @@ __global__ void rasterize_kernel(
             bool on_edge_2 = bary.z == 0.f;
 
             const bool is_top_left_0 = (denominator > 0)
-                ? (v_12.y < 0.f || v_12.y == 0.0f && v_12.x > 0.f)
-                : (v_12.y > 0.f || v_12.y == 0.0f && v_12.x < 0.f);
+                ? (v_12.y < 0.f || (v_12.y == 0.0f && v_12.x > 0.f))
+                : (v_12.y > 0.f || (v_12.y == 0.0f && v_12.x < 0.f));
             const bool is_top_left_1 = (denominator > 0)
-                ? (v_02.y > 0.f || v_02.y == 0.0f && v_02.x < 0.f)
-                : (v_02.y < 0.f || v_02.y == 0.0f && v_02.x > 0.f);
+                ? (v_02.y > 0.f || (v_02.y == 0.0f && v_02.x < 0.f))
+                : (v_02.y < 0.f || (v_02.y == 0.0f && v_02.x > 0.f));
             const bool is_top_left_2 = (denominator > 0)
-                ? (v_01.y < 0.f || v_01.y == 0.0f && v_01.x > 0.f)
-                : (v_01.y > 0.f || v_01.y == 0.0f && v_01.x < 0.f);
+                ? (v_01.y < 0.f || (v_01.y == 0.0f && v_01.x > 0.f))
+                : (v_01.y > 0.f || (v_01.y == 0.0f && v_01.x < 0.f));
 
             const bool is_top_left_or_inside = on_edge_or_inside &&
-                !(on_edge_0 && !is_top_left_0 || on_edge_1 && !is_top_left_1 ||
-                  on_edge_2 && !is_top_left_2);
+                !((on_edge_0 && !is_top_left_0) || (on_edge_1 && !is_top_left_1) ||
+                  (on_edge_2 && !is_top_left_2));
 
             if (is_top_left_or_inside) {
               bary /= abs(denominator);
@@ -246,11 +246,11 @@ __global__ void rasterize_lines_kernel(
     TensorInfo<int64_t, index_t> packed_index_depth_img) {
   typedef typename math::TVec2<scalar_t> scalar2_t;
   typedef typename math::TVec3<scalar_t> scalar3_t;
-  typedef typename math::TVec4<scalar_t> scalar4_t;
 
   const index_t H = packed_index_depth_img.sizes[1];
   const index_t W = packed_index_depth_img.sizes[2];
   const index_t V = v.sizes[1];
+  (void)V;
   const index_t n_prim = vi.sizes[1];
 
   const index_t index_sN = packed_index_depth_img.strides[0];
@@ -301,7 +301,7 @@ __global__ void rasterize_lines_kernel(
     const bool in_canvas = math::all_less_or_eq(min_p, {(scalar_t)(W - 1), (scalar_t)(H - 1)}) &&
         math::all_greater(max_p, {0.f, 0.f});
 
-    if (all_z_greater_0 && in_canvas && ~triangle_is_degenerate) {
+    if (all_z_greater_0 && in_canvas && !triangle_is_degenerate) {
       const scalar2_t v_01 = p_1 - p_0;
       const scalar2_t v_02 = p_2 - p_0;
       const scalar2_t v_12 = p_2 - p_1;
@@ -343,18 +343,18 @@ __global__ void rasterize_lines_kernel(
             bool on_edge_2 = bary.z == 0.f;
 
             const bool is_top_left_0 = (denominator > 0)
-                ? (v_12.y < 0.f || v_12.y == 0.0f && v_12.x > 0.f)
-                : (v_12.y > 0.f || v_12.y == 0.0f && v_12.x < 0.f);
+                ? (v_12.y < 0.f || (v_12.y == 0.0f && v_12.x > 0.f))
+                : (v_12.y > 0.f || (v_12.y == 0.0f && v_12.x < 0.f));
             const bool is_top_left_1 = (denominator > 0)
-                ? (v_02.y > 0.f || v_02.y == 0.0f && v_02.x < 0.f)
-                : (v_02.y < 0.f || v_02.y == 0.0f && v_02.x > 0.f);
+                ? (v_02.y > 0.f || (v_02.y == 0.0f && v_02.x < 0.f))
+                : (v_02.y < 0.f || (v_02.y == 0.0f && v_02.x > 0.f));
             const bool is_top_left_2 = (denominator > 0)
-                ? (v_01.y < 0.f || v_01.y == 0.0f && v_01.x > 0.f)
-                : (v_01.y > 0.f || v_01.y == 0.0f && v_01.x < 0.f);
+                ? (v_01.y < 0.f || (v_01.y == 0.0f && v_01.x > 0.f))
+                : (v_01.y > 0.f || (v_01.y == 0.0f && v_01.x < 0.f));
 
             const bool is_top_left_or_inside = on_edge_or_inside &&
-                !(on_edge_0 && !is_top_left_0 || on_edge_1 && !is_top_left_1 ||
-                  on_edge_2 && !is_top_left_2);
+                !((on_edge_0 && !is_top_left_0) || (on_edge_1 && !is_top_left_1) ||
+                  (on_edge_2 && !is_top_left_2));
 
             if (is_top_left_or_inside || intersecting) {
               bary /= abs(denominator);
@@ -404,8 +404,6 @@ std::vector<torch::Tensor> rasterize_cuda(
     int64_t width,
     bool wireframe) {
   TORCH_CHECK(v.defined() && vi.defined(), "rasterize(): expected all inputs to be defined");
-  auto v_opt = v.options();
-  auto vi_opt = vi.options();
   TORCH_CHECK(
       (v.device() == vi.device()) && (v.is_cuda()),
       "rasterize(): expected all inputs to be on same cuda device");

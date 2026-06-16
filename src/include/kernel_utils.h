@@ -74,10 +74,11 @@ inline int GET_BLOCKS(const int64_t N, const int64_t max_threads_per_block = CUD
 #define DISPATCH_FLOAT_AND_HALF(TYPE, NAME, ...) \
   AT_DISPATCH_FLOATING_TYPES_AND_HALF(TYPE, NAME, __VA_ARGS__)
 
-// A simple stub to match the dispathcing for multimple types structure, but only for
+// A simple stub to match the dispatching for multiple types structure, but only
 // for float.
-#define DISPATCH_FLOAT(NAME, ...) \
-  [&] {                           \
-    using scalar_t = float;       \
-    return __VA_ARGS__();         \
+#define DISPATCH_FLOAT(TYPE, NAME, ...) \
+  [&] {                                 \
+    (void)(TYPE);                       \
+    using scalar_t = float;             \
+    return __VA_ARGS__();               \
   }()

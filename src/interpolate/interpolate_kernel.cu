@@ -284,10 +284,6 @@ torch::Tensor interpolate_cuda(
   TORCH_CHECK(
       vert_attributes.defined() && vi.defined() && index_img.defined() && bary_img.defined(),
       "interpolate(): expected all inputs to be defined");
-  auto vert_attributes_opt = vert_attributes.options();
-  auto vi_opt = vi.options();
-  auto index_img_opt = index_img.options();
-  auto bary_img_opt = bary_img.options();
   TORCH_CHECK(
       (vert_attributes.device() == vi.device()) &&
           (vert_attributes.device() == index_img.device()) &&
@@ -357,7 +353,6 @@ torch::Tensor interpolate_cuda(
   const at::cuda::OptionalCUDAGuard device_guard(device_of(vert_attributes));
 
   auto N = vert_attributes.size(0);
-  auto V = vert_attributes.size(1);
   auto C = vert_attributes.size(2);
   auto H = bary_img.size(2);
   auto W = bary_img.size(3);

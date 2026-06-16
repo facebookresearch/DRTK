@@ -52,18 +52,18 @@ __device__ bool pix_in_tri(const TriInfo<scalar_t>& tri, const int x, const int 
     bool on_edge_2 = bary.z == 0.f;
 
     const bool is_top_left_0 = (tri.denominator > 0)
-        ? (tri.v_12.y < 0.f || tri.v_12.y == 0.0f && tri.v_12.x > 0.f)
-        : (tri.v_12.y > 0.f || tri.v_12.y == 0.0f && tri.v_12.x < 0.f);
+        ? (tri.v_12.y < 0.f || (tri.v_12.y == 0.0f && tri.v_12.x > 0.f))
+        : (tri.v_12.y > 0.f || (tri.v_12.y == 0.0f && tri.v_12.x < 0.f));
     const bool is_top_left_1 = (tri.denominator > 0)
-        ? (tri.v_02.y > 0.f || tri.v_02.y == 0.0f && tri.v_02.x < 0.f)
-        : (tri.v_02.y < 0.f || tri.v_02.y == 0.0f && tri.v_02.x > 0.f);
+        ? (tri.v_02.y > 0.f || (tri.v_02.y == 0.0f && tri.v_02.x < 0.f))
+        : (tri.v_02.y < 0.f || (tri.v_02.y == 0.0f && tri.v_02.x > 0.f));
     const bool is_top_left_2 = (tri.denominator > 0)
-        ? (tri.v_01.y < 0.f || tri.v_01.y == 0.0f && tri.v_01.x > 0.f)
-        : (tri.v_01.y > 0.f || tri.v_01.y == 0.0f && tri.v_01.x < 0.f);
+        ? (tri.v_01.y < 0.f || (tri.v_01.y == 0.0f && tri.v_01.x > 0.f))
+        : (tri.v_01.y > 0.f || (tri.v_01.y == 0.0f && tri.v_01.x < 0.f));
 
     const bool is_top_left_or_inside = on_edge_or_inside &&
-        !(on_edge_0 && !is_top_left_0 || on_edge_1 && !is_top_left_1 ||
-          on_edge_2 && !is_top_left_2);
+        !((on_edge_0 && !is_top_left_0) || (on_edge_1 && !is_top_left_1) ||
+          (on_edge_2 && !is_top_left_2));
     return is_top_left_or_inside;
   }
   return false;
@@ -237,6 +237,7 @@ __global__ void edge_grad_backward_kernel(
   const index_t H = img.sizes[2];
   const index_t W = img.sizes[3];
   const index_t V = v_pix.sizes[1];
+  (void)V;
 
   const index_t index_img_sN = index_img.strides[0];
   const index_t index_img_sH = index_img.strides[1];
@@ -481,10 +482,8 @@ torch::Tensor edge_grad_estimator_cuda_backward(
   const at::cuda::OptionalCUDAGuard device_guard(device_of(img));
 
   const auto N = img.sizes()[0];
-  const auto C = img.sizes()[1];
   const auto H = img.sizes()[2];
   const auto W = img.sizes()[3];
-  const auto V = v_pix.sizes()[1];
   const auto count = N * H * W;
 
   auto grad_v_pix_img = torch::zeros({N, 3, H, W}, v_pix.options());

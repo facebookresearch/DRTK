@@ -14,32 +14,39 @@
 #include <cassert>
 #include <limits>
 
-// The header provides uniform GLSL-like math API for the following three cases:
-//  - non-NVCC compiler
-//  - NVCC compiler, host code
-//  - NVCC compiler, device code
+// The header provides uniform GLSL-like math API for non-NVCC compilers,
+// CUDA host/device code, and HIP host/device code.
 // Designed to be a more flexible replacement of similar header from NVidia
-#ifndef __CUDACC__
-#define MH_NON_NVCC
+#if defined(__HIP_PLATFORM_AMD__) && (defined(__HIPCC__) || defined(__HIP__))
+#define MH_HIP
+#define MH_NVCC
+#if defined(__HIP_DEVICE_COMPILE__) && __HIP_DEVICE_COMPILE__
+#define MH_HIP_DEVICE
+#define MH_NVCC_DEVICE
 #else
+#define MH_HIP_HOST
+#define MH_NVCC_HOST
+#endif
+#elif defined(__CUDACC__)
 #define MH_NVCC
 #ifdef __CUDA_ARCH__
 #define MH_NVCC_DEVICE
 #else
 #define MH_NVCC_HOST
 #endif
+#else
+#define MH_NON_NVCC
 #endif
 
-#if defined(MH_NVCC_HOST) || defined(MH_NON_NVCC)
+#if defined(MH_NVCC_HOST) || defined(MH_HIP_HOST) || defined(MH_NON_NVCC)
 #define HOST_DEVICE_DISPATCH(HOST_CODE, DEVICE_CODE) (HOST_CODE)
-#elif defined(MH_NVCC_DEVICE)
+#elif defined(MH_NVCC_DEVICE) || defined(MH_HIP_DEVICE)
 #define HOST_DEVICE_DISPATCH(HOST_CODE, DEVICE_CODE) (DEVICE_CODE)
 #else
 #error Dispatch failed
 #endif
 
-// if not NVCC, need to include cmath, since certain builtin NVCC functions have
-// equivalent ones in cmath
+// If not compiling CUDA/HIP accelerator code, include cmath for the std:: math wrappers.
 #ifdef MH_NON_NVCC
 #include <cmath>
 #endif
@@ -105,18 +112,25 @@ HD_FUNC double approx_div(double a, double b) {
   return a / b;
 }
 
-// If NVCC then use builtin abs/max/min/sqrt/rsqrt.
-// All of them have overloads for ints, floats, and doubles,defined in
-// `cuda/crt/math_functions.hpp` thus no need for explicit usage of e.g. fabsf
-#if defined(MH_NVCC)
+// CUDA/HIP provide global math wrappers for accelerator code.
+#if defined(MH_NVCC) || defined(MH_HIP)
 using ::abs;
 using ::isfinite;
 using ::isinf;
 using ::isnan;
 using ::max;
 using ::min;
-using ::rsqrt;
 using ::sqrt;
+#if defined(MH_HIP)
+HD_FUNC double rsqrt(double v) {
+  return HOST_DEVICE_DISPATCH(1.0 / sqrt(v), ::rsqrt(v));
+}
+HD_FUNC float rsqrt(float v) {
+  return HOST_DEVICE_DISPATCH(1.0f / sqrt(v), ::rsqrtf(v));
+}
+#else
+using ::rsqrt;
+#endif
 #else
 // Otherwise use the ones from cmath
 using std::abs;
@@ -127,10 +141,10 @@ using std::max;
 using std::min;
 using std::sqrt;
 
-inline double rsqrt(double v) {
+HD_FUNC double rsqrt(double v) {
   return 1.0 / std::sqrt(v);
 }
-inline float rsqrt(float v) {
+HD_FUNC float rsqrt(float v) {
   return 1.0f / std::sqrt(v);
 }
 #endif
