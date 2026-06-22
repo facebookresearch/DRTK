@@ -19,7 +19,7 @@ A typical flow looks like this:
 where:
 - **transform**: projects the vertex positions from camera space to image space
 - **rasterize**: performs rasterization, where pixels in the output image are associated with triangles
-- **render**: computes depth and baricentric image
+- **render**: computes depth and barycentric image
 - **interpolate**: interpolates arbitrary vertex attributes
 - **CUSTOM SHADING**: user implemented shading
 - **edge_grad**: special module that computes gradients for the **rasterize** step, which is not differentiable on its own. For details, please see [**Rasterized Edge Gradients: Handling Discontinuities Differentiably**](https://arxiv.org/abs/2405.02508)
@@ -40,10 +40,10 @@ vi = th.as_tensor([[0, 1, 2]]).int().cuda()
 # rasterize
 index_img = drtk.rasterize(v, vi, height=512, width=512)
 
-# compute baricentrics
+# compute barycentrics
 _, bary = drtk.render(v, vi, index_img)
 
-# we won't do shading, we'll just save the baricentrics and filter out the empty region
+# we won't do shading, we'll just save the barycentrics and filter out the empty region
 # which is marked with `-1` in `index_img`
 img = bary * (index_img != -1)
 
@@ -76,11 +76,12 @@ DRTK is MIT licensed, as found in the [LICENSE](LICENSE) file.
 
 ## Citation
 ```bibtex
-@mish{pidhorskyi2024rasterized,
-  title        = {Rasterized Edge Gradients: Handling Discontinuities Differentiably},
-  author       = {Pidhorskyi, Stanislav and Simon, Tomas and Schwartz, Gabriel and Wen, He and Sheikh, Yaser and Saragih, Jason},
-  howpublished = {arXiv preprint},
-  year         = {2024},
-  note         = {arXiv:2405.02508}
+@inproceedings{pidhorskyi2024rasterized,
+  title={Rasterized edge gradients: Handling discontinuities differentiably},
+  author={Pidhorskyi, Stanislav and Simon, Tomas and Schwartz, Gabriel and Wen, He and Sheikh, Yaser and Saragih, Jason},
+  booktitle={European Conference on Computer Vision},
+  pages={335--352},
+  year={2024},
+  organization={Springer}
 }
 ```

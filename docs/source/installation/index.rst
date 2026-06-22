@@ -247,7 +247,7 @@ and
 **Cause:** This issue is related to problematic SFINAE logic in template code. It has been observed in some recent versions of PyTorch.
 
 **Solution:** One recommended solution is to add ``-std=c++20`` to the **nvcc** arguments, as suggested in `this GitHub issue <https://github.com/pytorch/pytorch/issues/122169>`_.
-This line has already been added to ``setup.py```:
+This line has already been added to ``setup.py``:
 
 .. code-block:: python
 
