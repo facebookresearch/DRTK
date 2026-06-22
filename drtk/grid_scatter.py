@@ -24,6 +24,44 @@ def grid_scatter(
     padding_mode: str = "border",
     align_corners: Optional[bool] = None,
 ) -> th.Tensor:
+    """Scatter an image through a normalized sampling grid.
+
+    ``grid_scatter`` is the splatting counterpart of
+    :func:`torch.nn.functional.grid_sample`. In ``grid_sample``, each output
+    pixel reads from a source location in the input. In ``grid_scatter``, each
+    input pixel writes its value to a destination location described by
+    ``grid``. The operation is useful for tasks such as projecting camera-view
+    values into a UV texture atlas or accumulating visibility weights in
+    texture space.
+
+    The forward pass of ``grid_scatter`` corresponds to the input-gradient
+    accumulation performed by ``grid_sample``. The backward pass correspondingly
+    samples gradients back from the output grid, while also producing gradients
+    with respect to ``grid``.
+
+    Args:
+        input: Source values with shape ``(N, C, H, W)``.
+        grid: Destination coordinates with shape ``(N, H, W, 2)``. Coordinates
+            use the same normalized ``[-1, 1]`` convention, padding modes, and
+            ``align_corners`` semantics as PyTorch ``grid_sample``.
+        output_height: Height of the scattered output image.
+        output_width: Width of the scattered output image.
+        mode: Interpolation kernel. Supported values are ``"bilinear"`` and
+            ``"bicubic"``.
+        padding_mode: Handling for samples outside the output image. Supported
+            values are ``"zeros"``, ``"border"``, and ``"reflection"``.
+        align_corners: Same meaning as in ``grid_sample``. ``None`` defaults to
+            ``False``.
+
+    Returns:
+        Tensor with shape ``(N, C, output_height, output_width)`` containing the
+        accumulated scattered values.
+
+    Note:
+        Multiple input pixels can scatter to the same output pixel; their
+        weighted contributions are accumulated. This operation currently
+        requires the accelerator backend.
+    """
     if mode != "bilinear" and mode != "bicubic":
         raise ValueError(
             "grid_scatter(): only 'bilinear' and 'bicubic' modes are supported "
@@ -137,6 +175,11 @@ def grid_scatter_ref(
     padding_mode: str = "border",
     align_corners: Optional[bool] = None,
 ) -> th.Tensor:
+    """Pure PyTorch reference implementation used by tests.
+
+    This helper is intentionally not part of the documented public API. See
+    :func:`drtk.grid_scatter` for the supported implementation.
+    """
     return _grid_scatter_ref(
         input,
         grid,

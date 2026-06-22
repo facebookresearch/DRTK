@@ -137,13 +137,13 @@ def mipmap_grid_sample_ref(
     align_corners: Optional[bool] = False,
     high_quality: bool = False,
 ) -> th.Tensor:
-    """
-    A reference implementation for `mipmap_grid_sample`. See the doc string from `mipmap_grid_sample`
-    The CUDA version of `mipmap_grid_sample` should behave the same as this referense implementation when:
+    """Pure PyTorch reference implementation used by tests.
 
-    - `force_max_aniso` argument of `mipmap_grid_sample` is set to True
-    - `clip_grad` argument of `mipmap_grid_sample` is set to False
-    - `high_quality` argument of `mipmap_grid_sample_ref` is set to False
+    This helper is intentionally not part of the documented public API. See
+    :func:`drtk.mipmap_grid_sample` for the supported implementation. The
+    supported implementation should match this reference when called with
+    ``force_max_aniso=True`` and ``clip_grad=False``, and when this reference
+    is called with ``high_quality=False``.
     """
 
     q = len(input)

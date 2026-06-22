@@ -40,6 +40,8 @@ def render(
 
 
 def index(x, I, dim):
+    """Internal gather helper used by :func:`render_ref`."""
+
     target_shape = [*x.shape]
     del target_shape[dim]
     target_shape[dim:dim] = [*I.shape]
@@ -59,6 +61,12 @@ def _get_grid(width: int, height: int, device: th.device):
 def render_ref(
     v: th.Tensor, vi: th.Tensor, index_img: th.Tensor
 ) -> Tuple[th.Tensor, th.Tensor]:
+    """Pure PyTorch reference implementation used by tests.
+
+    This helper is intentionally not part of the documented public API. See
+    :func:`drtk.render` for the supported implementation.
+    """
+
     # Run reference implementation in double precision to get as good reference as possible
 
     orig_dtype = v.dtype

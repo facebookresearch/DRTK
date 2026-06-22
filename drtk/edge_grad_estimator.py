@@ -189,9 +189,10 @@ def edge_grad_estimator_ref(
     v_pix_img_hook: Optional[Callable[[th.Tensor], None]] = None,
     max_dp_dr: float = 1e4,
 ) -> th.Tensor:
-    """
-    Python reference implementation for
-    :func:`drtk.edge_grad_estimator`.
+    """Pure PyTorch reference implementation used by tests.
+
+    This helper is intentionally not part of the documented public API. See
+    :func:`drtk.edge_grad_estimator` for the supported implementation.
     """
 
     # could use v_pix_img output from DRTK, but bary_img needs to be detached.

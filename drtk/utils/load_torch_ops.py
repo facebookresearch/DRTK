@@ -12,6 +12,8 @@ import torch as th
 
 
 def load_torch_ops(extension: str) -> None:
+    """Load a compiled torch extension unless documentation is being built."""
+
     try:
         module = importlib.import_module(extension)
         th.ops.load_library(module.__file__)

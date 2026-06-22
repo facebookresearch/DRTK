@@ -56,9 +56,10 @@ def interpolate_ref(
     index_img: th.Tensor,
     bary_img: th.Tensor,
 ) -> th.Tensor:
-    """
-    A reference implementation of :func:`drtk.interpolate` in pure PyTorch.
-    This function is used for tests only, please see :func:`drtk.interpolate` for documentation.
+    """Pure PyTorch reference implementation used by tests.
+
+    This helper is intentionally not part of the documented public API. See
+    :func:`drtk.interpolate` for the supported implementation.
     """
 
     # Run reference implementation in double precision to get as good reference as possible
