@@ -30,6 +30,28 @@ inline float uint_as_float(uint32_t u) {
 }
 
 template <typename scalar_t>
+scalar_t
+edge_function(scalar_t ax, scalar_t ay, scalar_t bx, scalar_t by, scalar_t px, scalar_t py) {
+  return (py - ay) * (bx - ax) - (px - ax) * (by - ay);
+}
+
+template <typename scalar_t>
+scalar_t canonical_edge_function(
+    int32_t vi_a,
+    int32_t vi_b,
+    scalar_t ax,
+    scalar_t ay,
+    scalar_t bx,
+    scalar_t by,
+    scalar_t px,
+    scalar_t py) {
+  if (vi_a <= vi_b) {
+    return edge_function(ax, ay, bx, by, px, py);
+  }
+  return -edge_function(bx, by, ax, ay, px, py);
+}
+
+template <typename scalar_t>
 void rasterize_triangles_cpu(
     const scalar_t* v_ptr,
     const int32_t* vi_ptr,
@@ -128,14 +150,12 @@ void rasterize_triangles_cpu(
           const scalar_t px = static_cast<scalar_t>(x);
           const scalar_t py = static_cast<scalar_t>(y);
 
-          const scalar_t vp0_x = px - p0_x;
-          const scalar_t vp0_y = py - p0_y;
-          const scalar_t vp1_x = px - p1_x;
-          const scalar_t vp1_y = py - p1_y;
-
-          scalar_t bary_0 = (vp1_y * v12_x - vp1_x * v12_y) * sign_denom;
-          scalar_t bary_1 = (vp0_x * v02_y - vp0_y * v02_x) * sign_denom;
-          scalar_t bary_2 = (vp0_y * v01_x - vp0_x * v01_y) * sign_denom;
+          scalar_t bary_0 =
+              canonical_edge_function(vi_1, vi_2, p1_x, p1_y, p2_x, p2_y, px, py) * sign_denom;
+          scalar_t bary_1 =
+              canonical_edge_function(vi_2, vi_0, p2_x, p2_y, p0_x, p0_y, px, py) * sign_denom;
+          scalar_t bary_2 =
+              canonical_edge_function(vi_0, vi_1, p0_x, p0_y, p1_x, p1_y, px, py) * sign_denom;
 
           const bool on_edge_or_inside = (bary_0 >= 0.f) && (bary_1 >= 0.f) && (bary_2 >= 0.f);
 

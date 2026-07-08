@@ -16,6 +16,29 @@
 
 using namespace math;
 
+template <typename scalar_t>
+__device__ inline scalar_t edge_function(
+    const math::TVec2<scalar_t>& p_a,
+    const math::TVec2<scalar_t>& p_b,
+    const math::TVec2<scalar_t>& p) {
+  const math::TVec2<scalar_t> v_ab = p_b - p_a;
+  const math::TVec2<scalar_t> v_ap = p - p_a;
+  return v_ap.y * v_ab.x - v_ap.x * v_ab.y;
+}
+
+template <typename scalar_t>
+__device__ inline scalar_t canonical_edge_function(
+    int32_t vi_a,
+    int32_t vi_b,
+    const math::TVec2<scalar_t>& p_a,
+    const math::TVec2<scalar_t>& p_b,
+    const math::TVec2<scalar_t>& p) {
+  if (vi_a <= vi_b) {
+    return edge_function<scalar_t>(p_a, p_b, p);
+  }
+  return -edge_function<scalar_t>(p_b, p_a, p);
+}
+
 template <typename scalar_t, typename index_t>
 __global__ void rasterize_kernel(
     const index_t nthreads,
@@ -94,13 +117,10 @@ __global__ void rasterize_kernel(
           for (int x = min_x; x <= max_x; ++x) {
             const scalar2_t p = {(scalar_t)x, (scalar_t)y};
 
-            const scalar2_t vp0p = p - p_0;
-            const scalar2_t vp1p = p - p_1;
-
             scalar3_t bary = scalar3_t({
-                vp1p.y * v_12.x - vp1p.x * v_12.y,
-                vp0p.x * v_02.y - vp0p.y * v_02.x,
-                vp0p.y * v_01.x - vp0p.x * v_01.y,
+                canonical_edge_function<scalar_t>(vi_1, vi_2, p_1, p_2, p),
+                canonical_edge_function<scalar_t>(vi_2, vi_0, p_2, p_0, p),
+                canonical_edge_function<scalar_t>(vi_0, vi_1, p_0, p_1, p),
             });
             bary *= sign(denominator);
 
@@ -321,18 +341,15 @@ __global__ void rasterize_lines_kernel(
           for (int x = min_x; x <= max_x; ++x) {
             const scalar2_t p = {(scalar_t)x, (scalar_t)y};
 
-            const scalar2_t vp0p = p - p_0;
-            const scalar2_t vp1p = p - p_1;
-
             bool intersecting = false;
             intersecting |= is_crossing_dimond<scalar_t>(p_0, p_1, p) && edge_0_visible;
             intersecting |= is_crossing_dimond<scalar_t>(p_1, p_2, p) && edge_1_visible;
             intersecting |= is_crossing_dimond<scalar_t>(p_0, p_2, p) && edge_2_visible;
 
             scalar3_t bary = scalar3_t({
-                vp1p.y * v_12.x - vp1p.x * v_12.y,
-                vp0p.x * v_02.y - vp0p.y * v_02.x,
-                vp0p.y * v_01.x - vp0p.x * v_01.y,
+                canonical_edge_function<scalar_t>(vi_1, vi_2, p_1, p_2, p),
+                canonical_edge_function<scalar_t>(vi_2, vi_0, p_2, p_0, p),
+                canonical_edge_function<scalar_t>(vi_0, vi_1, p_0, p_1, p),
             });
             bary *= sign(denominator);
 
