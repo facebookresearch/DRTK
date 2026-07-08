@@ -26,41 +26,48 @@
   </noscript>
   
   <!-- Loaded before other Sphinx assets -->
-  <link href="../../_static/styles/theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
-<link href="../../_static/styles/pydata-sphinx-theme.css?digest=8878045cc6db502f8baf" rel="stylesheet" />
+  <link href="../../_static/styles/theme.css?digest=a95f357e85573c9b56d5" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=a95f357e85573c9b56d5" rel="stylesheet" />
 
-    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=a746c00c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
     <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=723fa940" />
   
   <!-- So that users can add custom icons -->
-  <script src="../../_static/scripts/fontawesome.js?digest=8878045cc6db502f8baf"></script>
+  <script defer src="../../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
   <!-- Pre-loaded scripts that we'll load fully later -->
-  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf" />
-<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf" />
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=a95f357e85573c9b56d5" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=a95f357e85573c9b56d5" />
 
     <script src="../../_static/documentation_options.js?v=5929fcd5"></script>
-    <script src="../../_static/doctools.js?v=9bcbadda"></script>
-    <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/design-tabs.js?v=f930bc37"></script>
     <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = '_modules/drtk/edge_grad_estimator';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.1.0" />
+  
+    
+    <script src="../../_static/searchtools.js"></script>
+    <script src="../../_static/language_data.js"></script>
+    <script src="../../searchindex.js"></script>
+  
   </head>
-  
-  
-  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
-
+  <body data-default-mode="">
   
   
   <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
   
   <div id="pst-scroll-pixel-helper"></div>
-
+  
+  
+  
   
   <dialog id="pst-search-dialog">
     
@@ -86,7 +93,7 @@
 </div>
 
   
-    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
 <div class="bd-header__inner bd-page-width">
   <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
     <span class="fa-solid fa-bars"></span>
@@ -170,11 +177,18 @@
       
         <div class="navbar-item">
 
-<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
-  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
-  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
-  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
-</button></div>
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
       
         <div class="navbar-item"><ul class="navbar-icon-links"
     aria-label="Icon Links">
@@ -187,8 +201,7 @@
           
           
           
-          <a href="https://github.com/facebookresearch/DRTK" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-github fa-2xl fa-lg" aria-hidden="true"></i>
-            <span class="sr-only">GitHub</span></a>
+          <a href="https://github.com/facebookresearch/DRTK" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-github fa-2xl fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
         </li>
 </ul></div>
       
@@ -275,11 +288,18 @@
         
           <div class="navbar-item">
 
-<button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button pst-js-only" aria-label="Color mode" data-bs-title="Color mode"  data-bs-placement="bottom" data-bs-toggle="tooltip">
-  <i class="theme-switch fa-solid fa-sun                fa-lg" data-mode="light" title="Light"></i>
-  <i class="theme-switch fa-solid fa-moon               fa-lg" data-mode="dark"  title="Dark"></i>
-  <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"  title="System Settings"></i>
-</button></div>
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
         
           <div class="navbar-item"><ul class="navbar-icon-links"
     aria-label="Icon Links">
@@ -292,8 +312,7 @@
           
           
           
-          <a href="https://github.com/facebookresearch/DRTK" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-github fa-2xl fa-lg" aria-hidden="true"></i>
-            <span class="sr-only">GitHub</span></a>
+          <a href="https://github.com/facebookresearch/DRTK" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-github fa-2xl fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
         </li>
 </ul></div>
         
@@ -362,12 +381,14 @@
 <span class="c1"># This source code is licensed under the MIT license found in the</span>
 <span class="c1"># LICENSE file in the root directory of this source tree.</span>
 
-<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Tuple</span>
+<span class="c1"># pyre-strict</span>
 
-<span class="kn">import</span> <span class="nn">torch</span> <span class="k">as</span> <span class="nn">th</span>
-<span class="kn">import</span> <span class="nn">torch.nn.functional</span> <span class="k">as</span> <span class="nn">thf</span>
-<span class="kn">from</span> <span class="nn">drtk.interpolate</span> <span class="kn">import</span> <span class="n">interpolate</span>
-<span class="kn">from</span> <span class="nn">drtk.utils</span> <span class="kn">import</span> <span class="n">index</span><span class="p">,</span> <span class="n">load_torch_ops</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Tuple</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">th</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch.nn.functional</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">thf</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">drtk.interpolate</span><span class="w"> </span><span class="kn">import</span> <span class="n">interpolate</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">drtk.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">index</span><span class="p">,</span> <span class="n">load_torch_ops</span>
 
 
 <span class="n">load_torch_ops</span><span class="p">(</span><span class="s2">&quot;drtk.edge_grad_ext&quot;</span><span class="p">)</span>
@@ -376,13 +397,14 @@
 <div class="viewcode-block" id="edge_grad_estimator">
 <a class="viewcode-back" href="../../api_reference/edge_grad_estimator.html#drtk.edge_grad_estimator">[docs]</a>
 <span class="nd">@th</span><span class="o">.</span><span class="n">compiler</span><span class="o">.</span><span class="n">disable</span>
-<span class="k">def</span> <span class="nf">edge_grad_estimator</span><span class="p">(</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">edge_grad_estimator</span><span class="p">(</span>
     <span class="n">v_pix</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
     <span class="n">vi</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
     <span class="n">bary_img</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
     <span class="n">img</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
     <span class="n">index_img</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
     <span class="n">v_pix_img_hook</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Callable</span><span class="p">[[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span> <span class="kc">None</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">max_dp_dr</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1e4</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Makes the rasterized image ``img`` differentiable at visibility discontinuities</span>
 <span class="sd">    and backpropagates the gradients to ``v_pix``.</span>
@@ -407,13 +429,50 @@
 <span class="sd">    Args:</span>
 <span class="sd">        v_pix (Tensor): Pixel-space vertex coordinates, preserving the original camera-space</span>
 <span class="sd">            Z-values. Shape: :math:`(N, V, 3)`.</span>
-<span class="sd">        vi (Tensor): Face vertex index list tensor. Shape: :math:`(V, 3)`.</span>
+<span class="sd">        vi (Tensor): Face vertex index list tensor. Shape: :math:`(F, 3)` or :math:`(N, F, 3)`.</span>
 <span class="sd">        bary_img (Tensor): 3D barycentric coordinate image tensor. Shape: :math:`(N, 3, H, W)`.</span>
 <span class="sd">        img (Tensor): The rendered image. Shape: :math:`(N, C, H, W)`.</span>
 <span class="sd">        index_img (Tensor): Index image tensor. Shape: :math:`(N, H, W)`.</span>
 <span class="sd">        v_pix_img_hook (Optional[Callable[[th.Tensor], None]]): An optional backward hook that will</span>
 <span class="sd">            be registered to ``v_pix_img``. Useful for examining the generated image space. Default</span>
 <span class="sd">            is None.</span>
+<span class="sd">        max_dp_dr (float): Maximum allowed magnitude for the edge-to-fragment</span>
+<span class="sd">            derivative ∂p/∂r (Eqn. 14 of the paper). Prevents gradient blowup</span>
+<span class="sd">            for nearly-coplanar triangles by clamping ‖∂p/∂r‖ ≤ max_dp_dr.</span>
+<span class="sd">            Set to 0.0 to disable clamping (for comparison with analytic</span>
+<span class="sd">            solutions or finite differences). Default is 1e4.</span>
+
+<span class="sd">            **How to choose max_dp_dr:** Because ``v_pix`` has x,y in pixel</span>
+<span class="sd">            units but z in world (camera-space) units, the normals computed</span>
+<span class="sd">            from ``v_pix`` are in a mixed-unit space. This means the effective</span>
+<span class="sd">            world-space dihedral angle below which clamping activates depends</span>
+<span class="sd">            on the camera&#39;s focal length and the distance to the geometry::</span>
+
+<span class="sd">                θ ≈ f / (max_dp_dr · Z)</span>
+
+<span class="sd">            where ``f`` is the focal length in pixels and ``Z`` is the depth</span>
+<span class="sd">            in world units. Examples with default max_dp_dr=1e4:</span>
+
+<span class="sd">            ==========  ======  ==============</span>
+<span class="sd">            f (pixels)  Z       θ (degrees)</span>
+<span class="sd">            ==========  ======  ==============</span>
+<span class="sd">            500         5       0.6°</span>
+<span class="sd">            1111        4       1.6°</span>
+<span class="sd">            5000        1       29°</span>
+<span class="sd">            10000       1000    0.06°</span>
+<span class="sd">            ==========  ======  ==============</span>
+
+<span class="sd">            For typical rendering setups (moderate focal length, geometry not</span>
+<span class="sd">            too close), the default 1e4 clips only at sub-degree to few-degree</span>
+<span class="sd">            dihedral angles. For very high ``f/Z`` ratios (telephoto lens or</span>
+<span class="sd">            close-up geometry), consider increasing max_dp_dr.</span>
+
+<span class="sd">            Ideally, the clamping would operate on normals in world space</span>
+<span class="sd">            (where the dihedral angle is independent of camera parameters).</span>
+<span class="sd">            This would require passing the focal length to the kernel and</span>
+<span class="sd">            rescaling the z-component of the projected normals to pixel units</span>
+<span class="sd">            before computing ∂p/∂r. This is not yet implemented — the current</span>
+<span class="sd">            approach operates directly on the mixed-unit ``v_pix`` normals.</span>
 
 <span class="sd">    Returns:</span>
 <span class="sd">        Tensor: Returns the input ``img`` unchanged. However, the returned image now has added</span>
@@ -483,13 +542,18 @@
 <span class="sd">        optim.step()</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
+    <span class="k">if</span> <span class="n">vi</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="n">vi</span> <span class="o">=</span> <span class="n">vi</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">v_pix</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+
     <span class="c1"># TODO: avoid call to interpolate, use backward kernel of interpolate directly</span>
     <span class="c1"># Doing so will make `edge_grad_estimator` zero-overhead in forward pass</span>
     <span class="c1"># At the moment, value of `v_pix_img` is ignored, and only passed to</span>
     <span class="c1"># edge_grad_estimator so that backward kernel can be called with the computed gradient.</span>
     <span class="n">v_pix_img</span> <span class="o">=</span> <span class="n">interpolate</span><span class="p">(</span><span class="n">v_pix</span><span class="p">,</span> <span class="n">vi</span><span class="p">,</span> <span class="n">index_img</span><span class="p">,</span> <span class="n">bary_img</span><span class="o">.</span><span class="n">detach</span><span class="p">())</span>
 
-    <span class="n">img</span> <span class="o">=</span> <span class="n">th</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">edge_grad_ext</span><span class="o">.</span><span class="n">edge_grad_estimator</span><span class="p">(</span><span class="n">v_pix</span><span class="p">,</span> <span class="n">v_pix_img</span><span class="p">,</span> <span class="n">vi</span><span class="p">,</span> <span class="n">img</span><span class="p">,</span> <span class="n">index_img</span><span class="p">)</span>
+    <span class="n">img</span> <span class="o">=</span> <span class="n">th</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">edge_grad_ext</span><span class="o">.</span><span class="n">edge_grad_estimator</span><span class="p">(</span>
+        <span class="n">v_pix</span><span class="p">,</span> <span class="n">v_pix_img</span><span class="p">,</span> <span class="n">vi</span><span class="p">,</span> <span class="n">img</span><span class="p">,</span> <span class="n">index_img</span><span class="p">,</span> <span class="n">max_dp_dr</span>
+    <span class="p">)</span>
 
     <span class="k">if</span> <span class="n">v_pix_img_hook</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">v_pix_img</span><span class="o">.</span><span class="n">register_hook</span><span class="p">(</span><span class="n">v_pix_img_hook</span><span class="p">)</span>
@@ -499,23 +563,27 @@
 
 <div class="viewcode-block" id="edge_grad_estimator_ref">
 <a class="viewcode-back" href="../../api_reference/edge_grad_estimator.html#drtk.edge_grad_estimator_ref">[docs]</a>
-<span class="k">def</span> <span class="nf">edge_grad_estimator_ref</span><span class="p">(</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">edge_grad_estimator_ref</span><span class="p">(</span>
     <span class="n">v_pix</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
     <span class="n">vi</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
     <span class="n">bary_img</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
     <span class="n">img</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
     <span class="n">index_img</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
     <span class="n">v_pix_img_hook</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Callable</span><span class="p">[[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span> <span class="kc">None</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">max_dp_dr</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1e4</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">    Python reference implementation for</span>
-<span class="sd">    :func:`drtk.edge_grad_estimator`.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Pure PyTorch reference implementation used by tests.</span>
+
+<span class="sd">    This helper is intentionally not part of the documented public API. See</span>
+<span class="sd">    :func:`drtk.edge_grad_estimator` for the supported implementation.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="c1"># could use v_pix_img output from DRTK, but bary_img needs to be detached.</span>
     <span class="n">v_pix_img</span> <span class="o">=</span> <span class="n">interpolate</span><span class="p">(</span><span class="n">v_pix</span><span class="p">,</span> <span class="n">vi</span><span class="p">,</span> <span class="n">index_img</span><span class="p">,</span> <span class="n">bary_img</span><span class="o">.</span><span class="n">detach</span><span class="p">())</span>
     <span class="c1"># pyre-fixme[16]: `EdgeGradEstimatorFunction` has no attribute `apply`.</span>
-    <span class="n">img</span> <span class="o">=</span> <span class="n">EdgeGradEstimatorFunction</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="n">v_pix</span><span class="p">,</span> <span class="n">v_pix_img</span><span class="p">,</span> <span class="n">vi</span><span class="p">,</span> <span class="n">img</span><span class="p">,</span> <span class="n">index_img</span><span class="p">)</span>
+    <span class="n">img</span> <span class="o">=</span> <span class="n">EdgeGradEstimatorFunction</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span>
+        <span class="n">v_pix</span><span class="p">,</span> <span class="n">v_pix_img</span><span class="p">,</span> <span class="n">vi</span><span class="p">,</span> <span class="n">img</span><span class="p">,</span> <span class="n">index_img</span><span class="p">,</span> <span class="n">max_dp_dr</span>
+    <span class="p">)</span>
 
     <span class="k">if</span> <span class="n">v_pix_img_hook</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">v_pix_img</span><span class="o">.</span><span class="n">register_hook</span><span class="p">(</span><span class="n">v_pix_img_hook</span><span class="p">)</span>
@@ -523,23 +591,25 @@
 
 
 
-<span class="k">class</span> <span class="nc">EdgeGradEstimatorFunction</span><span class="p">(</span><span class="n">th</span><span class="o">.</span><span class="n">autograd</span><span class="o">.</span><span class="n">Function</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">EdgeGradEstimatorFunction</span><span class="p">(</span><span class="n">th</span><span class="o">.</span><span class="n">autograd</span><span class="o">.</span><span class="n">Function</span><span class="p">):</span>
     <span class="nd">@staticmethod</span>
     <span class="c1"># pyre-fixme[14]: `forward` overrides method defined in `Function` inconsistently.</span>
-    <span class="k">def</span> <span class="nf">forward</span><span class="p">(</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span>
         <span class="n">ctx</span><span class="p">,</span>
         <span class="n">v_pix</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
         <span class="n">v_pix_img</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
         <span class="n">vi</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
         <span class="n">img</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
         <span class="n">index_img</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">max_dp_dr</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1e4</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
         <span class="n">ctx</span><span class="o">.</span><span class="n">save_for_backward</span><span class="p">(</span><span class="n">v_pix</span><span class="p">,</span> <span class="n">img</span><span class="p">,</span> <span class="n">index_img</span><span class="p">,</span> <span class="n">vi</span><span class="p">)</span>
+        <span class="n">ctx</span><span class="o">.</span><span class="n">max_dp_dr</span> <span class="o">=</span> <span class="n">max_dp_dr</span>
         <span class="k">return</span> <span class="n">img</span>
 
     <span class="nd">@staticmethod</span>
     <span class="c1"># pyre-fixme[14]: `backward` overrides method defined in `Function` inconsistently.</span>
-    <span class="k">def</span> <span class="nf">backward</span><span class="p">(</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">backward</span><span class="p">(</span>
         <span class="n">ctx</span><span class="p">,</span> <span class="n">grad_output</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span>
         <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
@@ -547,10 +617,13 @@
         <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
         <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
         <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
+        <span class="kc">None</span><span class="p">,</span>
     <span class="p">]:</span>
         <span class="c1"># early exit in case geometry is not optimized.</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">ctx</span><span class="o">.</span><span class="n">needs_input_grad</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
-            <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">grad_output</span><span class="p">,</span> <span class="kc">None</span>
+            <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">grad_output</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
+
+        <span class="n">max_dp_dr</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">max_dp_dr</span>
 
         <span class="n">v_pix</span><span class="p">,</span> <span class="n">img</span><span class="p">,</span> <span class="n">index_img</span><span class="p">,</span> <span class="n">vi</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">saved_tensors</span>
 
@@ -595,7 +668,7 @@
             <span class="n">th</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">img</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">device</span><span class="o">=</span><span class="n">v_pix</span><span class="o">.</span><span class="n">device</span><span class="p">),</span>
         <span class="p">)</span>
 
-        <span class="k">def</span> <span class="nf">epsclamp</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+        <span class="k">def</span><span class="w"> </span><span class="nf">epsclamp</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">th</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">x</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">x</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="nb">max</span><span class="o">=-</span><span class="mf">1e-8</span><span class="p">),</span> <span class="n">x</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="nb">min</span><span class="o">=</span><span class="mf">1e-8</span><span class="p">))</span>
 
         <span class="c1"># pyre-fixme[53]: Captured variable `n` is not annotated.</span>
@@ -604,7 +677,7 @@
         <span class="c1"># pyre-fixme[53]: Captured variable `py` is not annotated.</span>
         <span class="c1"># pyre-fixme[53]: Captured variable `v02` is not annotated.</span>
         <span class="c1"># pyre-fixme[53]: Captured variable `v10` is not annotated.</span>
-        <span class="k">def</span> <span class="nf">check_if_point_inside_triangle</span><span class="p">(</span><span class="n">offset_x</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">offset_y</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+        <span class="k">def</span><span class="w"> </span><span class="nf">check_if_point_inside_triangle</span><span class="p">(</span><span class="n">offset_x</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">offset_y</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
             <span class="n">_px</span> <span class="o">=</span> <span class="n">px</span> <span class="o">+</span> <span class="n">offset_x</span>
             <span class="n">_py</span> <span class="o">=</span> <span class="n">py</span> <span class="o">+</span> <span class="n">offset_y</span>
 
@@ -699,42 +772,57 @@
         <span class="n">n_up</span> <span class="o">=</span> <span class="n">n</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">:]</span>
         <span class="n">n_down</span> <span class="o">=</span> <span class="n">n</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">:,</span> <span class="p">:]</span>
 
-        <span class="k">def</span> <span class="nf">get_dp_db</span><span class="p">(</span><span class="n">v_varying</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">v_fixed</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+        <span class="k">def</span><span class="w"> </span><span class="nf">get_dp_dr</span><span class="p">(</span><span class="n">v_varying</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">v_fixed</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">            </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">            Computes derivative of the point position with respect to edge displacement</span>
-<span class="sd">            See drtk/src/edge_grad/edge_grad_kernel.cu</span>
-<span class="sd">            Please refer to the paper &quot;Rasterized Edge Gradients: Handling Discontinuities Differentiably&quot;</span>
-<span class="sd">            for details.</span>
+<span class="sd">            Computes ∂p/∂r — the derivative of the edge position p with</span>
+<span class="sd">            respect to fragment position r, projected onto a 2D plane (XZ</span>
+<span class="sd">            for vertical edges, YZ for horizontal edges). See Eqn. 14 of</span>
+<span class="sd">            the paper.</span>
+
+<span class="sd">            When max_dp_dr &gt; 0, the result magnitude is clamped to at most</span>
+<span class="sd">            max_dp_dr to stay within the linear model&#39;s domain of validity.</span>
+
+<span class="sd">            See drtk/src/edge_grad/edge_grad_kernel.cu get_dp_dr() for the</span>
+<span class="sd">            full derivation.</span>
 <span class="sd">            &quot;&quot;&quot;</span>
 
             <span class="n">v_varying</span> <span class="o">=</span> <span class="n">thf</span><span class="o">.</span><span class="n">normalize</span><span class="p">(</span><span class="n">v_varying</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
             <span class="n">v_fixed</span> <span class="o">=</span> <span class="n">thf</span><span class="o">.</span><span class="n">normalize</span><span class="p">(</span><span class="n">v_fixed</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
             <span class="n">b</span> <span class="o">=</span> <span class="n">th</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="o">-</span><span class="n">v_fixed</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">v_fixed</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]],</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
-            <span class="n">b_dot_varying</span> <span class="o">=</span> <span class="p">(</span><span class="n">b</span> <span class="o">*</span> <span class="n">v_varying</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdim</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-            <span class="k">return</span> <span class="n">b</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="n">epsclamp</span><span class="p">(</span><span class="n">b_dot_varying</span><span class="p">)</span> <span class="o">*</span> <span class="n">v_varying</span>
+            <span class="n">d</span> <span class="o">=</span> <span class="p">(</span><span class="n">b</span> <span class="o">*</span> <span class="n">v_varying</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdim</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">max_dp_dr</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="c1"># Clamp |b.x/d| ≤ M by ensuring |d| ≥ |b.x|/M.</span>
+                <span class="c1"># Use where() instead of sign() because sign(0)=0 would zero out safe_d.</span>
+                <span class="n">sign_d</span> <span class="o">=</span> <span class="n">th</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">d</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">d</span><span class="p">),</span> <span class="o">-</span><span class="n">th</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">d</span><span class="p">))</span>
+                <span class="n">safe_d</span> <span class="o">=</span> <span class="n">sign_d</span> <span class="o">*</span> <span class="n">th</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">abs</span><span class="p">(),</span> <span class="n">b</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">abs</span><span class="p">()</span> <span class="o">/</span> <span class="n">max_dp_dr</span><span class="p">)</span>
+                <span class="c1"># safe_d can only be zero if both d and b.x are zero, which means</span>
+                <span class="c1"># n_fixed is along the first axis — epsclamp handles this edge case.</span>
+                <span class="k">return</span> <span class="n">b</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="n">epsclamp</span><span class="p">(</span><span class="n">safe_d</span><span class="p">)</span> <span class="o">*</span> <span class="n">v_varying</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">b</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="n">epsclamp</span><span class="p">(</span><span class="n">d</span><span class="p">)</span> <span class="o">*</span> <span class="n">v_varying</span>
 
         <span class="c1"># We compute partial derivatives by fixing one triangle and moving the</span>
         <span class="c1"># other, and then vice versa.</span>
 
         <span class="c1"># Left triangle moves, right fixed</span>
-        <span class="n">dp_dbx</span> <span class="o">=</span> <span class="n">get_dp_db</span><span class="p">(</span><span class="n">n_left</span><span class="p">[:,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">]],</span> <span class="o">-</span><span class="n">n_right</span><span class="p">[:,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">]])</span>
-        <span class="n">x_grad_spread</span><span class="p">[:,</span> <span class="p">:,</span> <span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+=</span> <span class="n">x_grad_int</span> <span class="o">*</span> <span class="n">dp_dbx</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span>
-        <span class="n">z_grad_spread</span><span class="p">[:,</span> <span class="p">:,</span> <span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+=</span> <span class="n">x_grad_int</span> <span class="o">*</span> <span class="n">dp_dbx</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span>
+        <span class="n">dpx_dr</span> <span class="o">=</span> <span class="n">get_dp_dr</span><span class="p">(</span><span class="n">n_left</span><span class="p">[:,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">]],</span> <span class="o">-</span><span class="n">n_right</span><span class="p">[:,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">]])</span>
+        <span class="n">x_grad_spread</span><span class="p">[:,</span> <span class="p">:,</span> <span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+=</span> <span class="n">x_grad_int</span> <span class="o">*</span> <span class="n">dpx_dr</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span>
+        <span class="n">z_grad_spread</span><span class="p">[:,</span> <span class="p">:,</span> <span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+=</span> <span class="n">x_grad_int</span> <span class="o">*</span> <span class="n">dpx_dr</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span>
 
         <span class="c1"># Left triangle fixed, right moves</span>
-        <span class="n">dp_dbx</span> <span class="o">=</span> <span class="n">get_dp_db</span><span class="p">(</span><span class="n">n_right</span><span class="p">[:,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">]],</span> <span class="n">n_left</span><span class="p">[:,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">]])</span>
-        <span class="n">x_grad_spread</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">1</span><span class="p">:]</span> <span class="o">+=</span> <span class="n">x_grad_int</span> <span class="o">*</span> <span class="n">dp_dbx</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span>
-        <span class="n">z_grad_spread</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">1</span><span class="p">:]</span> <span class="o">+=</span> <span class="n">x_grad_int</span> <span class="o">*</span> <span class="n">dp_dbx</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span>
+        <span class="n">dpx_dr</span> <span class="o">=</span> <span class="n">get_dp_dr</span><span class="p">(</span><span class="n">n_right</span><span class="p">[:,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">]],</span> <span class="n">n_left</span><span class="p">[:,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">]])</span>
+        <span class="n">x_grad_spread</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">1</span><span class="p">:]</span> <span class="o">+=</span> <span class="n">x_grad_int</span> <span class="o">*</span> <span class="n">dpx_dr</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span>
+        <span class="n">z_grad_spread</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">1</span><span class="p">:]</span> <span class="o">+=</span> <span class="n">x_grad_int</span> <span class="o">*</span> <span class="n">dpx_dr</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span>
 
         <span class="c1"># Upper triangle moves, lower fixed</span>
-        <span class="n">dp_dby</span> <span class="o">=</span> <span class="n">get_dp_db</span><span class="p">(</span><span class="n">n_up</span><span class="p">[:,</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]],</span> <span class="o">-</span><span class="n">n_down</span><span class="p">[:,</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]])</span>
-        <span class="n">y_grad_spread</span><span class="p">[:,</span> <span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">:]</span> <span class="o">+=</span> <span class="n">y_grad_int</span> <span class="o">*</span> <span class="n">dp_dby</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span>
-        <span class="n">z_grad_spread</span><span class="p">[:,</span> <span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">:]</span> <span class="o">+=</span> <span class="n">y_grad_int</span> <span class="o">*</span> <span class="n">dp_dby</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span>
+        <span class="n">dpy_dr</span> <span class="o">=</span> <span class="n">get_dp_dr</span><span class="p">(</span><span class="n">n_up</span><span class="p">[:,</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]],</span> <span class="o">-</span><span class="n">n_down</span><span class="p">[:,</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]])</span>
+        <span class="n">y_grad_spread</span><span class="p">[:,</span> <span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">:]</span> <span class="o">+=</span> <span class="n">y_grad_int</span> <span class="o">*</span> <span class="n">dpy_dr</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span>
+        <span class="n">z_grad_spread</span><span class="p">[:,</span> <span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">:]</span> <span class="o">+=</span> <span class="n">y_grad_int</span> <span class="o">*</span> <span class="n">dpy_dr</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span>
 
         <span class="c1"># Lower triangle moves, upper fixed</span>
-        <span class="n">dp_dby</span> <span class="o">=</span> <span class="n">get_dp_db</span><span class="p">(</span><span class="n">n_down</span><span class="p">[:,</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]],</span> <span class="n">n_up</span><span class="p">[:,</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]])</span>
-        <span class="n">y_grad_spread</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">:,</span> <span class="p">:]</span> <span class="o">+=</span> <span class="n">y_grad_int</span> <span class="o">*</span> <span class="n">dp_dby</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span>
-        <span class="n">z_grad_spread</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">:,</span> <span class="p">:]</span> <span class="o">+=</span> <span class="n">y_grad_int</span> <span class="o">*</span> <span class="n">dp_dby</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span>
+        <span class="n">dpy_dr</span> <span class="o">=</span> <span class="n">get_dp_dr</span><span class="p">(</span><span class="n">n_down</span><span class="p">[:,</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]],</span> <span class="n">n_up</span><span class="p">[:,</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">]])</span>
+        <span class="n">y_grad_spread</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">:,</span> <span class="p">:]</span> <span class="o">+=</span> <span class="n">y_grad_int</span> <span class="o">*</span> <span class="n">dpy_dr</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span>
+        <span class="n">z_grad_spread</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">:,</span> <span class="p">:]</span> <span class="o">+=</span> <span class="n">y_grad_int</span> <span class="o">*</span> <span class="n">dpy_dr</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span>
 
         <span class="n">m</span> <span class="o">=</span> <span class="n">index_img</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span>
         <span class="n">x_grad_spread</span><span class="p">[</span><span class="n">m</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
@@ -742,7 +830,7 @@
 
         <span class="n">grad_v_pix</span> <span class="o">=</span> <span class="o">-</span><span class="n">th</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">x_grad_spread</span><span class="p">,</span> <span class="n">y_grad_spread</span><span class="p">,</span> <span class="n">z_grad_spread</span><span class="p">],</span> <span class="n">dim</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
 
-        <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="n">grad_v_pix</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">grad_output</span><span class="p">,</span> <span class="kc">None</span>
+        <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="n">grad_v_pix</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">grad_output</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
 </pre></div>
 
                 </article>
@@ -766,8 +854,8 @@
   </div>
   
   <!-- Scripts loaded after <body> so the DOM is not blocked -->
-  <script defer src="../../_static/scripts/bootstrap.js?digest=8878045cc6db502f8baf"></script>
-<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=8878045cc6db502f8baf"></script>
+  <script defer src="../../_static/scripts/bootstrap.js?digest=a95f357e85573c9b56d5"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=a95f357e85573c9b56d5"></script>
 
   <footer class="bd-footer">
 <div class="bd-footer__inner bd-page-width">
@@ -778,7 +866,7 @@
 
   <p class="copyright">
     
-      © Copyright 2024 Meta Platforms, Inc.
+      © Copyright 2026 Meta Platforms, Inc.
       <br/>
     
   </p>
@@ -787,7 +875,7 @@
         <div class="footer-item">
 
   <p class="sphinx-version">
-    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 8.1.3.
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
     <br/>
   </p>
 </div>
@@ -834,7 +922,7 @@
         <div class="footer-item">
 <p class="theme-version">
   <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
-  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.16.1.
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.19.0.
 </p></div>
       
     </div>

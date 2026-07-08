@@ -51,10 +51,10 @@ vi = th.as_tensor([[0, 1, 2]]).int().cuda()
 # rasterize
 index_img = drtk.rasterize(v, vi, height=512, width=512)
 
-# compute baricentrics
+# compute barycentrics
 _, bary = drtk.render(v, vi, index_img)
 
-# we won't do shading, we'll just save the baricentrics and filter out the empty region
+# we won't do shading, we'll just save the barycentrics and filter out the empty region
 # which is marked with `-1` in `index_img`
 img = bary * (index_img != -1)
 
@@ -79,7 +79,7 @@ python setup.py build_ext --inplace -j 1
 
 
 ## Requirements
-Cure dependencies:
+Core dependencies:
 * CUDA Toolkit
 * PyTorch (>= 2.1.0)
 * numpy
@@ -97,11 +97,13 @@ DRTK is MIT licensed, as found in the [LICENSE](https://github.com/facebookresea
 ## Citation
 When using DRTK in academic projects, please cite:
 ```bibtex
-@article{pidhorskyi2024rasterized,
-  title={Rasterized Edge Gradients: Handling Discontinuities Differentiably},
+@inproceedings{pidhorskyi2024rasterized,
+  title={Rasterized edge gradients: Handling discontinuities differentiably},
   author={Pidhorskyi, Stanislav and Simon, Tomas and Schwartz, Gabriel and Wen, He and Sheikh, Yaser and Saragih, Jason},
-  journal={arXiv preprint arXiv:2405.02508},
-  year={2024}
+  booktitle={European Conference on Computer Vision},
+  pages={335--352},
+  year={2024},
+  organization={Springer}
 }
 ```
 
