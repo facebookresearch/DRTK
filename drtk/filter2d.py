@@ -168,7 +168,8 @@ def resample_filter(
 
     The input is upsampled by interleaving zeros, convolved with ``f`` along
     both spatial dimensions, and downsampled by dropping sample points. The
-    operation is fused into one CUDA kernel.
+    CUDA tensors use the fused kernel. CPU tensors use the native ATen fallback
+    with the same padding and adjoint alignment.
 
     Args:
         x: Input tensor with shape ``(N, C, H, W)``.

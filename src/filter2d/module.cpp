@@ -179,3 +179,10 @@ TORCH_LIBRARY_IMPL(filter2d_ext, CUDA, m) {
   m.impl("downsample", &downsample_fwd);
   m.impl("upsample", &upsample_fwd);
 }
+
+TORCH_LIBRARY_IMPL(filter2d_ext, CPU, m) {
+  m.impl("resample_filter", &resample_filter_fwd);
+  m.impl("low_pass_filter", &low_pass_filter_fwd);
+  m.impl("downsample", &downsample_fwd);
+  m.impl("upsample", &upsample_fwd);
+}
