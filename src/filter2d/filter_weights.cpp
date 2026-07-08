@@ -4,6 +4,7 @@
 #define _USE_MATH_DEFINES
 #include <cmath>
 #include <limits>
+#include <mutex>
 #include <tuple>
 #include <unordered_map>
 
@@ -104,15 +105,22 @@ torch::Tensor make_resampling_kernel_kaiser(
   typedef std::tuple<float, float, float, int16_t, int16_t, torch::Device> kernel_key;
 
   static std::unordered_map<kernel_key, torch::Tensor, c10::hash<kernel_key>> map;
+  static std::mutex map_mutex;
   auto key = kernel_key(gain, fh_s, fc_s, n, m, device);
-  auto it = map.find(key);
-  if (it != map.end()) {
-    return it->second;
+  {
+    std::lock_guard<std::mutex> lock(map_mutex);
+    auto it = map.find(key);
+    if (it != map.end()) {
+      return it->second;
+    }
   }
 
   auto kernel = make_filter_kernel_kaiser(n, fh_s, fc_s, m, gain).to(device);
-  map[key] = kernel;
-  return kernel;
+  {
+    std::lock_guard<std::mutex> lock(map_mutex);
+    auto result = map.emplace(key, kernel);
+    return result.first->second;
+  }
 }
 
 torch::Tensor make_resampling_kernel_lanczos(
@@ -125,15 +133,22 @@ torch::Tensor make_resampling_kernel_lanczos(
   typedef std::tuple<float, float, int16_t, int16_t, torch::Device> kernel_key;
 
   static std::unordered_map<kernel_key, torch::Tensor, c10::hash<kernel_key>> map;
+  static std::mutex map_mutex;
   auto key = kernel_key(gain, fc_s, n, m, device);
-  auto it = map.find(key);
-  if (it != map.end()) {
-    return it->second;
+  {
+    std::lock_guard<std::mutex> lock(map_mutex);
+    auto it = map.find(key);
+    if (it != map.end()) {
+      return it->second;
+    }
   }
 
   auto kernel = make_filter_kernel_lanczos(n, fc_s, m, gain).to(device);
-  map[key] = kernel;
-  return kernel;
+  {
+    std::lock_guard<std::mutex> lock(map_mutex);
+    auto result = map.emplace(key, kernel);
+    return result.first->second;
+  }
 }
 
 torch::Tensor make_resampling_kernel(
