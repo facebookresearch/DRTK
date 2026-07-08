@@ -56,7 +56,8 @@ def main(debug: bool) -> None:
             ]
         )
 
-    # There is som issue effecting latest NVCC and pytorch 2.3.0 https://github.com/pytorch/pytorch/issues/122169
+    # Work around a recent NVCC / PyTorch 2.3.0 issue:
+    # https://github.com/pytorch/pytorch/issues/122169
     # The workaround is adding -std=c++20 to NVCC args
     nvcc_args.append("-std=c++20")
 
@@ -171,6 +172,17 @@ def main(debug: bool) -> None:
                 sources=[
                     "src/grid_scatter/grid_scatter_module.cpp",
                     "src/grid_scatter/grid_scatter_kernel.cu",
+                ],
+                extra_compile_args={"cxx": cxx_args[target_os], "nvcc": nvcc_args},
+                include_dirs=include_dir,
+            ),
+            CUDAExtension(
+                "drtk.filter2d_ext",
+                sources=[
+                    "src/filter2d/filter_weights.cpp",
+                    "src/filter2d/filter2d.cpp",
+                    "src/filter2d/filter2d_kernel.cu",
+                    "src/filter2d/module.cpp",
                 ],
                 extra_compile_args={"cxx": cxx_args[target_os], "nvcc": nvcc_args},
                 include_dirs=include_dir,
