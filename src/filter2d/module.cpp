@@ -73,11 +73,11 @@ torch::Tensor low_pass_filter_fwd(
     torch::Tensor tensor,
     int64_t n,
     double freq_div,
-    double strength,
+    double alias_guard_band,
     int64_t filter_type,
     bool reflect) {
   torch::Tensor filter =
-      make_resampling_kernel(n, 1, freq_div, 1.0, strength, filter_type, tensor.device());
+      make_resampling_kernel(n, 1, freq_div, 1.0, alias_guard_band, filter_type, tensor.device());
   return resample_filter_fwd(tensor, filter, 1, 1, reflect);
 }
 
@@ -85,11 +85,11 @@ torch::Tensor low_pass_filter_autograd(
     torch::Tensor tensor,
     int64_t n,
     double freq_div,
-    double strength,
+    double alias_guard_band,
     int64_t filter_type,
     bool reflect) {
   torch::Tensor filter =
-      make_resampling_kernel(n, 1, freq_div, 1.0, strength, filter_type, tensor.device());
+      make_resampling_kernel(n, 1, freq_div, 1.0, alias_guard_band, filter_type, tensor.device());
   return resample_filter_autograd(tensor, filter, 1, 1, reflect);
 }
 
@@ -97,11 +97,11 @@ torch::Tensor downsample_fwd(
     torch::Tensor tensor,
     int64_t n,
     int64_t m,
-    double strength,
+    double alias_guard_band,
     int64_t filter_type,
     bool reflect) {
   torch::Tensor filter =
-      make_resampling_kernel(n, m, 1.0, 1.0, strength, filter_type, tensor.device());
+      make_resampling_kernel(n, m, 1.0, 1.0, alias_guard_band, filter_type, tensor.device());
   return resample_filter_fwd(tensor, filter, 1, m, reflect);
 }
 
@@ -109,11 +109,11 @@ torch::Tensor downsample_autograd(
     torch::Tensor tensor,
     int64_t n,
     int64_t m,
-    double strength,
+    double alias_guard_band,
     int64_t filter_type,
     bool reflect) {
   torch::Tensor filter =
-      make_resampling_kernel(n, m, 1.0, 1.0, strength, filter_type, tensor.device());
+      make_resampling_kernel(n, m, 1.0, 1.0, alias_guard_band, filter_type, tensor.device());
   return resample_filter_autograd(tensor, filter, 1, m, reflect);
 }
 
@@ -121,11 +121,11 @@ torch::Tensor upsample_fwd(
     torch::Tensor tensor,
     int64_t n,
     int64_t m,
-    double strength,
+    double alias_guard_band,
     int64_t filter_type,
     bool reflect) {
   torch::Tensor filter =
-      make_resampling_kernel(n, m, 1.0, m, strength, filter_type, tensor.device());
+      make_resampling_kernel(n, m, 1.0, m, alias_guard_band, filter_type, tensor.device());
   return resample_filter_fwd(tensor, filter, m, 1, reflect);
 }
 
@@ -133,11 +133,11 @@ torch::Tensor upsample_autograd(
     torch::Tensor tensor,
     int64_t n,
     int64_t m,
-    double strength,
+    double alias_guard_band,
     int64_t filter_type,
     bool reflect) {
   torch::Tensor filter =
-      make_resampling_kernel(n, m, 1.0, m, strength, filter_type, tensor.device());
+      make_resampling_kernel(n, m, 1.0, m, alias_guard_band, filter_type, tensor.device());
   return resample_filter_autograd(tensor, filter, m, 1, reflect);
 }
 
@@ -156,13 +156,13 @@ PYBIND11_MODULE(filter2d_ext, m) {
 TORCH_LIBRARY(filter2d_ext, m) {
   m.def("resample_filter(Tensor x, Tensor f, int up, int down, bool reflect) -> Tensor");
   m.def(
-      "low_pass_filter(Tensor x, int n, float freq_div, float strength, int filter_type, bool reflect) -> Tensor");
+      "low_pass_filter(Tensor x, int n, float freq_div, float alias_guard_band, int filter_type, bool reflect) -> Tensor");
   m.def(
-      "downsample(Tensor x, int n, int m, float strength, int filter_type, bool reflect) -> Tensor");
+      "downsample(Tensor x, int n, int m, float alias_guard_band, int filter_type, bool reflect) -> Tensor");
   m.def(
-      "upsample(Tensor x, int n, int m, float strength, int filter_type, bool reflect) -> Tensor");
+      "upsample(Tensor x, int n, int m, float alias_guard_band, int filter_type, bool reflect) -> Tensor");
   m.def(
-      "make_resampling_kernel(int n, int m, float freq_div, float gain, float strength, int filter_type, Device d) -> Tensor",
+      "make_resampling_kernel(int n, int m, float freq_div, float gain, float alias_guard_band, int filter_type, Device d) -> Tensor",
       &make_resampling_kernel);
 }
 

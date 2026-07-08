@@ -141,11 +141,11 @@ torch::Tensor make_resampling_kernel(
     int64_t m,
     double freq_div,
     double gain,
-    double strength,
+    double alias_guard_band,
     int64_t filter_type,
     torch::Device device) {
   double fh_s = (std::exp2f(0.5f) - 1) / 2 / freq_div;
-  double fc_s = 1.0 / 2.0 / freq_div - fh_s * strength;
+  double fc_s = 1.0 / 2.0 / freq_div - fh_s * alias_guard_band;
 
   if (FilterType(filter_type) == FilterType::Kaiser)
     return make_resampling_kernel_kaiser(n, fh_s, fc_s, m, gain, device);

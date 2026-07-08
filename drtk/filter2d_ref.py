@@ -277,12 +277,13 @@ def make_resampling_kernel(
         device (th.device): the device to be used for the kernel tensor.
     """
 
-    # We pick distance between pixels to be 1, so that input sampling rate is also 1, and thus band limit
-    # is 1/2. We additionally multiply it by parameter `freq_scale`.
-    # Following stylegan 3, for transition band half width we pick (\sqrt{2} - 1) * (s / 2)
+    # We pick distance between pixels to be 1, so that input sampling rate is
+    # also 1, and the bandlimit is 1/2. Following StyleGAN3, the transition
+    # half-width is (sqrt(2) - 1) * bandlimit. `alias_guard_band` moves the
+    # cutoff inward by that many transition half-widths.
     fh_s = (2**0.5 - 1) / 2 / freq_div
 
-    fc_s = 1 / 2 / freq_div - fh_s * filter_options.alias_suppression_level
+    fc_s = 1 / 2 / freq_div - fh_s * filter_options.alias_guard_band
     if filter_options.filter_type == FilterType.Kaiser:
         f = make_kernel_kaiser(filter_options.n_taps, fh_s, fc_s, m=m, gain=gain)
     elif filter_options.filter_type == FilterType.Lanczos:

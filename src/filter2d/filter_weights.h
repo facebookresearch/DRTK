@@ -8,6 +8,6 @@ torch::Tensor make_resampling_kernel(
     int64_t m,
     double freq_div,
     double gain,
-    double strength,
+    double alias_guard_band,
     int64_t filter_type,
     torch::Device device);

@@ -79,13 +79,14 @@ class FilterType(Enum):
 class FilterOptions:
     """Options used to construct filter2d resampling kernels."""
 
-    __slots__ = ("n_taps", "filter_type", "alias_suppression_level")
+    __slots__ = ("n_taps", "filter_type", "alias_guard_band")
 
     def __init__(
         self,
         n_taps: int = 6,
         filter_type: FilterType = FilterType.Kaiser,
-        alias_suppression_level: float = 0.0,
+        alias_guard_band: Optional[float] = None,
+        alias_suppression_level: Optional[float] = None,
     ) -> None:
         """
         Args:
@@ -96,14 +97,55 @@ class FilterOptions:
                 filter tensor size is ``m * n_taps``.
             filter_type: Filter family to build. Default is
                 :attr:`FilterType.Kaiser`.
-            alias_suppression_level: Value in ``[0, 1]``. Default is ``0.0``.
-                ``0`` uses critical sampling, with the cutoff frequency set to
-                the bandlimit. ``1`` shifts all alias frequencies above the
-                bandlimit into the stopband.
+            alias_guard_band: Cutoff placement knob for the alias-free GAN
+                low-pass filter design. Recommended range is ``[0, 1]``.
+                Default is ``0.0`` for compatibility. Frequencies are
+                normalized to the input sampling rate. For a given
+                ``freq_div``, the usable bandlimit is
+                ``bandlimit = 0.5 / freq_div`` and the transition half-width is
+                ``transition_half_width = (sqrt(2) - 1) * bandlimit``. The
+                filter cutoff is placed at
+                ``bandlimit - alias_guard_band * transition_half_width``.
+                Therefore ``0.0`` puts the cutoff at the bandlimit; this is the
+                least blurry setting, but the transition band extends past the
+                bandlimit. ``1.0`` puts the cutoff one transition half-width
+                below the bandlimit, so the transition upper edge reaches the
+                bandlimit. Values between ``0.0`` and ``1.0`` interpolate
+                between those placements. Values above ``1.0`` leave extra
+                guard band and blur more. Values below ``0.0`` move the cutoff
+                above the bandlimit and are not recommended. This parameter
+                does not directly set stopband attenuation; attenuation also
+                depends on ``n_taps`` and ``filter_type``.
+            alias_suppression_level: Backward-compatible alias for
+                ``alias_guard_band``.
         """
+        alias_guard_band_value: float
+        if alias_guard_band is None:
+            alias_guard_band_value = (
+                0.0 if alias_suppression_level is None else alias_suppression_level
+            )
+        else:
+            if (
+                alias_suppression_level is not None
+                and alias_guard_band != alias_suppression_level
+            ):
+                raise ValueError(
+                    "FilterOptions: specify only one of alias_guard_band and "
+                    "alias_suppression_level"
+                )
+            alias_guard_band_value = alias_guard_band
+
         self.n_taps = n_taps
         self.filter_type = filter_type
-        self.alias_suppression_level = alias_suppression_level
+        self.alias_guard_band = alias_guard_band_value
+
+    @property
+    def alias_suppression_level(self) -> float:
+        return self.alias_guard_band
+
+    @alias_suppression_level.setter
+    def alias_suppression_level(self, value: float) -> None:
+        self.alias_guard_band = value
 
 
 @_compiler_disable
@@ -189,7 +231,7 @@ def upsample(
         x.contiguous(),
         filter_options.n_taps,
         upsample_factor,
-        filter_options.alias_suppression_level,
+        filter_options.alias_guard_band,
         filter_options.filter_type.value,
         _use_reflection_padding(padding_mode),
     )
@@ -220,7 +262,7 @@ def downsample(
         x.contiguous(),
         filter_options.n_taps,
         downsample_factor,
-        filter_options.alias_suppression_level,
+        filter_options.alias_guard_band,
         filter_options.filter_type.value,
         _use_reflection_padding(padding_mode),
     )
@@ -248,7 +290,7 @@ def low_pass_filter(
         x.contiguous(),
         filter_options.n_taps,
         freq_div,
-        filter_options.alias_suppression_level,
+        filter_options.alias_guard_band,
         filter_options.filter_type.value,
         _use_reflection_padding(padding_mode),
     )
@@ -284,7 +326,7 @@ def make_resampling_kernel(
         m,
         freq_div,
         gain,
-        filter_options.alias_suppression_level,
+        filter_options.alias_guard_band,
         filter_options.filter_type.value,
         device,
     )
