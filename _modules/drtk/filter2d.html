@@ -1,0 +1,861 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>drtk.filter2d &#8212; DRTK  documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=a95f357e85573c9b56d5" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=a95f357e85573c9b56d5" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=723fa940" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=a95f357e85573c9b56d5" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=a95f357e85573c9b56d5" />
+
+    <script src="../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/design-tabs.js?v=f930bc37"></script>
+    <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = '_modules/drtk/filter2d';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.1.0" />
+  
+    
+    <script src="../../_static/searchtools.js"></script>
+    <script src="../../_static/language_data.js"></script>
+    <script src="../../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">DRTK</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../installation/index.html">
+    Installation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../tutorials/index.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../api_reference/index.html">
+    DRTK API
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-external" href="https://github.com/facebookresearch/DRTK">
+    GitHub
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/facebookresearch/DRTK" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-github fa-2xl fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar hide-on-wide">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../installation/index.html">
+    Installation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../tutorials/index.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../api_reference/index.html">
+    DRTK API
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-external" href="https://github.com/facebookresearch/DRTK">
+    GitHub
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/facebookresearch/DRTK" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-github fa-2xl fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../index.html" class="nav-link">Module code</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">drtk.filter2d</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <h1>Source code for drtk.filter2d</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Copyright (c) Meta Platforms, Inc. and affiliates.</span>
+<span class="c1">#</span>
+<span class="c1"># This source code is licensed under the MIT license found in the</span>
+<span class="c1"># LICENSE file in the root directory of this source tree.</span>
+
+<span class="c1"># pyre-strict</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">builtins</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">enum</span><span class="w"> </span><span class="kn">import</span> <span class="n">Enum</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">cast</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">TypeVar</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">th</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">drtk.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_torch_ops</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s2">&quot;FilterType&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;FilterOptions&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;resample_filter&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;filter&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;low_pass_filter&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;downsample&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;upsample&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;make_resampling_kernel&quot;</span><span class="p">,</span>
+<span class="p">]</span>
+
+
+<span class="n">load_torch_ops</span><span class="p">(</span><span class="s2">&quot;drtk.filter2d_ext&quot;</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_is_sphinx_build</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+    <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">builtins</span><span class="p">,</span> <span class="s2">&quot;__sphinx_build__&quot;</span><span class="p">,</span> <span class="kc">False</span><span class="p">))</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_missing_filter2d_ext</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">:</span> <span class="nb">object</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+    <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span>
+        <span class="s2">&quot;drtk.filter2d_ext is required to call filter2d functions. &quot;</span>
+        <span class="s2">&quot;Build and install the DRTK extensions before using this API.&quot;</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_filter2d_op</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
+    <span class="k">if</span> <span class="n">_is_sphinx_build</span><span class="p">()</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">th</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">filter2d_ext</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">_missing_filter2d_ext</span>
+    <span class="k">return</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">th</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">filter2d_ext</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+
+
+<span class="n">_resample_filter</span> <span class="o">=</span> <span class="n">cast</span><span class="p">(</span>
+    <span class="n">Callable</span><span class="p">[[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">bool</span><span class="p">],</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
+    <span class="n">_filter2d_op</span><span class="p">(</span><span class="s2">&quot;resample_filter&quot;</span><span class="p">),</span>
+<span class="p">)</span>
+<span class="n">_upsample</span> <span class="o">=</span> <span class="n">cast</span><span class="p">(</span>
+    <span class="n">Callable</span><span class="p">[[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">bool</span><span class="p">],</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
+    <span class="n">_filter2d_op</span><span class="p">(</span><span class="s2">&quot;upsample&quot;</span><span class="p">),</span>
+<span class="p">)</span>
+<span class="n">_downsample</span> <span class="o">=</span> <span class="n">cast</span><span class="p">(</span>
+    <span class="n">Callable</span><span class="p">[[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">bool</span><span class="p">],</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
+    <span class="n">_filter2d_op</span><span class="p">(</span><span class="s2">&quot;downsample&quot;</span><span class="p">),</span>
+<span class="p">)</span>
+<span class="n">_low_pass_filter</span> <span class="o">=</span> <span class="n">cast</span><span class="p">(</span>
+    <span class="n">Callable</span><span class="p">[[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">bool</span><span class="p">],</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
+    <span class="n">_filter2d_op</span><span class="p">(</span><span class="s2">&quot;low_pass_filter&quot;</span><span class="p">),</span>
+<span class="p">)</span>
+<span class="n">_make_resampling_kernel</span> <span class="o">=</span> <span class="n">cast</span><span class="p">(</span>
+    <span class="n">Callable</span><span class="p">[[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">device</span><span class="p">],</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
+    <span class="n">_filter2d_op</span><span class="p">(</span><span class="s2">&quot;make_resampling_kernel&quot;</span><span class="p">),</span>
+<span class="p">)</span>
+
+<span class="n">_FunctionT</span> <span class="o">=</span> <span class="n">TypeVar</span><span class="p">(</span><span class="s2">&quot;_FunctionT&quot;</span><span class="p">,</span> <span class="n">bound</span><span class="o">=</span><span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="nb">object</span><span class="p">])</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_compiler_disable</span><span class="p">(</span><span class="n">fn</span><span class="p">:</span> <span class="n">_FunctionT</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">_FunctionT</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">cast</span><span class="p">(</span><span class="n">_FunctionT</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">compiler</span><span class="o">.</span><span class="n">disable</span><span class="p">(</span><span class="n">fn</span><span class="p">))</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_use_reflection_padding</span><span class="p">(</span><span class="n">padding_mode</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">padding_mode</span> <span class="o">==</span> <span class="s2">&quot;reflection&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">True</span>
+    <span class="k">if</span> <span class="n">padding_mode</span> <span class="o">==</span> <span class="s2">&quot;zeros&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span>
+        <span class="s2">&quot;filter2d: expected padding_mode to be &#39;zeros&#39; or &#39;reflection&#39;, &quot;</span>
+        <span class="sa">f</span><span class="s2">&quot;but got: </span><span class="si">{</span><span class="n">padding_mode</span><span class="si">!r}</span><span class="s2">&quot;</span>
+    <span class="p">)</span>
+
+
+<div class="viewcode-block" id="FilterType">
+<a class="viewcode-back" href="../../api_reference/filter2d.html#drtk.FilterType">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">FilterType</span><span class="p">(</span><span class="n">Enum</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Filter families supported by :func:`make_resampling_kernel`.&quot;&quot;&quot;</span>
+
+    <span class="n">Kaiser</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">Lanczos</span> <span class="o">=</span> <span class="mi">1</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_validate_filter_type</span><span class="p">(</span><span class="n">filter_type</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FilterType</span><span class="p">:</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">filter_type</span><span class="p">,</span> <span class="n">FilterType</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;filter2d: filter_type must be a FilterType value, but got </span><span class="si">{</span><span class="n">filter_type</span><span class="si">!r}</span><span class="s2">&quot;</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">filter_type</span>
+
+
+<div class="viewcode-block" id="FilterOptions">
+<a class="viewcode-back" href="../../api_reference/filter2d.html#drtk.FilterOptions">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">FilterOptions</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Options used to construct filter2d resampling kernels.&quot;&quot;&quot;</span>
+
+    <span class="vm">__slots__</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;n_taps&quot;</span><span class="p">,</span> <span class="s2">&quot;filter_type&quot;</span><span class="p">,</span> <span class="s2">&quot;alias_guard_band&quot;</span><span class="p">)</span>
+
+<div class="viewcode-block" id="FilterOptions.__init__">
+<a class="viewcode-back" href="../../api_reference/filter2d.html#drtk.FilterOptions.__init__">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">n_taps</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">6</span><span class="p">,</span>
+        <span class="n">filter_type</span><span class="p">:</span> <span class="n">FilterType</span> <span class="o">=</span> <span class="n">FilterType</span><span class="o">.</span><span class="n">Kaiser</span><span class="p">,</span>
+        <span class="n">alias_guard_band</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">alias_suppression_level</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Args:</span>
+<span class="sd">            n_taps: Number of taps. Default is ``6``. This is not the size of</span>
+<span class="sd">                the filter tensor: each output pixel is affected by</span>
+<span class="sd">                ``n_taps`` input pixels during upsampling, and each input pixel</span>
+<span class="sd">                affects ``n_taps`` output pixels during downsampling. The</span>
+<span class="sd">                filter tensor size is ``m * n_taps``.</span>
+<span class="sd">            filter_type: Filter family to build. Default is</span>
+<span class="sd">                :attr:`FilterType.Kaiser`.</span>
+<span class="sd">            alias_guard_band: Cutoff placement knob for the alias-free GAN</span>
+<span class="sd">                low-pass filter design. Must be non-negative; the recommended</span>
+<span class="sd">                range is ``[0, 1]``. Default is ``0.0`` for compatibility.</span>
+<span class="sd">                Frequencies are</span>
+<span class="sd">                normalized to the input sampling rate. For a given</span>
+<span class="sd">                ``freq_div``, the usable bandlimit is</span>
+<span class="sd">                ``bandlimit = 0.5 / freq_div`` and the transition half-width is</span>
+<span class="sd">                ``transition_half_width = (sqrt(2) - 1) * bandlimit``. The</span>
+<span class="sd">                filter cutoff is placed at</span>
+<span class="sd">                ``bandlimit - alias_guard_band * transition_half_width``.</span>
+<span class="sd">                Therefore ``0.0`` puts the cutoff at the bandlimit; this is the</span>
+<span class="sd">                least blurry setting, but the transition band extends past the</span>
+<span class="sd">                bandlimit. ``1.0`` puts the cutoff one transition half-width</span>
+<span class="sd">                below the bandlimit, so the transition upper edge reaches the</span>
+<span class="sd">                bandlimit. Values between ``0.0`` and ``1.0`` interpolate</span>
+<span class="sd">                between those placements. Values above ``1.0`` leave extra</span>
+<span class="sd">                guard band and blur more. This parameter does not directly set</span>
+<span class="sd">                stopband attenuation; attenuation also depends on ``n_taps``</span>
+<span class="sd">                and ``filter_type``.</span>
+<span class="sd">            alias_suppression_level: Backward-compatible alias for</span>
+<span class="sd">                ``alias_guard_band``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">alias_guard_band_value</span><span class="p">:</span> <span class="nb">float</span>
+        <span class="k">if</span> <span class="n">alias_guard_band</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">alias_guard_band_value</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="mf">0.0</span> <span class="k">if</span> <span class="n">alias_suppression_level</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">alias_suppression_level</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="p">(</span>
+                <span class="n">alias_suppression_level</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                <span class="ow">and</span> <span class="n">alias_guard_band</span> <span class="o">!=</span> <span class="n">alias_suppression_level</span>
+            <span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s2">&quot;FilterOptions: specify only one of alias_guard_band and &quot;</span>
+                    <span class="s2">&quot;alias_suppression_level&quot;</span>
+                <span class="p">)</span>
+            <span class="n">alias_guard_band_value</span> <span class="o">=</span> <span class="n">alias_guard_band</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_taps</span> <span class="o">=</span> <span class="n">n_taps</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">filter_type</span> <span class="o">=</span> <span class="n">_validate_filter_type</span><span class="p">(</span><span class="n">filter_type</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">alias_guard_band</span> <span class="o">=</span> <span class="n">alias_guard_band_value</span></div>
+
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">alias_suppression_level</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">alias_guard_band</span>
+
+    <span class="nd">@alias_suppression_level</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">alias_suppression_level</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">alias_guard_band</span> <span class="o">=</span> <span class="n">value</span></div>
+
+
+
+<div class="viewcode-block" id="resample_filter">
+<a class="viewcode-back" href="../../api_reference/filter2d.html#drtk.resample_filter">[docs]</a>
+<span class="nd">@_compiler_disable</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">resample_filter</span><span class="p">(</span>
+    <span class="n">x</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">f</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">up</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="n">down</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="n">padding_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;reflection&quot;</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Resample an NCHW tensor with a separable 1D filter.</span>
+
+<span class="sd">    The input is upsampled by interleaving zeros, convolved with ``f`` along</span>
+<span class="sd">    both spatial dimensions, and downsampled by dropping sample points. The</span>
+<span class="sd">    CUDA tensors use the fused kernel. CPU tensors use the native ATen fallback</span>
+<span class="sd">    with the same padding and adjoint alignment.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        x: Input tensor with shape ``(N, C, H, W)``.</span>
+<span class="sd">        f: 1D filter tensor.</span>
+<span class="sd">        up: Upsampling factor. Default is ``1``, which leaves the input</span>
+<span class="sd">            sampling rate unchanged.</span>
+<span class="sd">        down: Downsampling factor. Default is ``1``, which leaves the output</span>
+<span class="sd">            sampling rate unchanged.</span>
+<span class="sd">        padding_mode: Border handling. Supported values are ``&quot;zeros&quot;`` and</span>
+<span class="sd">            ``&quot;reflection&quot;``. Default is ``&quot;reflection&quot;``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="n">_resample_filter</span><span class="p">(</span>
+        <span class="n">x</span><span class="o">.</span><span class="n">contiguous</span><span class="p">(),</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">contiguous</span><span class="p">(),</span>
+        <span class="n">up</span><span class="p">,</span>
+        <span class="n">down</span><span class="p">,</span>
+        <span class="n">_use_reflection_padding</span><span class="p">(</span><span class="n">padding_mode</span><span class="p">),</span>
+    <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="filter">
+<a class="viewcode-back" href="../../api_reference/filter2d.html#drtk.filter">[docs]</a>
+<span class="nd">@_compiler_disable</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">filter</span><span class="p">(</span>
+    <span class="n">x</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">f</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">padding_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;reflection&quot;</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Filter an NCHW tensor without changing its spatial size.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        x: Input tensor with shape ``(N, C, H, W)``.</span>
+<span class="sd">        f: 1D filter tensor.</span>
+<span class="sd">        padding_mode: Border handling. Supported values are ``&quot;zeros&quot;`` and</span>
+<span class="sd">            ``&quot;reflection&quot;``. Default is ``&quot;reflection&quot;``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="n">_resample_filter</span><span class="p">(</span>
+        <span class="n">x</span><span class="o">.</span><span class="n">contiguous</span><span class="p">(),</span>
+        <span class="n">f</span><span class="o">.</span><span class="n">contiguous</span><span class="p">(),</span>
+        <span class="mi">1</span><span class="p">,</span>
+        <span class="mi">1</span><span class="p">,</span>
+        <span class="n">_use_reflection_padding</span><span class="p">(</span><span class="n">padding_mode</span><span class="p">),</span>
+    <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="upsample">
+<a class="viewcode-back" href="../../api_reference/filter2d.html#drtk.upsample">[docs]</a>
+<span class="nd">@_compiler_disable</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">upsample</span><span class="p">(</span>
+    <span class="n">x</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">filter_options</span><span class="p">:</span> <span class="n">FilterOptions</span><span class="p">,</span>
+    <span class="n">upsample_factor</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2</span><span class="p">,</span>
+    <span class="n">padding_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;reflection&quot;</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Upsample an NCHW tensor by ``upsample_factor``.</span>
+
+<span class="sd">    This is the fused equivalent of :func:`make_resampling_kernel` followed by</span>
+<span class="sd">    :func:`resample_filter`.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        x: Input tensor with shape ``(N, C, H, W)``.</span>
+<span class="sd">        filter_options: Interpolation filter options.</span>
+<span class="sd">        upsample_factor: Upsampling factor. Must be at least ``1``. Default is</span>
+<span class="sd">            ``2``.</span>
+<span class="sd">        padding_mode: Border handling. Supported values are ``&quot;zeros&quot;`` and</span>
+<span class="sd">            ``&quot;reflection&quot;``. Default is ``&quot;reflection&quot;``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="n">_upsample</span><span class="p">(</span>
+        <span class="n">x</span><span class="o">.</span><span class="n">contiguous</span><span class="p">(),</span>
+        <span class="n">filter_options</span><span class="o">.</span><span class="n">n_taps</span><span class="p">,</span>
+        <span class="n">upsample_factor</span><span class="p">,</span>
+        <span class="n">filter_options</span><span class="o">.</span><span class="n">alias_guard_band</span><span class="p">,</span>
+        <span class="n">filter_options</span><span class="o">.</span><span class="n">filter_type</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+        <span class="n">_use_reflection_padding</span><span class="p">(</span><span class="n">padding_mode</span><span class="p">),</span>
+    <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="downsample">
+<a class="viewcode-back" href="../../api_reference/filter2d.html#drtk.downsample">[docs]</a>
+<span class="nd">@_compiler_disable</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">downsample</span><span class="p">(</span>
+    <span class="n">x</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">filter_options</span><span class="p">:</span> <span class="n">FilterOptions</span><span class="p">,</span>
+    <span class="n">downsample_factor</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2</span><span class="p">,</span>
+    <span class="n">padding_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;reflection&quot;</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Downsample an NCHW tensor by ``downsample_factor``.</span>
+
+<span class="sd">    This is the fused equivalent of :func:`make_resampling_kernel` followed by</span>
+<span class="sd">    :func:`resample_filter`.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        x: Input tensor with shape ``(N, C, H, W)``.</span>
+<span class="sd">        filter_options: Interpolation filter options.</span>
+<span class="sd">        downsample_factor: Downsampling factor. Must be at least ``1``. Default</span>
+<span class="sd">            is ``2``.</span>
+<span class="sd">        padding_mode: Border handling. Supported values are ``&quot;zeros&quot;`` and</span>
+<span class="sd">            ``&quot;reflection&quot;``. Default is ``&quot;reflection&quot;``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="n">_downsample</span><span class="p">(</span>
+        <span class="n">x</span><span class="o">.</span><span class="n">contiguous</span><span class="p">(),</span>
+        <span class="n">filter_options</span><span class="o">.</span><span class="n">n_taps</span><span class="p">,</span>
+        <span class="n">downsample_factor</span><span class="p">,</span>
+        <span class="n">filter_options</span><span class="o">.</span><span class="n">alias_guard_band</span><span class="p">,</span>
+        <span class="n">filter_options</span><span class="o">.</span><span class="n">filter_type</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+        <span class="n">_use_reflection_padding</span><span class="p">(</span><span class="n">padding_mode</span><span class="p">),</span>
+    <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="low_pass_filter">
+<a class="viewcode-back" href="../../api_reference/filter2d.html#drtk.low_pass_filter">[docs]</a>
+<span class="nd">@_compiler_disable</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">low_pass_filter</span><span class="p">(</span>
+    <span class="n">x</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">filter_options</span><span class="p">:</span> <span class="n">FilterOptions</span><span class="p">,</span>
+    <span class="n">freq_div</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
+    <span class="n">padding_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;reflection&quot;</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Low-pass filter an NCHW tensor without changing its spatial size.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        x: Input tensor with shape ``(N, C, H, W)``.</span>
+<span class="sd">        filter_options: Interpolation filter options.</span>
+<span class="sd">        freq_div: Frequency divider. The cutoff frequency is reduced by this</span>
+<span class="sd">            factor. Default is ``1.0``.</span>
+<span class="sd">        padding_mode: Border handling. Supported values are ``&quot;zeros&quot;`` and</span>
+<span class="sd">            ``&quot;reflection&quot;``. Default is ``&quot;reflection&quot;``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="n">_low_pass_filter</span><span class="p">(</span>
+        <span class="n">x</span><span class="o">.</span><span class="n">contiguous</span><span class="p">(),</span>
+        <span class="n">filter_options</span><span class="o">.</span><span class="n">n_taps</span><span class="p">,</span>
+        <span class="n">freq_div</span><span class="p">,</span>
+        <span class="n">filter_options</span><span class="o">.</span><span class="n">alias_guard_band</span><span class="p">,</span>
+        <span class="n">filter_options</span><span class="o">.</span><span class="n">filter_type</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+        <span class="n">_use_reflection_padding</span><span class="p">(</span><span class="n">padding_mode</span><span class="p">),</span>
+    <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="make_resampling_kernel">
+<a class="viewcode-back" href="../../api_reference/filter2d.html#drtk.make_resampling_kernel">[docs]</a>
+<span class="nd">@_compiler_disable</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">make_resampling_kernel</span><span class="p">(</span>
+    <span class="n">filter_options</span><span class="p">:</span> <span class="n">FilterOptions</span><span class="p">,</span>
+    <span class="n">m</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="n">freq_div</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
+    <span class="n">gain</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
+    <span class="n">device</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">device</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Build a 1D low-pass resampling filter.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        filter_options: Interpolation filter options.</span>
+<span class="sd">        m: Upsampling or downsampling factor. Default is ``1``.</span>
+<span class="sd">        freq_div: Frequency divider. The cutoff frequency is reduced by this</span>
+<span class="sd">            factor. Default is ``1.0``.</span>
+<span class="sd">        gain: Kernel values sum to this value. Use ``gain == m`` when</span>
+<span class="sd">            upsampling to preserve signal magnitude. Default is ``1.0``.</span>
+<span class="sd">        device: Device for the returned filter tensor. Default is CPU.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="n">device</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">device</span> <span class="o">=</span> <span class="n">th</span><span class="o">.</span><span class="n">device</span><span class="p">(</span><span class="s2">&quot;cpu&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">device</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">device</span><span class="p">):</span>
+        <span class="n">device</span> <span class="o">=</span> <span class="n">th</span><span class="o">.</span><span class="n">device</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">_make_resampling_kernel</span><span class="p">(</span>
+        <span class="n">filter_options</span><span class="o">.</span><span class="n">n_taps</span><span class="p">,</span>
+        <span class="n">m</span><span class="p">,</span>
+        <span class="n">freq_div</span><span class="p">,</span>
+        <span class="n">gain</span><span class="p">,</span>
+        <span class="n">filter_options</span><span class="o">.</span><span class="n">alias_guard_band</span><span class="p">,</span>
+        <span class="n">filter_options</span><span class="o">.</span><span class="n">filter_type</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+        <span class="n">device</span><span class="p">,</span>
+    <span class="p">)</span></div>
+
+</pre></div>
+
+                </article>
+              
+              
+              
+              
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=a95f357e85573c9b56d5"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=a95f357e85573c9b56d5"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026 Meta Platforms, Inc.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+    <div class="footer-items__center">
+      
+        <div class="footer-item"><div class="footer-item">
+    <p class="copyright">
+        Legal
+        <br>
+    </p>
+</div>
+<div class="footer-item">
+    <p class="copyright">
+        <a class="external_link"
+           href="https://opensource.facebook.com/legal/privacy/"
+           target="_blank"
+           rel="noreferrer noopener">
+            Privacy
+        </a>
+        <br>
+    </p>
+</div>
+<div class="footer-item">
+    <p class="copyright">
+        <a class="external_link"
+           href="https://opensource.facebook.com/legal/terms/"
+           target="_blank"
+           rel="noreferrer noopener">
+            Terms
+        </a>
+        <br>
+    </p>
+</div></div>
+      
+    </div>
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.19.0.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

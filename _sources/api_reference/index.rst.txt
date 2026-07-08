@@ -12,6 +12,7 @@ The package consists of five main modules:
 * :doc:`rasterize`
 * :doc:`render`
 * :doc:`interpolate`
+* :doc:`filter2d`
 * :doc:`edge_grad_estimator`
 
 
@@ -24,6 +25,7 @@ The package consists of five main modules:
    rasterize
    render
    interpolate
+   filter2d
    edge_grad_estimator
    mipmap_grid_sample
    grid_scatter
