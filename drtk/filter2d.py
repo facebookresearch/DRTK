@@ -76,6 +76,14 @@ class FilterType(Enum):
     Lanczos = 1
 
 
+def _validate_filter_type(filter_type: object) -> FilterType:
+    if not isinstance(filter_type, FilterType):
+        raise TypeError(
+            f"filter2d: filter_type must be a FilterType value, but got {filter_type!r}"
+        )
+    return filter_type
+
+
 class FilterOptions:
     """Options used to construct filter2d resampling kernels."""
 
@@ -98,8 +106,9 @@ class FilterOptions:
             filter_type: Filter family to build. Default is
                 :attr:`FilterType.Kaiser`.
             alias_guard_band: Cutoff placement knob for the alias-free GAN
-                low-pass filter design. Recommended range is ``[0, 1]``.
-                Default is ``0.0`` for compatibility. Frequencies are
+                low-pass filter design. Must be non-negative; the recommended
+                range is ``[0, 1]``. Default is ``0.0`` for compatibility.
+                Frequencies are
                 normalized to the input sampling rate. For a given
                 ``freq_div``, the usable bandlimit is
                 ``bandlimit = 0.5 / freq_div`` and the transition half-width is
@@ -112,10 +121,9 @@ class FilterOptions:
                 below the bandlimit, so the transition upper edge reaches the
                 bandlimit. Values between ``0.0`` and ``1.0`` interpolate
                 between those placements. Values above ``1.0`` leave extra
-                guard band and blur more. Values below ``0.0`` move the cutoff
-                above the bandlimit and are not recommended. This parameter
-                does not directly set stopband attenuation; attenuation also
-                depends on ``n_taps`` and ``filter_type``.
+                guard band and blur more. This parameter does not directly set
+                stopband attenuation; attenuation also depends on ``n_taps``
+                and ``filter_type``.
             alias_suppression_level: Backward-compatible alias for
                 ``alias_guard_band``.
         """
@@ -136,7 +144,7 @@ class FilterOptions:
             alias_guard_band_value = alias_guard_band
 
         self.n_taps = n_taps
-        self.filter_type = filter_type
+        self.filter_type = _validate_filter_type(filter_type)
         self.alias_guard_band = alias_guard_band_value
 
     @property

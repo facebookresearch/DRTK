@@ -159,6 +159,19 @@ torch::Tensor make_resampling_kernel(
     double alias_guard_band,
     int64_t filter_type,
     torch::Device device) {
+  TORCH_CHECK(n >= 1, "n must be at least 1");
+  TORCH_CHECK(m >= 1, "m must be at least 1");
+  TORCH_CHECK(
+      std::isfinite(freq_div) && freq_div > 0.0, "freq_div must be finite and greater than 0");
+  TORCH_CHECK(std::isfinite(gain), "gain must be finite");
+  TORCH_CHECK(
+      std::isfinite(alias_guard_band) && alias_guard_band >= 0.0,
+      "alias_guard_band must be finite and non-negative");
+  TORCH_CHECK(
+      FilterType(filter_type) == FilterType::Kaiser ||
+          FilterType(filter_type) == FilterType::Lanczos,
+      "filter_type must be Kaiser or Lanczos");
+
   double fh_s = (std::exp2f(0.5f) - 1) / 2 / freq_div;
   double fc_s = 1.0 / 2.0 / freq_div - fh_s * alias_guard_band;
 

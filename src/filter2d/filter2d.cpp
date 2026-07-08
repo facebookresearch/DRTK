@@ -15,6 +15,13 @@ filter2d_fused(torch::Tensor x, torch::Tensor f, int _up, int _down, bool backwa
   TORCH_CHECK(f.dtype() == torch::kFloat, "f must be float32");
   TORCH_CHECK(x.dim() == 4, "x must be rank 4");
   TORCH_CHECK(f.dim() == 1, "f must be rank 1");
+  TORCH_CHECK(
+      x.scalar_type() == torch::kHalf || x.scalar_type() == torch::kFloat ||
+          x.scalar_type() == torch::kDouble,
+      "x dtype must be float16, float32, or float64");
+  TORCH_CHECK(
+      x.size(0) >= 1 && x.size(1) >= 1 && x.size(2) >= 1 && x.size(3) >= 1,
+      "x dimensions must be non-empty");
 
   const at::cuda::OptionalCUDAGuard device_guard(device_of(x));
 
