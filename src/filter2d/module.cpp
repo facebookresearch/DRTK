@@ -41,8 +41,9 @@ class ResampleFilterFunction : public torch::autograd::Function<ResampleFilterFu
     }
     const auto saved = ctx->get_saved_variables();
     const auto f = saved[0];
+    const auto grad_output = grad_outputs[0].contiguous();
     const auto x_grad =
-        ResampleFilterFunction::apply(grad_outputs[0], f, down, up, !backward_flag, reflect)[0];
+        ResampleFilterFunction::apply(grad_output, f, down, up, !backward_flag, reflect)[0];
 
     return {
         x_grad,

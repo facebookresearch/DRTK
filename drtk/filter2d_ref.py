@@ -1,3 +1,8 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
 # pyre-strict
 from typing import Optional
 
@@ -40,26 +45,30 @@ def resample_filter(
     down: int = 1,
     padding_mode: str = "reflection",
 ) -> th.Tensor:
-    """
-    Input tensor will be upsampled `up` times by interleaving with zeros, convolved with `f` along `H`
-    and `W` dimension and downsampled `down` times by dropping sample points.
+    """Pure PyTorch reference implementation of :func:`drtk.filter2d.resample_filter`.
+
+    The input is upsampled by interleaving zeros, convolved with ``f`` along
+    both spatial dimensions, and downsampled by dropping sample points.
 
     Args:
-        x (Tensor): Input tensor of shape NCHW.
-        f (Tensor): filter to convolve with. Must be 1D tensor.
-        up (int): Upsampling factor. Default 1 - no unsampling
-        down (int): Downsampling factor. Default 1 - no downsampling
-        padding_mode (str):  'zeros', 'border', or 'reflection'. Determines how the border is treated. The
-            best results are achieved with  'reflection'. Default 'reflection'
+        x: Input tensor with shape ``(N, C, H, W)``.
+        f: 1D filter tensor.
+        up: Upsampling factor. Default is ``1``, which leaves the input
+            sampling rate unchanged.
+        down: Downsampling factor. Default is ``1``, which leaves the output
+            sampling rate unchanged.
+        padding_mode: Border handling. The reference supports ``"zeros"``,
+            ``"border"``, and ``"reflection"``; the fused native op supports
+            ``"zeros"`` and ``"reflection"``. Default is ``"reflection"``.
     """
     assert isinstance(x, th.Tensor) and x.ndim == 4
     assert isinstance(f, th.Tensor) and f.ndim == 1
 
     check_padding_mode(padding_mode)
 
-    # `thf.pad` uses slightly different mode names as apposed to more common ones in grid_sample and related
-    # functions. So we stick to the names used in ` grid_sample` but then translate them to the ones in
-    # `thf.pad`.
+    # `thf.pad` uses slightly different mode names than `grid_sample` and
+    # related functions. Keep the grid_sample names in the public API and
+    # translate them here.
     padding_mode_alt = {
         "zeros": "constant",
         "border": "replicate",
@@ -81,8 +90,9 @@ def resample_filter(
         x = insert_zeros(x, up)
         x = thf.pad(x, [padx_0, padx_1, pady_0, pady_1], mode=padding_mode_alt)
     else:
-        # Otherwise if 'border' or 'reflection' are used, we have to pad before upsampling which causes
-        # over-padding so we need to crop after upsampling: pad -> insert zeros -> crop -> convolve
+        # For 'border' or 'reflection', pad before upsampling. This causes
+        # over-padding, so crop after upsampling: pad -> insert zeros -> crop
+        # -> convolve.
 
         x = thf.pad(
             x,
@@ -118,23 +128,20 @@ def filter(
     f: th.Tensor,
     padding_mode: str = "reflection",
 ) -> th.Tensor:
-    """
-    Same as `resample_filter`, but soes not change the size of the input.
+    """Pure PyTorch reference implementation of :func:`drtk.filter2d.filter`.
 
     Args:
-        x (Tensor): Input tensor of shape NCHW.
-        f (Tensor): filter to convolve with. Must be 1D tensor.
-        padding_mode (str):  'zeros', 'border', or 'reflection'. Determines how the border is treated. The
-            best results are achieved with  'reflection'. Default 'reflection'
+        x: Input tensor with shape ``(N, C, H, W)``.
+        f: 1D filter tensor.
+        padding_mode: Border handling. See :func:`resample_filter`. Default is
+            ``"reflection"``.
     """
 
     return resample_filter(x, f, 1, 1, padding_mode)
 
 
 def ceildiv(a: int, b: int) -> int:
-    """
-    Returns ceil of the a/b
-    """
+    """Return ``ceil(a / b)`` for integers."""
     return -(a // -b)
 
 

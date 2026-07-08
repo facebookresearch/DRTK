@@ -93,7 +93,7 @@ filter2d_fused(torch::Tensor x, torch::Tensor f, int _up, int _down, bool backwa
       p_s1.down;
 
   TORCH_CHECK(s1_out_size.x >= 1 && s1_out_size.y >= 1, "output must be at least 1x1");
-  torch::Tensor y = torch::empty({x.size(0), x.size(1), s1_out_size.y, s1_out_size.x}, x.device());
+  torch::Tensor y = torch::empty({x.size(0), x.size(1), s1_out_size.y, s1_out_size.x}, x.options());
 
   dim3 block_size =
       dim3(std::max(p_s0.tile_out.x * p_s0.tile_out.y, p_s1.tile_out.x * p_s1.tile_out.y), 1, 1);

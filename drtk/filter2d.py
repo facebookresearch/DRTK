@@ -1,6 +1,11 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+
 # pyre-strict
 from enum import Enum
-from typing import Callable, Optional
+from typing import Callable, cast, Optional, TypeVar
 
 import torch as th
 from drtk.utils import load_torch_ops
@@ -35,9 +40,9 @@ _upsample: Callable[[th.Tensor, int, int, float, int, bool], th.Tensor] = (
 _downsample: Callable[[th.Tensor, int, int, float, int, bool], th.Tensor] = (
     th.ops.filter2d_ext.downsample
 )
-# pyre-fixme[9]: _low_pass_filter has type `(Tensor, int, int, float, int, bool) ->
+# pyre-fixme[9]: _low_pass_filter has type `(Tensor, int, float, float, int, bool) ->
 #  Tensor`; used as `OpOverloadPacket`.
-_low_pass_filter: Callable[[th.Tensor, int, int, float, int, bool], th.Tensor] = (
+_low_pass_filter: Callable[[th.Tensor, int, float, float, int, bool], th.Tensor] = (
     th.ops.filter2d_ext.low_pass_filter
 )
 # pyre-fixme[9]: _make_resampling_kernel has type `(int, int, float, float, float,
@@ -46,21 +51,33 @@ _make_resampling_kernel: Callable[
     [int, int, float, float, float, int, th.device], th.Tensor
 ] = th.ops.filter2d_ext.make_resampling_kernel
 
+_FunctionT = TypeVar("_FunctionT", bound=Callable[..., object])
+
+
+def _compiler_disable(fn: _FunctionT) -> _FunctionT:
+    return cast(_FunctionT, th.compiler.disable(fn))
+
+
+def _use_reflection_padding(padding_mode: str) -> bool:
+    if padding_mode == "reflection":
+        return True
+    if padding_mode == "zeros":
+        return False
+    raise NotImplementedError(
+        "filter2d: expected padding_mode to be 'zeros' or 'reflection', "
+        f"but got: {padding_mode!r}"
+    )
+
 
 class FilterType(Enum):
-    """
-    Enum for supported filter types.
-    For reference, please see `care.utils.filter2d.filter2d_ref.make_resampling_kernel`
-    """
+    """Filter families supported by :func:`make_resampling_kernel`."""
 
     Kaiser = 0
     Lanczos = 1
 
 
 class FilterOptions:
-    """
-    Options holder for filter construction
-    """
+    """Options used to construct filter2d resampling kernels."""
 
     __slots__ = ("n_taps", "filter_type", "alias_suppression_level")
 
@@ -72,23 +89,24 @@ class FilterOptions:
     ) -> None:
         """
         Args:
-            n_taps (int): Number of taps. This is not the size of the filter tensor.
-                This means that each output pixel is affected by `n` input pixels in upsampling
-                and each input pixel affects `n` output pixels in downsampling. The filter tensor size will
-                be `m * n`.
-            filter_type (FilterType): The type of filter to build, Kaiser or Lanczos.
-            alias_suppression_level (float): Requires values in range [0..1]:
-                - when 0, critical sampling will be used, e.i. cut-off frequency is set to bandlmit.
-                    This is optimal setting for most use-cases.
-                - when 1, cut-off frequency is set s.t. all alias frequencies (above bandlmit) are in the
-                    stopband. This setting is useful when it is needed to completely eliminate aliasing.
-                Default is 0.
+            n_taps: Number of taps. Default is ``6``. This is not the size of
+                the filter tensor: each output pixel is affected by
+                ``n_taps`` input pixels during upsampling, and each input pixel
+                affects ``n_taps`` output pixels during downsampling. The
+                filter tensor size is ``m * n_taps``.
+            filter_type: Filter family to build. Default is
+                :attr:`FilterType.Kaiser`.
+            alias_suppression_level: Value in ``[0, 1]``. Default is ``0.0``.
+                ``0`` uses critical sampling, with the cutoff frequency set to
+                the bandlimit. ``1`` shifts all alias frequencies above the
+                bandlimit into the stopband.
         """
         self.n_taps = n_taps
         self.filter_type = filter_type
         self.alias_suppression_level = alias_suppression_level
 
 
+@_compiler_disable
 def resample_filter(
     x: th.Tensor,
     f: th.Tensor,
@@ -96,79 +114,76 @@ def resample_filter(
     down: int = 1,
     padding_mode: str = "reflection",
 ) -> th.Tensor:
-    """
-    Input tensor will be upsampled `up` times by interleaving with zeros, convolved with `f` along `H`
-    and `W` dimension and downsampled `down` times by dropping sample points.
-    Everythng is fused into operation running in one CUDA kernel.
-    For reference, please see `care.utils.filter2d.filter2d_ref.resample_filter`
+    """Resample an NCHW tensor with a separable 1D filter.
+
+    The input is upsampled by interleaving zeros, convolved with ``f`` along
+    both spatial dimensions, and downsampled by dropping sample points. The
+    operation is fused into one CUDA kernel.
 
     Args:
-        x (Tensor): Input tensor of shape NCHW.
-        f (Tensor): filter to convolve with. Must be 1D tensor.
-        up (int): Upsampling factor. Default 1 - no unsampling
-        down (int): Downsampling factor. Default 1 - no downsampling
-        padding_mode (str):  'zeros', 'border', or 'reflection'. Determines how the border is treated. The
-            best results are achieved with  'reflection'. Default 'reflection'
+        x: Input tensor with shape ``(N, C, H, W)``.
+        f: 1D filter tensor.
+        up: Upsampling factor. Default is ``1``, which leaves the input
+            sampling rate unchanged.
+        down: Downsampling factor. Default is ``1``, which leaves the output
+            sampling rate unchanged.
+        padding_mode: Border handling. Supported values are ``"zeros"`` and
+            ``"reflection"``. Default is ``"reflection"``.
     """
 
-    if padding_mode == "reflection":
-        reflection_pad = True
-    elif padding_mode == "zeros":
-        reflection_pad = False
-    else:
-        raise NotImplementedError(f"Unknown padding_mode: {padding_mode}")
+    return _resample_filter(
+        x.contiguous(),
+        f.contiguous(),
+        up,
+        down,
+        _use_reflection_padding(padding_mode),
+    )
 
-    return _resample_filter(x.contiguous(), f.contiguous(), up, down, reflection_pad)
 
-
+@_compiler_disable
 def filter(
     x: th.Tensor,
     f: th.Tensor,
     padding_mode: str = "reflection",
 ) -> th.Tensor:
-    """
-    Same as `resample_filter`, but does not change the size of the input.
+    """Filter an NCHW tensor without changing its spatial size.
 
     Args:
-        x (Tensor): Input tensor of shape NCHW.
-        f (Tensor): filter to convolve with. Must be 1D tensor.
-        padding_mode (str):  'zeros', 'border', or 'reflection'. Determines how the border is treated. The
-            best results are achieved with  'reflection'. Default 'reflection'
+        x: Input tensor with shape ``(N, C, H, W)``.
+        f: 1D filter tensor.
+        padding_mode: Border handling. Supported values are ``"zeros"`` and
+            ``"reflection"``. Default is ``"reflection"``.
     """
 
-    if padding_mode == "reflection":
-        reflection_pad = True
-    elif padding_mode == "zeros":
-        reflection_pad = False
-    else:
-        raise NotImplementedError(f"Unknown padding_mode: {padding_mode}")
+    return _resample_filter(
+        x.contiguous(),
+        f.contiguous(),
+        1,
+        1,
+        _use_reflection_padding(padding_mode),
+    )
 
-    return _resample_filter(x.contiguous(), f.contiguous(), 1, 1, reflection_pad)
 
-
+@_compiler_disable
 def upsample(
     x: th.Tensor,
     filter_options: FilterOptions,
     upsample_factor: int = 2,
     padding_mode: str = "reflection",
 ) -> th.Tensor:
-    """
-    Upsamples the input by factor of `upsample_factor`.
-    Alias for `make_resampling_kernel` + `resample_filter`.
+    """Upsample an NCHW tensor by ``upsample_factor``.
+
+    This is the fused equivalent of :func:`make_resampling_kernel` followed by
+    :func:`resample_filter`.
 
     Args:
-        x (th.Tensor): Input tensor.
-        filter_options (FilterOptions): Interpolation filter options.
-        upsample_factor (int): upsample factor to be used. Must be >= 1. Default is 2.
-        padding_mode (str): see `resample_filter`. Default is "reflection".
+        x: Input tensor with shape ``(N, C, H, W)``.
+        filter_options: Interpolation filter options.
+        upsample_factor: Upsampling factor. Must be at least ``1``. Default is
+            ``2``.
+        padding_mode: Border handling. Supported values are ``"zeros"`` and
+            ``"reflection"``. Default is ``"reflection"``.
     """
-
-    if padding_mode == "reflection":
-        reflection_pad = True
-    elif padding_mode == "zeros":
-        reflection_pad = False
-    else:
-        raise NotImplementedError(f"Unknown padding_mode: {padding_mode}")
 
     return _upsample(
         x.contiguous(),
@@ -176,33 +191,30 @@ def upsample(
         upsample_factor,
         filter_options.alias_suppression_level,
         filter_options.filter_type.value,
-        reflection_pad,
+        _use_reflection_padding(padding_mode),
     )
 
 
+@_compiler_disable
 def downsample(
     x: th.Tensor,
     filter_options: FilterOptions,
     downsample_factor: int = 2,
     padding_mode: str = "reflection",
 ) -> th.Tensor:
-    """
-    Downsamples the input by factor of `downsample_factor`.
-    Alias for `make_resampling_kernel` + `resample_filter`.
+    """Downsample an NCHW tensor by ``downsample_factor``.
+
+    This is the fused equivalent of :func:`make_resampling_kernel` followed by
+    :func:`resample_filter`.
 
     Args:
-        x (th.Tensor): Input tensor.
-        filter_options (FilterOptions): Interpolation filter options.
-        downsample_factor (int): downsample factor to be used. Must be >= 1. Default is 2.
-        padding_mode (str): see `resample_filter`. Default is "reflection".
+        x: Input tensor with shape ``(N, C, H, W)``.
+        filter_options: Interpolation filter options.
+        downsample_factor: Downsampling factor. Must be at least ``1``. Default
+            is ``2``.
+        padding_mode: Border handling. Supported values are ``"zeros"`` and
+            ``"reflection"``. Default is ``"reflection"``.
     """
-
-    if padding_mode == "reflection":
-        reflection_pad = True
-    elif padding_mode == "zeros":
-        reflection_pad = False
-    else:
-        raise NotImplementedError(f"Unknown padding_mode: {padding_mode}")
 
     return _downsample(
         x.contiguous(),
@@ -210,33 +222,27 @@ def downsample(
         downsample_factor,
         filter_options.alias_suppression_level,
         filter_options.filter_type.value,
-        reflection_pad,
+        _use_reflection_padding(padding_mode),
     )
 
 
+@_compiler_disable
 def low_pass_filter(
     x: th.Tensor,
     filter_options: FilterOptions,
-    freq_div: int = 1,
+    freq_div: float = 1.0,
     padding_mode: str = "reflection",
 ) -> th.Tensor:
-    """
-    Does not change the size of the input.
-    Alias for `make_resampling_kernel` + `resample_filter`.
+    """Low-pass filter an NCHW tensor without changing its spatial size.
 
     Args:
-        x (th.Tensor): Input tensor.
-        filter_options (FilterOptions): Interpolation filter options.
-        freq_div (float): Frequency divider. Cut-off frequency will be reduced by this factor. Default is 1.
-        padding_mode (str): see `resample_filter`. Default is "reflection".
+        x: Input tensor with shape ``(N, C, H, W)``.
+        filter_options: Interpolation filter options.
+        freq_div: Frequency divider. The cutoff frequency is reduced by this
+            factor. Default is ``1.0``.
+        padding_mode: Border handling. Supported values are ``"zeros"`` and
+            ``"reflection"``. Default is ``"reflection"``.
     """
-
-    if padding_mode == "reflection":
-        reflection_pad = True
-    elif padding_mode == "zeros":
-        reflection_pad = False
-    else:
-        raise NotImplementedError(f"Unknown padding_mode: {padding_mode}")
 
     return _low_pass_filter(
         x.contiguous(),
@@ -244,10 +250,11 @@ def low_pass_filter(
         freq_div,
         filter_options.alias_suppression_level,
         filter_options.filter_type.value,
-        reflection_pad,
+        _use_reflection_padding(padding_mode),
     )
 
 
+@_compiler_disable
 def make_resampling_kernel(
     filter_options: FilterOptions,
     m: int = 1,
@@ -255,16 +262,16 @@ def make_resampling_kernel(
     gain: float = 1.0,
     device: Optional[th.device] = None,
 ) -> th.Tensor:
-    """
-    Returns low-pass filter
+    """Build a 1D low-pass resampling filter.
 
     Args:
-        filter_options (FilterOptions): Interpolation filter options.
-        m (int): Upsampling (downsampling) factor.
-        freq_div (float): Frequency divider. Cut-off frequency will be reduced by this factor. Default is 1.
-        gain (float): Kernel values will add-up to this value. It is used to keep the signal magnitude
-            unchanged by setting `gain == m` when upsampling.
-        device (th.device): the device to be used for the kernel tensor.
+        filter_options: Interpolation filter options.
+        m: Upsampling or downsampling factor. Default is ``1``.
+        freq_div: Frequency divider. The cutoff frequency is reduced by this
+            factor. Default is ``1.0``.
+        gain: Kernel values sum to this value. Use ``gain == m`` when
+            upsampling to preserve signal magnitude. Default is ``1.0``.
+        device: Device for the returned filter tensor. Default is CPU.
     """
 
     if device is None:
