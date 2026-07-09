@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 # pyre-strict
+import builtins
 from enum import Enum
 from typing import Callable, cast, Optional, TypeVar
 
@@ -25,31 +26,44 @@ __all__ = [
 
 load_torch_ops("drtk.filter2d_ext")
 
-# pyre-fixme[9]: _resample_filter has type `(Tensor, Tensor, int, int, bool) ->
-#  Tensor`; used as `OpOverloadPacket`.
-_resample_filter: Callable[[th.Tensor, th.Tensor, int, int, bool], th.Tensor] = (
-    th.ops.filter2d_ext.resample_filter
+
+def _is_sphinx_build() -> bool:
+    return bool(getattr(builtins, "__sphinx_build__", False))
+
+
+def _missing_filter2d_ext(*args: object, **kwargs: object) -> th.Tensor:
+    raise ImportError(
+        "drtk.filter2d_ext is required to call filter2d functions. "
+        "Build and install the DRTK extensions before using this API."
+    )
+
+
+def _filter2d_op(name: str) -> Callable[..., th.Tensor]:
+    if _is_sphinx_build() and not hasattr(th.ops.filter2d_ext, name):
+        return _missing_filter2d_ext
+    return getattr(th.ops.filter2d_ext, name)
+
+
+_resample_filter = cast(
+    Callable[[th.Tensor, th.Tensor, int, int, bool], th.Tensor],
+    _filter2d_op("resample_filter"),
 )
-# pyre-fixme[9]: _upsample has type `(Tensor, int, int, float, int, bool) ->
-#  Tensor`; used as `OpOverloadPacket`.
-_upsample: Callable[[th.Tensor, int, int, float, int, bool], th.Tensor] = (
-    th.ops.filter2d_ext.upsample
+_upsample = cast(
+    Callable[[th.Tensor, int, int, float, int, bool], th.Tensor],
+    _filter2d_op("upsample"),
 )
-# pyre-fixme[9]: _downsample has type `(Tensor, int, int, float, int, bool) ->
-#  Tensor`; used as `OpOverloadPacket`.
-_downsample: Callable[[th.Tensor, int, int, float, int, bool], th.Tensor] = (
-    th.ops.filter2d_ext.downsample
+_downsample = cast(
+    Callable[[th.Tensor, int, int, float, int, bool], th.Tensor],
+    _filter2d_op("downsample"),
 )
-# pyre-fixme[9]: _low_pass_filter has type `(Tensor, int, float, float, int, bool) ->
-#  Tensor`; used as `OpOverloadPacket`.
-_low_pass_filter: Callable[[th.Tensor, int, float, float, int, bool], th.Tensor] = (
-    th.ops.filter2d_ext.low_pass_filter
+_low_pass_filter = cast(
+    Callable[[th.Tensor, int, float, float, int, bool], th.Tensor],
+    _filter2d_op("low_pass_filter"),
 )
-# pyre-fixme[9]: _make_resampling_kernel has type `(int, int, float, float, float,
-#  int, device) -> Tensor`; used as `OpOverloadPacket`.
-_make_resampling_kernel: Callable[
-    [int, int, float, float, float, int, th.device], th.Tensor
-] = th.ops.filter2d_ext.make_resampling_kernel
+_make_resampling_kernel = cast(
+    Callable[[int, int, float, float, float, int, th.device], th.Tensor],
+    _filter2d_op("make_resampling_kernel"),
+)
 
 _FunctionT = TypeVar("_FunctionT", bound=Callable[..., object])
 

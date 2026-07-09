@@ -20,7 +20,7 @@ from drtk import __version__
 # -- Project information -----------------------------------------------------
 
 project = "DRTK"
-copyright = "2024 Meta Platforms, Inc"
+copyright = "2026 Meta Platforms, Inc"
 author = "Meta"
 version = __version__
 
