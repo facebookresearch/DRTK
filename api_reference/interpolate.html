@@ -423,6 +423,12 @@ attributes across the fragments, e.i. pixels covered by the primitive.</p>
 <tr class="row-odd"><td><p><a class="reference internal" href="#drtk.interpolate" title="drtk.interpolate"><code class="xref py py-obj docutils literal notranslate"><span class="pre">interpolate</span></code></a></p></td>
 <td><p>Performs a linear interpolation of the vertex attributes given the barycentric coordinates</p></td>
 </tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#drtk.interpolation_matrix" title="drtk.interpolation_matrix"><code class="xref py py-obj docutils literal notranslate"><span class="pre">interpolation_matrix</span></code></a></p></td>
+<td><p>Build the sparse pixel-to-vertex interpolation matrix.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#drtk.interpolation_normal_matrix" title="drtk.interpolation_normal_matrix"><code class="xref py py-obj docutils literal notranslate"><span class="pre">interpolation_normal_matrix</span></code></a></p></td>
+<td><p>Assemble the sparse normal matrix for barycentric interpolation.</p></td>
+</tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#drtk.interpolate_ref" title="drtk.interpolate_ref"><code class="xref py py-obj docutils literal notranslate"><span class="pre">interpolate_ref</span></code></a></p></td>
 <td><p>Pure PyTorch reference implementation used by tests.</p></td>
 </tr>
@@ -459,6 +465,102 @@ values which should be ignored.</p>
 </dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="drtk.interpolation_matrix">
+<span class="sig-prename descclassname"><span class="pre">drtk.</span></span><span class="sig-name descname"><span class="pre">interpolation_matrix</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">vi</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">index_img</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bary_img</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_vertices</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/drtk/interpolate.html#interpolation_matrix"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#drtk.interpolation_matrix" title="Link to this definition">#</a></dt>
+<dd><p>Build the sparse pixel-to-vertex interpolation matrix.</p>
+<p>This returns the matrix <code class="docutils literal notranslate"><span class="pre">A</span></code> that maps per-vertex attributes <code class="docutils literal notranslate"><span class="pre">X</span></code> to the
+foreground raster pixels produced by a fixed rasterization:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>pixel_values = A @ X
+</pre></div>
+</div>
+<p>Each valid pixel contributes exactly one row. That row contains three
+non-zero entries: the pixel barycentric weights at the three vertex columns
+of the rasterized triangle. Columns are sorted within each CSR row, so the
+value order may differ from the triangle corner order. Pixels with
+<code class="docutils literal notranslate"><span class="pre">index_img</span> <span class="pre">==</span> <span class="pre">-1</span></code> are omitted entirely, so the row order is the flattened
+<code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">H,</span> <span class="pre">W]</span></code> pixel order with background pixels skipped.</p>
+<p><code class="docutils literal notranslate"><span class="pre">index_img</span></code> is expected to come from DRTK rasterization and contain only
+background <code class="docutils literal notranslate"><span class="pre">-1</span></code> or triangle indices in <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">F)</span></code>. <code class="docutils literal notranslate"><span class="pre">num_vertices</span></code> is
+expected to be larger than every vertex index in <code class="docutils literal notranslate"><span class="pre">vi</span></code>. The native kernels
+do not add extra range-validation work for those contracts; in particular,
+checking <code class="docutils literal notranslate"><span class="pre">vi.max()</span></code> on CUDA would add a synchronization only for defensive
+validation before constructing the sparse tensor with
+<code class="docutils literal notranslate"><span class="pre">check_invariants=False</span></code>. Faces must also have three distinct vertex
+indices; degenerate faces with duplicate corners are unsupported and can
+produce invalid CSR rows with duplicate column entries.</p>
+<dl class="simple">
+<dt>Differentiability:</dt><dd><p>The CSR row/column indices are discrete rasterization/topology data and
+are intentionally non-differentiable. The sparse values are the
+barycentric coordinates, so gradients through operations that support
+sparse CSR values propagate back to <code class="docutils literal notranslate"><span class="pre">bary_img</span></code>. No gradients are
+produced for <code class="docutils literal notranslate"><span class="pre">vi</span></code> or <code class="docutils literal notranslate"><span class="pre">index_img</span></code>.</p>
+</dd>
+</dl>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>vi</strong> – Face vertex index tensor, shape <code class="docutils literal notranslate"><span class="pre">[F,</span> <span class="pre">3]</span></code>, <code class="docutils literal notranslate"><span class="pre">[1,</span> <span class="pre">F,</span> <span class="pre">3]</span></code>,
+or <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">F,</span> <span class="pre">3]</span></code>. Singleton 3D batches are broadcast to <code class="docutils literal notranslate"><span class="pre">N</span></code>.</p></li>
+<li><p><strong>index_img</strong> – Rasterized triangle index image, shape <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">H,</span> <span class="pre">W]</span></code>.</p></li>
+<li><p><strong>bary_img</strong> – Barycentric image, shape <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">3,</span> <span class="pre">H,</span> <span class="pre">W]</span></code>.</p></li>
+<li><p><strong>num_vertices</strong> – Number of vertex unknowns, i.e. the number of CSR columns.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A sparse CSR tensor with shape <code class="docutils literal notranslate"><span class="pre">[num_valid_pixels,</span> <span class="pre">num_vertices]</span></code> and
+<code class="docutils literal notranslate"><span class="pre">3</span> <span class="pre">*</span> <span class="pre">num_valid_pixels</span></code> non-zero values.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="drtk.interpolation_normal_matrix">
+<span class="sig-prename descclassname"><span class="pre">drtk.</span></span><span class="sig-name descname"><span class="pre">interpolation_normal_matrix</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">vi</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">index_img</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bary_img</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">num_vertices</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/drtk/interpolate.html#interpolation_normal_matrix"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#drtk.interpolation_normal_matrix" title="Link to this definition">#</a></dt>
+<dd><p>Assemble the sparse normal matrix for barycentric interpolation.</p>
+<p>Let <code class="docutils literal notranslate"><span class="pre">A</span></code> be the matrix returned by <a class="reference internal" href="#drtk.interpolation_matrix" title="drtk.interpolation_matrix"><code class="xref py py-func docutils literal notranslate"><span class="pre">interpolation_matrix()</span></code></a> for the
+same <code class="docutils literal notranslate"><span class="pre">vi</span></code>, <code class="docutils literal notranslate"><span class="pre">index_img</span></code> and <code class="docutils literal notranslate"><span class="pre">bary_img</span></code>. This function returns
+<code class="docutils literal notranslate"><span class="pre">A.T</span> <span class="pre">&#64;</span> <span class="pre">A</span></code> directly, without materializing <code class="docutils literal notranslate"><span class="pre">A</span></code>. For every foreground
+pixel, the CUDA/CPU kernel accumulates the nine products
+<code class="docutils literal notranslate"><span class="pre">bary_i</span> <span class="pre">*</span> <span class="pre">bary_j</span></code> into the CSR entry corresponding to the owning
+triangle’s directed vertex pair <code class="docutils literal notranslate"><span class="pre">(vi[i],</span> <span class="pre">vi[j])</span></code>.</p>
+<p>The sparsity pattern depends only on topology, not on image resolution or
+barycentric values. The C++ op caches that CSR structure and the per-face
+pair lookup per output device for repeated calls with the same face-index
+tensor, so iterative solvers can reuse both the expensive topology analysis
+and the device-resident CSR buffers while still updating numeric values
+every rasterization.</p>
+<p><code class="docutils literal notranslate"><span class="pre">index_img</span></code> is expected to come from DRTK rasterization and contain only
+background <code class="docutils literal notranslate"><span class="pre">-1</span></code> or triangle indices in <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">F)</span></code>. The normal-matrix CUDA
+value kernel does not validate that range because host-side validation
+would synchronize the rasterization result in this hot path. Faces must
+also have three distinct vertex indices; degenerate faces with duplicate
+corners are unsupported.</p>
+<dl class="simple">
+<dt>Differentiability:</dt><dd><p>The normal-matrix structure and rasterized triangle indices are
+discrete and non-differentiable. The returned sparse values are
+differentiable with respect to <code class="docutils literal notranslate"><span class="pre">bary_img</span></code> via the product rule for
+<code class="docutils literal notranslate"><span class="pre">bary_i</span> <span class="pre">*</span> <span class="pre">bary_j</span></code>. No gradients are produced for <code class="docutils literal notranslate"><span class="pre">vi</span></code> or
+<code class="docutils literal notranslate"><span class="pre">index_img</span></code>. Visibility changes remain outside this op’s derivative;
+they are represented only through the supplied <code class="docutils literal notranslate"><span class="pre">index_img</span></code>.</p>
+</dd>
+</dl>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>vi</strong> – Face vertex index tensor, shape <code class="docutils literal notranslate"><span class="pre">[F,</span> <span class="pre">3]</span></code>, <code class="docutils literal notranslate"><span class="pre">[1,</span> <span class="pre">F,</span> <span class="pre">3]</span></code>,
+or <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">F,</span> <span class="pre">3]</span></code>. Singleton 3D batches are broadcast to <code class="docutils literal notranslate"><span class="pre">N</span></code>.</p></li>
+<li><p><strong>index_img</strong> – Rasterized triangle index image, shape <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">H,</span> <span class="pre">W]</span></code>.</p></li>
+<li><p><strong>bary_img</strong> – Barycentric image, shape <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">3,</span> <span class="pre">H,</span> <span class="pre">W]</span></code>.</p></li>
+<li><p><strong>num_vertices</strong> – Number of vertex unknowns, i.e. the normal-matrix size.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A sparse CSR tensor with shape <code class="docutils literal notranslate"><span class="pre">[num_vertices,</span> <span class="pre">num_vertices]</span></code>.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="drtk.interpolate_ref">
 <span class="sig-prename descclassname"><span class="pre">drtk.</span></span><span class="sig-name descname"><span class="pre">interpolate_ref</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">vert_attributes</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vi</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">index_img</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bary_img</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/drtk/interpolate.html#interpolate_ref"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#drtk.interpolate_ref" title="Link to this definition">#</a></dt>
 <dd><p>Pure PyTorch reference implementation used by tests.</p>
@@ -492,6 +594,8 @@ values which should be ignored.</p>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.interpolate"><code class="docutils literal notranslate"><span class="pre">interpolate()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.interpolation_matrix"><code class="docutils literal notranslate"><span class="pre">interpolation_matrix()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.interpolation_normal_matrix"><code class="docutils literal notranslate"><span class="pre">interpolation_normal_matrix()</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.interpolate_ref"><code class="docutils literal notranslate"><span class="pre">interpolate_ref()</span></code></a></li>
 </ul>
   </nav></div>

@@ -431,6 +431,154 @@
 
 
 
+<div class="viewcode-block" id="interpolation_matrix">
+<a class="viewcode-back" href="../../api_reference/interpolate.html#drtk.interpolation_matrix">[docs]</a>
+<span class="nd">@th</span><span class="o">.</span><span class="n">compiler</span><span class="o">.</span><span class="n">disable</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">interpolation_matrix</span><span class="p">(</span>
+    <span class="n">vi</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">index_img</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">bary_img</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">num_vertices</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Build the sparse pixel-to-vertex interpolation matrix.</span>
+
+<span class="sd">    This returns the matrix ``A`` that maps per-vertex attributes ``X`` to the</span>
+<span class="sd">    foreground raster pixels produced by a fixed rasterization:</span>
+
+<span class="sd">    .. code-block:: text</span>
+
+<span class="sd">        pixel_values = A @ X</span>
+
+<span class="sd">    Each valid pixel contributes exactly one row. That row contains three</span>
+<span class="sd">    non-zero entries: the pixel barycentric weights at the three vertex columns</span>
+<span class="sd">    of the rasterized triangle. Columns are sorted within each CSR row, so the</span>
+<span class="sd">    value order may differ from the triangle corner order. Pixels with</span>
+<span class="sd">    ``index_img == -1`` are omitted entirely, so the row order is the flattened</span>
+<span class="sd">    ``[N, H, W]`` pixel order with background pixels skipped.</span>
+
+<span class="sd">    ``index_img`` is expected to come from DRTK rasterization and contain only</span>
+<span class="sd">    background ``-1`` or triangle indices in ``[0, F)``. ``num_vertices`` is</span>
+<span class="sd">    expected to be larger than every vertex index in ``vi``. The native kernels</span>
+<span class="sd">    do not add extra range-validation work for those contracts; in particular,</span>
+<span class="sd">    checking ``vi.max()`` on CUDA would add a synchronization only for defensive</span>
+<span class="sd">    validation before constructing the sparse tensor with</span>
+<span class="sd">    ``check_invariants=False``. Faces must also have three distinct vertex</span>
+<span class="sd">    indices; degenerate faces with duplicate corners are unsupported and can</span>
+<span class="sd">    produce invalid CSR rows with duplicate column entries.</span>
+
+<span class="sd">    Differentiability:</span>
+<span class="sd">        The CSR row/column indices are discrete rasterization/topology data and</span>
+<span class="sd">        are intentionally non-differentiable. The sparse values are the</span>
+<span class="sd">        barycentric coordinates, so gradients through operations that support</span>
+<span class="sd">        sparse CSR values propagate back to ``bary_img``. No gradients are</span>
+<span class="sd">        produced for ``vi`` or ``index_img``.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        vi: Face vertex index tensor, shape ``[F, 3]``, ``[1, F, 3]``,</span>
+<span class="sd">            or ``[N, F, 3]``. Singleton 3D batches are broadcast to ``N``.</span>
+<span class="sd">        index_img: Rasterized triangle index image, shape ``[N, H, W]``.</span>
+<span class="sd">        bary_img: Barycentric image, shape ``[N, 3, H, W]``.</span>
+<span class="sd">        num_vertices: Number of vertex unknowns, i.e. the number of CSR columns.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        A sparse CSR tensor with shape ``[num_valid_pixels, num_vertices]`` and</span>
+<span class="sd">        ``3 * num_valid_pixels`` non-zero values.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">vi</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="n">vi</span> <span class="o">=</span> <span class="n">vi</span><span class="p">[</span><span class="kc">None</span><span class="p">]</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">index_img</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">vi</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">3</span> <span class="ow">and</span> <span class="n">vi</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">index_img</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">vi</span> <span class="o">=</span> <span class="n">vi</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">index_img</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="n">crow_indices</span><span class="p">,</span> <span class="n">col_indices</span><span class="p">,</span> <span class="n">values</span><span class="p">,</span> <span class="n">row_pixels</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">th</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">interpolate_ext</span><span class="o">.</span><span class="n">interpolation_matrix</span><span class="p">(</span><span class="n">vi</span><span class="p">,</span> <span class="n">index_img</span><span class="p">,</span> <span class="n">bary_img</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">th</span><span class="o">.</span><span class="n">sparse_csr_tensor</span><span class="p">(</span>
+        <span class="n">crow_indices</span><span class="p">,</span>
+        <span class="n">col_indices</span><span class="p">,</span>
+        <span class="n">values</span><span class="p">,</span>
+        <span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">row_pixels</span><span class="o">.</span><span class="n">numel</span><span class="p">()),</span> <span class="nb">int</span><span class="p">(</span><span class="n">num_vertices</span><span class="p">)),</span>
+        <span class="n">device</span><span class="o">=</span><span class="n">values</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+        <span class="n">dtype</span><span class="o">=</span><span class="n">values</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span>
+        <span class="n">check_invariants</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="interpolation_normal_matrix">
+<a class="viewcode-back" href="../../api_reference/interpolate.html#drtk.interpolation_normal_matrix">[docs]</a>
+<span class="nd">@th</span><span class="o">.</span><span class="n">compiler</span><span class="o">.</span><span class="n">disable</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">interpolation_normal_matrix</span><span class="p">(</span>
+    <span class="n">vi</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">index_img</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">bary_img</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">num_vertices</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Assemble the sparse normal matrix for barycentric interpolation.</span>
+
+<span class="sd">    Let ``A`` be the matrix returned by :func:`interpolation_matrix` for the</span>
+<span class="sd">    same ``vi``, ``index_img`` and ``bary_img``. This function returns</span>
+<span class="sd">    ``A.T @ A`` directly, without materializing ``A``. For every foreground</span>
+<span class="sd">    pixel, the CUDA/CPU kernel accumulates the nine products</span>
+<span class="sd">    ``bary_i * bary_j`` into the CSR entry corresponding to the owning</span>
+<span class="sd">    triangle&#39;s directed vertex pair ``(vi[i], vi[j])``.</span>
+
+<span class="sd">    The sparsity pattern depends only on topology, not on image resolution or</span>
+<span class="sd">    barycentric values. The C++ op caches that CSR structure and the per-face</span>
+<span class="sd">    pair lookup per output device for repeated calls with the same face-index</span>
+<span class="sd">    tensor, so iterative solvers can reuse both the expensive topology analysis</span>
+<span class="sd">    and the device-resident CSR buffers while still updating numeric values</span>
+<span class="sd">    every rasterization.</span>
+
+<span class="sd">    ``index_img`` is expected to come from DRTK rasterization and contain only</span>
+<span class="sd">    background ``-1`` or triangle indices in ``[0, F)``. The normal-matrix CUDA</span>
+<span class="sd">    value kernel does not validate that range because host-side validation</span>
+<span class="sd">    would synchronize the rasterization result in this hot path. Faces must</span>
+<span class="sd">    also have three distinct vertex indices; degenerate faces with duplicate</span>
+<span class="sd">    corners are unsupported.</span>
+
+<span class="sd">    Differentiability:</span>
+<span class="sd">        The normal-matrix structure and rasterized triangle indices are</span>
+<span class="sd">        discrete and non-differentiable. The returned sparse values are</span>
+<span class="sd">        differentiable with respect to ``bary_img`` via the product rule for</span>
+<span class="sd">        ``bary_i * bary_j``. No gradients are produced for ``vi`` or</span>
+<span class="sd">        ``index_img``. Visibility changes remain outside this op&#39;s derivative;</span>
+<span class="sd">        they are represented only through the supplied ``index_img``.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        vi: Face vertex index tensor, shape ``[F, 3]``, ``[1, F, 3]``,</span>
+<span class="sd">            or ``[N, F, 3]``. Singleton 3D batches are broadcast to ``N``.</span>
+<span class="sd">        index_img: Rasterized triangle index image, shape ``[N, H, W]``.</span>
+<span class="sd">        bary_img: Barycentric image, shape ``[N, 3, H, W]``.</span>
+<span class="sd">        num_vertices: Number of vertex unknowns, i.e. the normal-matrix size.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        A sparse CSR tensor with shape ``[num_vertices, num_vertices]``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">vi</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="n">vi</span> <span class="o">=</span> <span class="n">vi</span><span class="p">[</span><span class="kc">None</span><span class="p">]</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">index_img</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">vi</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">3</span> <span class="ow">and</span> <span class="n">vi</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">index_img</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">vi</span> <span class="o">=</span> <span class="n">vi</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">index_img</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="n">crow_indices</span><span class="p">,</span> <span class="n">col_indices</span><span class="p">,</span> <span class="n">values</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">th</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">interpolate_ext</span><span class="o">.</span><span class="n">interpolation_normal_matrix</span><span class="p">(</span>
+            <span class="n">vi</span><span class="p">,</span>
+            <span class="n">index_img</span><span class="p">,</span>
+            <span class="n">bary_img</span><span class="p">,</span>
+            <span class="nb">int</span><span class="p">(</span><span class="n">num_vertices</span><span class="p">),</span>
+        <span class="p">)</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">th</span><span class="o">.</span><span class="n">sparse_csr_tensor</span><span class="p">(</span>
+        <span class="n">crow_indices</span><span class="p">,</span>
+        <span class="n">col_indices</span><span class="p">,</span>
+        <span class="n">values</span><span class="p">,</span>
+        <span class="n">size</span><span class="o">=</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">num_vertices</span><span class="p">),</span> <span class="nb">int</span><span class="p">(</span><span class="n">num_vertices</span><span class="p">)),</span>
+        <span class="n">device</span><span class="o">=</span><span class="n">values</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+        <span class="n">dtype</span><span class="o">=</span><span class="n">values</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span>
+        <span class="n">check_invariants</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span></div>
+
+
+
 <div class="viewcode-block" id="interpolate_ref">
 <a class="viewcode-back" href="../../api_reference/interpolate.html#drtk.interpolate_ref">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">interpolate_ref</span><span class="p">(</span>
