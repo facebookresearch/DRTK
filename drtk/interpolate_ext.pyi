@@ -11,3 +11,20 @@ def interpolate(
     index_img: Tensor,
     bary_img: Tensor,
 ) -> Tensor: ...
+def interpolation_matrix(
+    vi: Tensor,
+    index_img: Tensor,
+    bary_img: Tensor,
+) -> tuple[Tensor, Tensor, Tensor, Tensor]: ...
+def interpolation_normal_matrix(
+    vi: Tensor,
+    index_img: Tensor,
+    bary_img: Tensor,
+    num_vertices: int,
+) -> tuple[Tensor, Tensor, Tensor]: ...
+def interpolation_normal_matrix_values(
+    pair_indices: Tensor,
+    index_img: Tensor,
+    bary_img: Tensor,
+    nnz: int,
+) -> Tensor: ...

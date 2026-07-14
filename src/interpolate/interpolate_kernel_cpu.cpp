@@ -6,12 +6,28 @@
 #include <ATen/Parallel.h>
 #include <cpu_atomic.h>
 #include <torch/types.h>
+#include <utility>
 
 #include "interpolate_kernel.h"
 
 using drtk::atomic_add;
 
 namespace {
+
+inline void sorted_corner_order(const int32_t cols[3], int order[3]) {
+  order[0] = 0;
+  order[1] = 1;
+  order[2] = 2;
+  if (cols[order[1]] < cols[order[0]]) {
+    std::swap(order[0], order[1]);
+  }
+  if (cols[order[2]] < cols[order[1]]) {
+    std::swap(order[1], order[2]);
+  }
+  if (cols[order[1]] < cols[order[0]]) {
+    std::swap(order[0], order[1]);
+  }
+}
 
 template <typename scalar_t>
 void interpolate_forward_cpu_impl(
@@ -390,4 +406,288 @@ std::tuple<torch::Tensor, torch::Tensor> interpolate_cpu_backward(
     });
   }
   return std::make_tuple(vert_grad, bary_grad);
+}
+
+std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor> interpolation_matrix_cpu(
+    const torch::Tensor& vi,
+    const torch::Tensor& index_img,
+    const torch::Tensor& bary_img) {
+  TORCH_CHECK(
+      vi.defined() && index_img.defined() && bary_img.defined(),
+      "interpolation_matrix(): expected all inputs to be defined");
+  TORCH_CHECK(
+      vi.device().is_cpu() && index_img.device().is_cpu() && bary_img.device().is_cpu(),
+      "interpolation_matrix(): expected all inputs to be on CPU");
+  TORCH_CHECK(
+      vi.dtype() == torch::kInt32,
+      "interpolation_matrix(): expected vi to have int32 type, but vi has ",
+      vi.dtype());
+  TORCH_CHECK(
+      index_img.dtype() == torch::kInt32,
+      "interpolation_matrix(): expected index_img to have int32 type, but index_img has ",
+      index_img.dtype());
+  TORCH_CHECK(
+      bary_img.is_floating_point(),
+      "interpolation_matrix(): expected bary_img to have floating point type, but has ",
+      bary_img.dtype());
+  TORCH_CHECK(
+      vi.dim() == 3 && index_img.dim() == 3 && bary_img.dim() == 4,
+      "interpolation_matrix(): expected vi.ndim == 3, index_img.ndim == 3, bary_img.ndim == 4");
+  TORCH_CHECK(
+      vi.size(0) == index_img.size(0) && vi.size(0) == bary_img.size(0) && vi.size(2) == 3 &&
+          bary_img.size(1) == 3 && index_img.size(1) == bary_img.size(2) &&
+          index_img.size(2) == bary_img.size(3),
+      "interpolation_matrix(): expected vi, index_img and bary_img shapes to agree");
+
+  auto vi_c = vi.contiguous();
+  auto index_img_c = index_img.contiguous();
+  auto bary_img_c = bary_img.contiguous();
+
+  const int64_t F = vi_c.size(1);
+  const int64_t H = index_img_c.size(1);
+  const int64_t W = index_img_c.size(2);
+  const int32_t* index_ptr = index_img_c.data_ptr<int32_t>();
+  auto row_pixels = at::nonzero(index_img_c.reshape({-1}).ne(-1)).reshape({-1}).contiguous();
+  const int64_t num_rows = row_pixels.numel();
+
+  auto long_options = index_img.options().dtype(torch::kInt64);
+  auto crow_indices = at::arange(0, num_rows * 3 + 1, 3, long_options);
+  auto col_indices = at::empty({num_rows * 3}, long_options);
+  auto values = at::empty({num_rows * 3}, bary_img.options());
+
+  auto* col_ptr = col_indices.data_ptr<int64_t>();
+
+  AT_DISPATCH_FLOATING_TYPES(bary_img_c.scalar_type(), "interpolation_matrix_cpu", [&] {
+    const int32_t* vi_ptr = vi_c.data_ptr<int32_t>();
+    const scalar_t* bary_ptr = bary_img_c.data_ptr<scalar_t>();
+    const int64_t* row_pixels_ptr = row_pixels.data_ptr<int64_t>();
+    scalar_t* values_ptr = values.data_ptr<scalar_t>();
+
+    // Match the CUDA contract: foreground index_img entries come from
+    // rasterization and are valid face ids. Do not validate per pixel here.
+    at::parallel_for(0, num_rows, /*grain_size=*/4096, [&](int64_t begin, int64_t end) {
+      for (int64_t row = begin; row < end; ++row) {
+        const int64_t flat = row_pixels_ptr[row];
+        const int32_t tri = index_ptr[flat];
+        const int64_t w = flat % W;
+        const int64_t h = (flat / W) % H;
+        const int64_t n = flat / (H * W);
+
+        const int32_t* face = vi_ptr + n * F * 3 + tri * 3;
+        const int32_t cols32[3] = {face[0], face[1], face[2]};
+        const scalar_t* bary_pixel = bary_ptr + n * 3 * H * W + h * W + w;
+        const scalar_t bary[3] = {
+            bary_pixel[0 * H * W],
+            bary_pixel[1 * H * W],
+            bary_pixel[2 * H * W],
+        };
+
+        int order[3];
+        sorted_corner_order(cols32, order);
+
+        for (int k = 0; k < 3; ++k) {
+          const int corner = order[k];
+          col_ptr[row * 3 + k] = cols32[corner];
+          values_ptr[row * 3 + k] = bary[corner];
+        }
+      }
+    });
+  });
+
+  return std::make_tuple(crow_indices, col_indices, values, row_pixels);
+}
+
+torch::Tensor interpolation_matrix_cpu_backward(
+    const torch::Tensor& grad_values,
+    const torch::Tensor& vi,
+    const torch::Tensor& index_img,
+    const torch::Tensor& bary_img,
+    const torch::Tensor& row_pixels) {
+  auto vi_c = vi.contiguous();
+  auto index_img_c = index_img.contiguous();
+  auto bary_img_c = bary_img.contiguous();
+  auto grad_values_c = grad_values.contiguous();
+  auto row_pixels_c = row_pixels.contiguous();
+
+  const int64_t F = vi_c.size(1);
+  const int64_t H = index_img_c.size(1);
+  const int64_t W = index_img_c.size(2);
+  auto bary_grad = at::zeros_like(bary_img_c);
+
+  AT_DISPATCH_FLOATING_TYPES(bary_img_c.scalar_type(), "interpolation_matrix_cpu_backward", [&] {
+    const int32_t* vi_ptr = vi_c.data_ptr<int32_t>();
+    const int32_t* index_ptr = index_img_c.data_ptr<int32_t>();
+    const scalar_t* grad_ptr = grad_values_c.data_ptr<scalar_t>();
+    const int64_t* row_pixels_ptr = row_pixels_c.data_ptr<int64_t>();
+    scalar_t* bary_grad_ptr = bary_grad.data_ptr<scalar_t>();
+
+    // row_pixels was produced by the forward op, and index_img follows the
+    // same rasterization contract as the CUDA path.
+    at::parallel_for(0, row_pixels_c.numel(), /*grain_size=*/4096, [&](int64_t begin, int64_t end) {
+      for (int64_t row = begin; row < end; ++row) {
+        const int64_t flat = row_pixels_ptr[row];
+        const int64_t w = flat % W;
+        const int64_t h = (flat / W) % H;
+        const int64_t n = flat / (H * W);
+        const int32_t tri = index_ptr[flat];
+
+        const int32_t* face = vi_ptr + n * F * 3 + tri * 3;
+        const int32_t cols32[3] = {face[0], face[1], face[2]};
+        int order[3];
+        sorted_corner_order(cols32, order);
+
+        scalar_t* bary_pixel = bary_grad_ptr + n * 3 * H * W + h * W + w;
+        for (int k = 0; k < 3; ++k) {
+          bary_pixel[order[k] * H * W] = grad_ptr[row * 3 + k];
+        }
+      }
+    });
+  });
+
+  return bary_grad;
+}
+
+torch::Tensor interpolation_normal_matrix_values_cpu(
+    const torch::Tensor& pair_indices,
+    const torch::Tensor& index_img,
+    const torch::Tensor& bary_img,
+    int64_t nnz) {
+  TORCH_CHECK(
+      pair_indices.defined() && index_img.defined() && bary_img.defined(),
+      "interpolation_normal_matrix_values(): expected all inputs to be defined");
+  TORCH_CHECK(
+      pair_indices.device().is_cpu() && index_img.device().is_cpu() && bary_img.device().is_cpu(),
+      "interpolation_normal_matrix_values(): expected all inputs to be on CPU");
+  TORCH_CHECK(
+      pair_indices.dtype() == torch::kInt32,
+      "interpolation_normal_matrix_values(): expected pair_indices to have int32 type");
+  TORCH_CHECK(
+      index_img.dtype() == torch::kInt32,
+      "interpolation_normal_matrix_values(): expected index_img to have int32 type");
+  TORCH_CHECK(
+      bary_img.is_floating_point(),
+      "interpolation_normal_matrix_values(): expected bary_img to have floating point type");
+  TORCH_CHECK(
+      pair_indices.dim() == 3 && pair_indices.size(2) == 9 && index_img.dim() == 3 &&
+          bary_img.dim() == 4 && bary_img.size(1) == 3,
+      "interpolation_normal_matrix_values(): expected pair_indices [N,F,9], index_img [N,H,W], bary_img [N,3,H,W]");
+  TORCH_CHECK(
+      pair_indices.size(0) == index_img.size(0) && pair_indices.size(0) == bary_img.size(0) &&
+          index_img.size(1) == bary_img.size(2) && index_img.size(2) == bary_img.size(3),
+      "interpolation_normal_matrix_values(): expected pair_indices, index_img and bary_img shapes to agree");
+
+  auto pair_indices_c = pair_indices.contiguous();
+  auto index_img_c = index_img.contiguous();
+  auto bary_img_c = bary_img.contiguous();
+
+  const int64_t N = index_img_c.size(0);
+  const int64_t F = pair_indices_c.size(1);
+  const int64_t H = index_img_c.size(1);
+  const int64_t W = index_img_c.size(2);
+  const int64_t count = N * H * W;
+  auto values = at::zeros({nnz}, bary_img.options());
+
+  AT_DISPATCH_FLOATING_TYPES(
+      bary_img_c.scalar_type(), "interpolation_normal_matrix_values_cpu", [&] {
+        const int32_t* pair_ptr = pair_indices_c.data_ptr<int32_t>();
+        const int32_t* index_ptr = index_img_c.data_ptr<int32_t>();
+        const scalar_t* bary_ptr = bary_img_c.data_ptr<scalar_t>();
+        scalar_t* values_ptr = values.data_ptr<scalar_t>();
+
+        // Match the CUDA contract: foreground index_img entries are valid face
+        // ids, and pair_indices was built for the same topology.
+        at::parallel_for(0, count, /*grain_size=*/4096, [&](int64_t begin, int64_t end) {
+          for (int64_t flat = begin; flat < end; ++flat) {
+            const int32_t tri = index_ptr[flat];
+            if (tri == -1) {
+              continue;
+            }
+
+            const int64_t w = flat % W;
+            const int64_t h = (flat / W) % H;
+            const int64_t n = flat / (H * W);
+
+            const int32_t* pair = pair_ptr + n * F * 9 + tri * 9;
+            const scalar_t* bary_pixel = bary_ptr + n * 3 * H * W + h * W + w;
+            const scalar_t b[3] = {
+                bary_pixel[0 * H * W],
+                bary_pixel[1 * H * W],
+                bary_pixel[2 * H * W],
+            };
+
+            for (int i = 0; i < 3; ++i) {
+              for (int j = 0; j < 3; ++j) {
+                atomic_add(&values_ptr[pair[i * 3 + j]], b[i] * b[j]);
+              }
+            }
+          }
+        });
+      });
+
+  return values;
+}
+
+torch::Tensor interpolation_normal_matrix_values_cpu_backward(
+    const torch::Tensor& grad_values,
+    const torch::Tensor& pair_indices,
+    const torch::Tensor& index_img,
+    const torch::Tensor& bary_img) {
+  auto pair_indices_c = pair_indices.contiguous();
+  auto index_img_c = index_img.contiguous();
+  auto bary_img_c = bary_img.contiguous();
+  auto grad_values_c = grad_values.contiguous();
+
+  const int64_t N = index_img_c.size(0);
+  const int64_t F = pair_indices_c.size(1);
+  const int64_t H = index_img_c.size(1);
+  const int64_t W = index_img_c.size(2);
+  const int64_t count = N * H * W;
+  auto bary_grad = at::zeros_like(bary_img_c);
+
+  AT_DISPATCH_FLOATING_TYPES(
+      bary_img_c.scalar_type(), "interpolation_normal_matrix_values_cpu_backward", [&] {
+        const int32_t* pair_ptr = pair_indices_c.data_ptr<int32_t>();
+        const int32_t* index_ptr = index_img_c.data_ptr<int32_t>();
+        const scalar_t* bary_ptr = bary_img_c.data_ptr<scalar_t>();
+        const scalar_t* grad_ptr = grad_values_c.data_ptr<scalar_t>();
+        scalar_t* bary_grad_ptr = bary_grad.data_ptr<scalar_t>();
+
+        // Match the CUDA contract: foreground index_img entries are valid face
+        // ids, and pair_indices was built for the same topology.
+        at::parallel_for(0, count, /*grain_size=*/4096, [&](int64_t begin, int64_t end) {
+          for (int64_t flat = begin; flat < end; ++flat) {
+            const int32_t tri = index_ptr[flat];
+            if (tri == -1) {
+              continue;
+            }
+
+            const int64_t w = flat % W;
+            const int64_t h = (flat / W) % H;
+            const int64_t n = flat / (H * W);
+
+            const int32_t* pair = pair_ptr + n * F * 9 + tri * 9;
+            const scalar_t* bary_pixel = bary_ptr + n * 3 * H * W + h * W + w;
+            const scalar_t b0 = bary_pixel[0 * H * W];
+            const scalar_t b1 = bary_pixel[1 * H * W];
+            const scalar_t b2 = bary_pixel[2 * H * W];
+
+            const scalar_t g00 = grad_ptr[pair[0]];
+            const scalar_t g01 = grad_ptr[pair[1]];
+            const scalar_t g02 = grad_ptr[pair[2]];
+            const scalar_t g10 = grad_ptr[pair[3]];
+            const scalar_t g11 = grad_ptr[pair[4]];
+            const scalar_t g12 = grad_ptr[pair[5]];
+            const scalar_t g20 = grad_ptr[pair[6]];
+            const scalar_t g21 = grad_ptr[pair[7]];
+            const scalar_t g22 = grad_ptr[pair[8]];
+
+            scalar_t* grad_pixel = bary_grad_ptr + n * 3 * H * W + h * W + w;
+            grad_pixel[0 * H * W] = scalar_t(2) * g00 * b0 + (g01 + g10) * b1 + (g02 + g20) * b2;
+            grad_pixel[1 * H * W] = (g10 + g01) * b0 + scalar_t(2) * g11 * b1 + (g12 + g21) * b2;
+            grad_pixel[2 * H * W] = (g20 + g02) * b0 + (g21 + g12) * b1 + scalar_t(2) * g22 * b2;
+          }
+        });
+      });
+
+  return bary_grad;
 }

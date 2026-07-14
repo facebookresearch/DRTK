@@ -18,7 +18,12 @@ from .filter2d import (  # noqa  # noqa
     upsample,
 )
 from .grid_scatter import grid_scatter, grid_scatter_ref  # noqa
-from .interpolate import interpolate, interpolate_ref  # noqa
+from .interpolate import (  # noqa
+    interpolate,
+    interpolate_ref,
+    interpolation_matrix,
+    interpolation_normal_matrix,
+)
 from .mipmap_grid_sample import mipmap_grid_sample, mipmap_grid_sample_ref  # noqa
 from .msi import msi  # noqa
 from .rasterize import rasterize, rasterize_with_depth  # noqa
