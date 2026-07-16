@@ -33,12 +33,15 @@ def _any_mode_is_fisheye62(
 def project_pinhole(
     v_cam: th.Tensor, focal: th.Tensor, princpt: th.Tensor
 ) -> th.Tensor:
-    """Project camera-space points to pixel-space points with camera
-    intrinsics.
+    """Project camera-space points with an undistorted pinhole camera.
 
-    v_cam:      N x V x 3
-    focal:      N x 2 x 2
-    princpt:    N x 2
+    Args:
+        v_cam: Camera-space points with shape ``(N, V, 3)``.
+        focal: Camera intrinsic matrices with shape ``(N, 2, 2)``.
+        princpt: Principal points in pixels with shape ``(N, 2)``.
+
+    Returns:
+        Pixel coordinates with shape ``(N, V, 2)``.
     """
 
     z = v_cam[:, :, 2:3]
@@ -57,14 +60,22 @@ def project_pinhole_distort_rt(
     D: th.Tensor,
     fov: Optional[th.Tensor] = None,
 ) -> th.Tensor:
-    """Project camera-space points to distorted pixel-space using the radial
-    and tangential model (4 parameters).
+    """Project camera-space points with an OpenCV radial-tangential model.
 
-    v_cam:      N x V x 3
-    focal:      N x 2 x 2
-    princpt:    N x 2
-    D:          N x 4
-    fov:        N x 1
+    ``D`` may contain OpenCV's 4-, 5-, or 8-parameter radial/tangential
+    coefficients. The normalized radius is clamped to ``fov`` before applying
+    distortion; when ``fov`` is omitted it is estimated from ``D``.
+
+    Args:
+        v_cam: Camera-space points with shape ``(N, V, 3)``.
+        focal: Camera intrinsic matrices with shape ``(N, 2, 2)``.
+        princpt: Principal points in pixels with shape ``(N, 2)``.
+        D: Distortion coefficients with shape ``(N, 4)``, ``(N, 5)``, or
+            ``(N, 8)``.
+        fov: Optional maximum normalized radius with shape ``(N, 1)``.
+
+    Returns:
+        Distorted pixel coordinates with shape ``(N, V, 2)``.
     """
 
     # See https://docs.opencv.org/2.4/doc/tutorials/calib3d/camera_calibration/camera_calibration.html
@@ -131,14 +142,18 @@ def project_fisheye_distort(
     D: th.Tensor,
     fov: Optional[th.Tensor] = None,
 ) -> th.Tensor:
-    """Project camera-space points to distort pixel-space points using the
-    fisheye distortion model.
+    """Project camera-space points with OpenCV's fisheye model.
 
-    v_cam:      N x V x 3
-    focal:      N x 2 x 2
-    princpt:    N x 2
-    D:          N x 4
-    fov:        N x 1
+    Args:
+        v_cam: Camera-space points with shape ``(N, V, 3)``.
+        focal: Camera intrinsic matrices with shape ``(N, 2, 2)``.
+        princpt: Principal points in pixels with shape ``(N, 2)``.
+        D: Fisheye distortion coefficients with shape ``(N, 4)``.
+        fov: Optional maximum normalized radius with shape ``(N, 1)``. When
+            omitted, it is estimated from ``D``.
+
+    Returns:
+        Distorted pixel coordinates with shape ``(N, V, 2)``.
     """
 
     # See https://github.com/opencv/opencv/blob/master/modules/calib3d/src/fisheye.cpp
@@ -177,17 +192,26 @@ def project_fisheye_distort_62(
     lut_vector_field: Optional[th.Tensor] = None,
     lut_spacing: Optional[th.Tensor] = None,
 ) -> th.Tensor:
-    """Project camera-space points to distort pixel-space points using the
-    Fisheye62 distortion model. See the perception camera model implementation
-    where this was copied from here: https://fburl.com/code/oqpu8xdm
+    """Project camera-space points with the Fisheye62 model.
 
-    v_cam:              N x V x 3
-    focal:              N x 2 x 2
-    princpt:            N x 2
-    D:                  N x 8
-    fov:                N x 1
-    lut_vector_field:   N x 2 x H_lut x W_lut
-    lut_spacing:        N x 2
+    Fisheye62 uses six radial coefficients followed by two tangential
+    coefficients. If ``lut_vector_field`` is provided, a pixel-space correction
+    is sampled from the lookup table and added to the projected coordinates.
+
+    Args:
+        v_cam: Camera-space points with shape ``(N, V, 3)``.
+        focal: Camera intrinsic matrices with shape ``(N, 2, 2)``.
+        princpt: Principal points in pixels with shape ``(N, 2)``.
+        D: Fisheye62 coefficients ``(k0, k1, k2, k3, k4, k5, p0, p1)`` with
+            shape ``(N, 8)``.
+        fov: Optional maximum normalized radius with shape ``(N, 1)``.
+        lut_vector_field: Optional pixel offset table with shape
+            ``(N, 2, H_lut, W_lut)``.
+        lut_spacing: Pixel spacing of the lookup table with shape ``(N, 2)``.
+            Required when ``lut_vector_field`` is provided.
+
+    Returns:
+        Distorted pixel coordinates with shape ``(N, V, 2)``.
     """
     assert D.shape[1] == 8, (
         f"Fisheye62 model requires 8 distortion parameters: {D.shape}"
@@ -286,10 +310,19 @@ def project_fisheye_distort_62(
 
 
 def estimate_rt_fov(D: Union[np.ndarray, th.Tensor]) -> th.Tensor:
-    """Estimate the maximum field of view based on the assumption that the 5th order
-    polynomial for fish-eye effect is non-decreasing.
+    """Estimate a radial-tangential distortion field-of-view bound.
 
-    D:  N x 4
+    The returned value is the smallest positive radius where the radial
+    polynomial can stop being monotonic. If no such root exists, the bound is
+    infinity. This helper uses NumPy root finding and is not differentiable with
+    respect to ``D``.
+
+    Args:
+        D: Radial-tangential coefficients with shape ``(N, 4)`` or larger. Only
+            the first two radial coefficients are read.
+
+    Returns:
+        Maximum normalized radius with shape ``(N, 1)``.
     """
 
     if th.is_tensor(D):
@@ -356,10 +389,19 @@ def _solve_monotonic_fisheye_fov(
 
 
 def estimate_fisheye_fov(D: Union[np.ndarray, th.Tensor]) -> th.Tensor:
-    """Estimate the maximum field of view based on the assumption that the 9th order
-    polynomial is non-decreasing.
+    """Estimate an OpenCV fisheye field-of-view bound.
 
-    D:  N x 4
+    The returned value is ``tan(theta)`` at the first positive point where the
+    fisheye polynomial can stop being monotonic, capped at ``pi / 2``. This
+    helper uses NumPy root finding and is not differentiable with respect to
+    ``D``.
+
+    Args:
+        D: Fisheye coefficients with shape ``(N, 4)`` or larger. Only the first
+            four radial coefficients are read.
+
+    Returns:
+        Maximum normalized radius with shape ``(N, 1)``.
     """
 
     if th.is_tensor(D):
@@ -388,8 +430,7 @@ def estimate_fisheye_fov(D: Union[np.ndarray, th.Tensor]) -> th.Tensor:
 
 
 def estimate_fisheye62_fov(D: Union[np.ndarray, th.Tensor]) -> th.Tensor:
-    """Estimate the maximum field of view based on the assumption that the 13th
-    order fisheye62 polynomial (k0..k5) is non-decreasing.
+    """Estimate a Fisheye62 field-of-view bound.
 
     `estimate_fisheye_fov` truncates at k0..k3 (9th order), which misses the
     first root in `[0, pi/2]` for calibrations whose `k4*theta^11 + k5*theta^13`
@@ -397,7 +438,15 @@ def estimate_fisheye62_fov(D: Union[np.ndarray, th.Tensor]) -> th.Tensor:
     fisheye62 distortion model (8 coefficients: k0..k5, p0, p1) should prefer
     this function.
 
-    D:  N x >= 6 (only the first six entries are read)
+    This helper uses NumPy root finding and is not differentiable with respect
+    to ``D``.
+
+    Args:
+        D: Fisheye62 coefficients with shape ``(N, 6)`` or larger. Only the
+            first six radial coefficients are read.
+
+    Returns:
+        Maximum normalized radius with shape ``(N, 1)``.
     """
 
     if th.is_tensor(D):
@@ -446,19 +495,39 @@ def project_points(
     lut_vector_field: Optional[th.Tensor] = None,
     lut_spacing: Optional[th.Tensor] = None,
 ) -> Tuple[th.Tensor, th.Tensor]:
-    """Project 3D world-space vertices to pixel-space, optionally applying a
-    distortion model with provided coefficients.
+    """Project world-space vertices to DRTK pixel coordinates.
 
-    Returns v_pix, v_cam, both N x V x 3 since we preserve the camera-space
-    Z-coordinate for v_pix.
+    The world-to-camera convention is ``v_cam = camrot @ (v - campos)``.
+    ``v_pix`` stores pixel ``x, y`` followed by camera-space ``z`` so it can be
+    passed directly to :func:`drtk.rasterize`. Vertices with ``z <= 0`` are
+    behind the camera and are rejected by rasterization.
 
-    v:                  N x V x 3
-    camrot:             N x 3 x 3
-    campos:             N x 3
-    focal:              N x 2 x 2
-    princpt:            N x 2
-    distortion_coeff:   N x 4
-    fov:                N x 1
+    ``distortion_mode`` may be ``None``/``"pinhole"``,
+    ``"radial-tangential"``, ``"fisheye"``, ``"fisheye62"``, or
+    ``"fisheye62_lut"``. A per-batch list of modes is supported for pinhole,
+    radial-tangential, and fisheye batches; Fisheye62 modes are currently
+    supported only when ``distortion_mode`` is a single string. For Fisheye62
+    with ``fov``, vertices outside the valid radius get ``z = -1`` so any
+    triangle touching them is culled by the rasterizer.
+
+    Args:
+        v: World-space vertices with shape ``(N, V, 3)``.
+        campos: Camera positions with shape ``(N, 3)``.
+        camrot: World-to-camera rotation matrices with shape ``(N, 3, 3)``.
+        focal: Camera intrinsic matrices with shape ``(N, 2, 2)``.
+        princpt: Principal points in pixels with shape ``(N, 2)``.
+        distortion_mode: Optional distortion mode string or per-batch list of
+            mode strings.
+        distortion_coeff: Distortion coefficients. Shape depends on
+            ``distortion_mode``.
+        fov: Optional maximum normalized radius with shape ``(N, 1)``.
+        lut_vector_field: Optional Fisheye62 LUT offset field with shape
+            ``(N, 2, H_lut, W_lut)``.
+        lut_spacing: Optional Fisheye62 LUT spacing with shape ``(N, 2)``.
+
+    Returns:
+        ``(v_pix, v_cam)``. Both tensors have shape ``(N, V, 3)``. ``v_pix``
+        stores ``(x_pixels, y_pixels, z_camera)``.
     """
 
     if distortion_mode is not None:
@@ -587,23 +656,23 @@ def project_points_grad(
     distortion_mode: Optional[Union[List[str], str]] = None,
     distortion_coeff: Optional[th.Tensor] = None,
 ) -> th.Tensor:
-    """Computes the gradient of projected (pixel-space) vertex positions with
-    respect to the 3D world-space vertex positions given the gradient of the 3D
-    world-space vertex positions.
+    """Apply the pinhole projection Jacobian to world-space vertex deltas.
 
-    project_points_grad(dv, v) = d project_points(v) / dv * dv
+    This computes ``d project_points(v) / d v @ v_grad`` for the undistorted
+    pinhole projection path. Distortion gradients are not implemented here; pass
+    ``distortion_mode=None``.
 
     Args:
-        v_grad: Gradient of 3D world-space vertices. Shape: N x V x 3
-        v: 3D world-space vertices. Shape: N x V x 3
-        camrot: Camera rotation. Shape:  N x 3 x 3
-        camrot: Camera position. Shape:  N x 3
-        focal: Focal length. Shape: N x 2 x 2
-        distortion_mode: Distortion currently not implemented and must be None.
-        distortion_coeff: Distortion currently not implemented and must be None.
+        v_grad: World-space vertex perturbations with shape ``(N, V, 3)``.
+        v: World-space vertices with shape ``(N, V, 3)``.
+        campos: Camera positions with shape ``(N, 3)``.
+        camrot: World-to-camera rotation matrices with shape ``(N, 3, 3)``.
+        focal: Camera intrinsic matrices with shape ``(N, 2, 2)``.
+        distortion_mode: Distortion is not implemented and must be ``None``.
+        distortion_coeff: Distortion is not implemented and must be ``None``.
 
     Returns:
-         Gradient of 2D pixel-space vertices: N x V x 2
+        Pixel-space perturbations with shape ``(N, V, 2)``.
     """
 
     if distortion_mode is not None:
