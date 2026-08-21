@@ -23,7 +23,7 @@ def main(debug: bool) -> None:
         "linux": ["-std=c++17", "-Wall"]
         + (["-O0", "-g3", "-DDEBUG"] if debug else ["-O3", "--fast-math"]),
         "win32": (
-            ["/MT", "/GR-", "/EHsc", '/D "NOMINMAX"']
+            ["/MD", "/EHsc", '/D "NOMINMAX"']
             + (
                 ["/Od", '/D "_DEBUG"']
                 if debug
