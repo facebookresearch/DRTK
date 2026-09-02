@@ -30,7 +30,12 @@ constexpr inline __host__ __device__ int calc_pad_1(int k_size, int down, int up
 struct StepParameters {
   constexpr __host__ __device__ StepParameters(int2 tile_out, int2 k_size, int2 up, int2 down)
       : tile_out(tile_out),
-        tile_in(((tile_out - 1) * down + k_size - 1) / up + 1),
+        // Element-wise rather than via int2 operators: ROCm declares its vector operator+/-
+        // constexpr, but they delegate to non-constexpr operator+=/-=, so they can never be
+        // constant-evaluated and StepParameters would stop being usable in constant expressions.
+        tile_in(
+            {((tile_out.x - 1) * down.x + k_size.x - 1) / up.x + 1,
+             ((tile_out.y - 1) * down.y + k_size.y - 1) / up.y + 1}),
         up(up),
         down(down),
         pad_0({calc_pad_0(k_size.x, down.x, up.x), calc_pad_0(k_size.y, down.y, up.y)}),
