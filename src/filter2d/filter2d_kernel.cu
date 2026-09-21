@@ -1,5 +1,6 @@
 #include <c10/util/Half.h>
 #include <cstdarg>
+#include <cstring>
 #include <memory>
 #include "filter2d_kernel.h"
 
@@ -281,19 +282,19 @@ template void* get_filter_fused_kernel<c10::Half>(
         TILE_OUT_H);                                   \
   }
 
-inline std::string string_format(const std::string& fmt_str, ...) {
-  int n = ((int)fmt_str.size()) * 2;
+inline std::string string_format(const char* fmt_str, ...) {
+  int n = ((int)std::strlen(fmt_str)) * 2;
   std::unique_ptr<char[]> formatted;
   for (;;) {
     va_list ap;
     va_start(ap, fmt_str);
     formatted = std::unique_ptr<char[]>(new char[n]);
-    auto final_n = vsnprintf(&formatted[0], n, fmt_str.c_str(), ap);
+    auto final_n = vsnprintf(&formatted[0], n, fmt_str, ap);
+    va_end(ap);
     if (final_n < 0 || final_n >= n)
       n += abs(final_n - n + 1);
     else
       break;
-    va_end(ap);
   }
   return formatted.get();
 }

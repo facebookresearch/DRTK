@@ -91,6 +91,18 @@ def main(debug: bool) -> None:
     if target_os == "macos":
         raise RuntimeError("Platform is not supported")
 
+    if target_os == "win32":
+        # PyTorch disables CUDA half operators/conversions, but CUB headers
+        # require them even when instantiating only float/double kernels.
+        nvcc_args.extend(
+            [
+                "-U__CUDA_NO_HALF_OPERATORS__",
+                "-U__CUDA_NO_HALF2_OPERATORS__",
+                "-U__CUDA_NO_HALF_CONVERSIONS__",
+                "-U__CUDA_NO_BFLOAT16_CONVERSIONS__",
+            ]
+        )
+
     include_dir = [os.path.join(root_path, "src", "include")]
 
     with open("README.md") as f:
