@@ -1134,6 +1134,11 @@ HD_FUNC double rnorm4d(double a, double b, double c, double d) {
             dot(a[2], T3({b[0].z, b[1].z, b[2].z}))});                                             \
   }
 
+#if defined(__HIP_PLATFORM_AMD__) && (defined(__HIPCC__) || defined(__HIP__))
+#define CUDA_MATH_HELPER_HAS_HIP_VECTOR_OPS
+#endif
+
+#ifndef CUDA_MATH_HELPER_HAS_HIP_VECTOR_OPS
 #define DEFINE_FUNC_FOR_UNSIGNED_INT(T, T2, T3, T4) \
   UNARY_OP(T, T2, T3, T4)                           \
   BINARY_ARITHM_OP(T, T2, T3, T4)                   \
@@ -1143,14 +1148,21 @@ HD_FUNC double rnorm4d(double a, double b, double c, double d) {
   OTHER_FUNC_ALL(T, T2, T3, T4)                     \
   OTHER_FUNC_INT(T, T2, T3, T4)                     \
   MAKE_FUNC(T, T2, T3, T4)
+#else
+// ROCm's HIP_vector_type supplies these operators. vec*vec and vec/vec are hidden friends, so they
+// tie with the non-template overloads here and every use is ambiguous; the rest are dropped to
+// mirror DEFINE_FUNC_FOR_FLOAT below. ROCm has no unary +, no unary - on unsigned (its operator-()
+// is constrained to is_signed), and no scalar right-hand side for %= ^= |= &= >>= <<= (its scalar
+// ctor in amd_hip_vector_types.h is explicit, so scalar cannot convert to HIP_vector_type).
+#define DEFINE_FUNC_FOR_UNSIGNED_INT(T, T2, T3, T4) \
+  OTHER_FUNC_ALL(T, T2, T3, T4)                     \
+  OTHER_FUNC_INT(T, T2, T3, T4)                     \
+  MAKE_FUNC(T, T2, T3, T4)
+#endif
 
 #define DEFINE_FUNC_FOR_SIGNED_INT(T, T2, T3, T4) \
   DEFINE_FUNC_FOR_UNSIGNED_INT(T, T2, T3, T4)     \
   ABS_FUNC(T, T2, T3, T4)
-
-#if defined(__HIP_PLATFORM_AMD__) && (defined(__HIPCC__) || defined(__HIP__))
-#define CUDA_MATH_HELPER_HAS_HIP_VECTOR_OPS
-#endif
 
 #ifndef CUDA_MATH_HELPER_HAS_HIP_VECTOR_OPS
 #define DEFINE_FUNC_FOR_FLOAT(T, T2, T3, T4) \

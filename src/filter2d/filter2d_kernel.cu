@@ -6,6 +6,18 @@
 
 using namespace math;
 
+namespace {
+// hipify rewrites std::max/std::min to ROCm's ::max/::min, which are not constexpr, so
+// compile-time tile sizes must not go through them.
+constexpr int const_max(int a, int b) {
+  return a > b ? a : b;
+}
+
+constexpr int const_min(int a, int b) {
+  return a < b ? a : b;
+}
+} // namespace
+
 template <class T, int _up, int _down, int _k_size, int tile_out_w, int tile_out_h>
 static __global__ void filter_fused(
     T* x_ptr,
@@ -88,7 +100,6 @@ static __global__ void filter_fused(
   for (int idx = (int)threadIdx.x; idx < p_s0.tile_out.x * p_s0.tile_out.y;
        idx += (int)blockDim.x) {
     int2 tile_out_rel = ::detail::unpack(idx, p_s0.tile_out.x);
-    int2 out_pos = tile_out_rel + s0_tile_out_pos;
     int2 _in_pos =
         s0_tile_out_pos * p_s0.down + p_s0.up - 1 - p_s0_pad_0 + tile_out_rel * p_s0.down;
     int2 in_pos = floor_div(_in_pos, p_s0.up);
@@ -96,7 +107,7 @@ static __global__ void filter_fused(
     int2 filter_xy = (in_pos + 1) * p_s0.up - _in_pos - 1;
 
     // If we were not working with tile, we would need to do something like:
-    //   `if (all_less(out_pos, out_size))`
+    //   `if (all_less(tile_out_rel + s0_tile_out_pos, out_size))`
     // But we can skip it since we saving result to shared memory and we know
     // that we are not going to go out of bound
     {
@@ -106,7 +117,8 @@ static __global__ void filter_fused(
 #pragma unroll
         for (int x = 0; x < p_s0.k_size.x / p_s0.up.x; x++)
           v += sx_0[in_pos_rel.y + y][in_pos_rel.x + x] * sf[filter_xy.x + x * p_s0.up.x];
-      // If we were not working with tile, we would write result to global memory like:
+      // If we were not working with tile, with `out_pos = tile_out_rel + s0_tile_out_pos` we
+      // would write result to global memory like:
       //    `y_ptr[out_pos.x + out_pos.y * out_size.x +  major * plane_out_stride] = (T)v;`
       sx_1[tile_out_rel.y][tile_out_rel.x] = v;
     }
@@ -143,13 +155,13 @@ struct GetKernel {
   static void*
   get_kernel_given_tile_limit(int out_size, int& tile_out_w_return, int& tile_out_h_return) {
     if (out_size > tile_limit) {
-      constexpr int tile_w = std::min(tile_limit, tile_out_w);
-      constexpr int tile_h = std::min(tile_limit, tile_out_h);
+      constexpr int tile_w = const_min(tile_limit, tile_out_w);
+      constexpr int tile_h = const_min(tile_limit, tile_out_h);
       tile_out_w_return = tile_w;
       tile_out_h_return = tile_h;
       return (void*)filter_fused<T, up, down, filter, tile_w, tile_h>;
     } else {
-      constexpr int smaller_tile_limit = std::max(4, tile_limit / 2);
+      constexpr int smaller_tile_limit = const_max(4, tile_limit / 2);
       return GetKernel<T, up, down, filter, tile_out_w, tile_out_h, smaller_tile_limit>::
           get_kernel_given_tile_limit(out_size, tile_out_w_return, tile_out_h_return);
     }
@@ -162,8 +174,8 @@ struct GetKernel<T, up, down, filter, tile_out_w, tile_out_h, 4> {
   get_kernel_given_tile_limit(int out_size, int& tile_out_w_return, int& tile_out_h_return) {
     constexpr int tile_limit = 4;
     assert(out_size >= tile_limit);
-    constexpr int tile_w = std::min(tile_limit, tile_out_w);
-    constexpr int tile_h = std::min(tile_limit, tile_out_h);
+    constexpr int tile_w = const_min(tile_limit, tile_out_w);
+    constexpr int tile_h = const_min(tile_limit, tile_out_h);
     return (void*)filter_fused<T, up, down, filter, tile_w, tile_h>;
   }
 };
@@ -224,7 +236,7 @@ struct GetKernel<T, up, down, filter, tile_out_w, tile_out_h, 4> {
         FILTER,                                                            \
         TILE_OUT_W,                                                        \
         TILE_OUT_H,                                                        \
-        std::max(TILE_OUT_W, TILE_OUT_H)>::                                \
+        const_max(TILE_OUT_W, TILE_OUT_H)>::                               \
         get_kernel_given_tile_limit(min_out_size, tile_out_w, tile_out_h); \
   }
 
@@ -282,19 +294,25 @@ template void* get_filter_fused_kernel<c10::Half>(
         TILE_OUT_H);                                   \
   }
 
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((format(printf, 1, 2)))
+#endif
 inline std::string string_format(const char* fmt_str, ...) {
-  int n = ((int)std::strlen(fmt_str)) * 2;
+  int n = ((int)std::strlen(fmt_str)) * 2 + 1;
   std::unique_ptr<char[]> formatted;
   for (;;) {
+    formatted = std::unique_ptr<char[]>(new char[n]);
     va_list ap;
     va_start(ap, fmt_str);
-    formatted = std::unique_ptr<char[]>(new char[n]);
     auto final_n = vsnprintf(&formatted[0], n, fmt_str, ap);
     va_end(ap);
-    if (final_n < 0 || final_n >= n)
-      n += abs(final_n - n + 1);
-    else
+    // A negative return is a deterministic encoding error: retrying with a larger buffer would
+    // loop forever. Callers only use this to decorate an error they are already raising.
+    if (final_n < 0)
+      return {};
+    if (final_n < n)
       break;
+    n = final_n + 1;
   }
   return formatted.get();
 }
