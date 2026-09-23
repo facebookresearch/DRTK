@@ -333,6 +333,7 @@ def estimate_rt_fov(D: Union[np.ndarray, th.Tensor]) -> th.Tensor:
     ones = np.ones_like(coefs[:, 0])
     zeros = np.zeros_like(coefs[:, 0])
     coefs = np.stack(
+        # pyrefly: ignore [bad-argument-type]
         [
             5 * coefs[:, 1],
             zeros,
@@ -355,6 +356,7 @@ def estimate_rt_fov(D: Union[np.ndarray, th.Tensor]) -> th.Tensor:
     fov = np.asarray(fov, dtype=np.float32)[..., None]
 
     if th.is_tensor(D):
+        # pyrefly: ignore [no-matching-overload]
         fov = th.from_numpy(fov).to(D)
 
     return fov
@@ -383,6 +385,7 @@ def _solve_monotonic_fisheye_fov(
     fov = np.asarray(np.tan(fov), dtype=np.float32)[..., None]
 
     if th.is_tensor(D):
+        # pyrefly: ignore [no-matching-overload]
         fov = th.from_numpy(fov).to(D)
 
     return fov
@@ -412,6 +415,7 @@ def estimate_fisheye_fov(D: Union[np.ndarray, th.Tensor]) -> th.Tensor:
     ones = np.ones_like(coefs[:, 0])
     zeros = np.zeros_like(coefs[:, 0])
     coefs = np.stack(
+        # pyrefly: ignore [bad-argument-type]
         [
             9 * coefs[:, 3],
             zeros,
@@ -461,6 +465,7 @@ def estimate_fisheye62_fov(D: Union[np.ndarray, th.Tensor]) -> th.Tensor:
     ones = np.ones_like(coefs[:, 0])
     zeros = np.zeros_like(coefs[:, 0])
     coefs = np.stack(
+        # pyrefly: ignore [bad-argument-type]
         [
             13 * coefs[:, 5],
             zeros,

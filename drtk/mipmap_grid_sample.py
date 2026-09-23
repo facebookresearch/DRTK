@@ -208,6 +208,7 @@ def mipmap_grid_sample_ref(
             else:
                 # From SVD we have direction of the maximum gradient in the uv space.
                 # We ntegrate along this direction using `max_aniso` samples
+                # pyrefly: ignore [unbound-name]
                 uv_step = (v[..., 0, :] * s[..., 0:1]) / size[None, None, None, :]
                 with th.enable_grad():
                     uv_ext = th.cat(
@@ -233,6 +234,7 @@ def mipmap_grid_sample_ref(
         for level in input:
             r = thf.grid_sample(
                 th.tile(level, (max_aniso, 1, 1, 1)),
+                # pyrefly: ignore [unbound-name]
                 uv_ext,
                 mode=mode,
                 padding_mode=padding_mode,
@@ -252,6 +254,7 @@ def _mipmap_selection(
     if max_aniso != 1:
         # See p.255 of OpenGL Core Profile
         # N = min(ceil(Pmax/Pmin),maxAniso)
+        # pyrefly: ignore [unsupported-operation]
         N = th.clamp(th.ceil(p_max / p_min), max=max_aniso)
         N[th.isnan(N)] = 1
 
@@ -284,11 +287,14 @@ def _combine_sampled_mipmaps(
 ) -> th.Tensor:
     if len(sampled_mipmaps) == 1:
         return sampled_mipmaps[0]
+    # pyrefly: ignore [bad-assignment]
     sampled_mipmaps = th.stack(sampled_mipmaps, dim=0)
     indices = th.cat([d1[None, :, None], d1[None, :, None] + 1], dim=0)
     samples = th.gather(
+        # pyrefly: ignore [bad-argument-type]
         sampled_mipmaps,
         dim=0,
+        # pyrefly: ignore [missing-attribute]
         index=indices.expand(-1, *sampled_mipmaps.shape[1:3], -1, -1),
     )
     # Interpolate two nearest mipmaps. See p.266

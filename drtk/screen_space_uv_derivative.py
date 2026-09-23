@@ -8,7 +8,11 @@
 from typing import Optional, Sequence
 
 import torch as th
+
+# pyrefly: ignore [missing-import]
 from drtk.interpolate import interpolate
+
+# pyrefly: ignore [missing-import]
 from drtk.utils import face_dpdt, project_points_grad
 
 

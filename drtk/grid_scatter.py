@@ -144,6 +144,7 @@ class GridScatterRef(th.autograd.Function):
             return tex.grad
 
     @staticmethod
+    # pyrefly: ignore [bad-override]
     def backward(ctx, grad_output: th.Tensor):
         input, grid, out = ctx.saved_tensors
         grid = grid.clone().detach()

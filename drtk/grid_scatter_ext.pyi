@@ -5,6 +5,7 @@
 
 from typing import List
 
+# pyrefly: ignore [missing-module-attribute]
 from torch import Tensor
 
 def grid_scatter_2d(

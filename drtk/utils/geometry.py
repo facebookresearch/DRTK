@@ -217,6 +217,7 @@ def vert_normals(
 
     """
     if fnorms is None:
+        # pyrefly: ignore [bad-assignment]
         fnorms = face_info(v, vi, ["normals"])
         assert isinstance(fnorms, th.Tensor)
     vnorms = face_attribute_to_vert(v, vi, fnorms)
