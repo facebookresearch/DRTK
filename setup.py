@@ -23,7 +23,7 @@ def main(debug: bool) -> None:
         "linux": ["-std=c++17", "-Wall"]
         + (["-O0", "-g3", "-DDEBUG"] if debug else ["-O3", "--fast-math"]),
         "win32": (
-            ["/MT", "/GR-", "/EHsc", '/D "NOMINMAX"']
+            ["/MD", "/EHsc", '/D "NOMINMAX"']
             + (
                 ["/Od", '/D "_DEBUG"']
                 if debug
@@ -90,6 +90,18 @@ def main(debug: bool) -> None:
         raise RuntimeError("Could not detect platform")
     if target_os == "macos":
         raise RuntimeError("Platform is not supported")
+
+    if target_os == "win32":
+        # PyTorch disables CUDA half operators/conversions, but CUB headers
+        # require them even when instantiating only float/double kernels.
+        nvcc_args.extend(
+            [
+                "-U__CUDA_NO_HALF_OPERATORS__",
+                "-U__CUDA_NO_HALF2_OPERATORS__",
+                "-U__CUDA_NO_HALF_CONVERSIONS__",
+                "-U__CUDA_NO_BFLOAT16_CONVERSIONS__",
+            ]
+        )
 
     include_dir = [os.path.join(root_path, "src", "include")]
 

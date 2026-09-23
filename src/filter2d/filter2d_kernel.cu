@@ -294,7 +294,10 @@ template void* get_filter_fused_kernel<c10::Half>(
         TILE_OUT_H);                                   \
   }
 
-__attribute__((format(printf, 1, 2))) inline std::string string_format(const char* fmt_str, ...) {
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((format(printf, 1, 2)))
+#endif
+inline std::string string_format(const char* fmt_str, ...) {
   int n = ((int)std::strlen(fmt_str)) * 2 + 1;
   std::unique_ptr<char[]> formatted;
   for (;;) {
