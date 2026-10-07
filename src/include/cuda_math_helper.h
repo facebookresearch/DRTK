@@ -5,7 +5,10 @@
 
 #pragma once
 
-#if defined(__HIP_PLATFORM_AMD__) && (defined(__HIPCC__) || defined(__HIP__))
+// On AMD, use HIP's runtime and vector types for every translation unit, including
+// host-only C++ that is not compiled as HIP; mixing CUDA and HIP vector types in one
+// build conflicts.
+#if defined(__HIP_PLATFORM_AMD__)
 #include <hip/hip_runtime.h>
 #else
 #include <cuda_runtime.h>
@@ -1134,7 +1137,7 @@ HD_FUNC double rnorm4d(double a, double b, double c, double d) {
             dot(a[2], T3({b[0].z, b[1].z, b[2].z}))});                                             \
   }
 
-#if defined(__HIP_PLATFORM_AMD__) && (defined(__HIPCC__) || defined(__HIP__))
+#if defined(__HIP_PLATFORM_AMD__)
 #define CUDA_MATH_HELPER_HAS_HIP_VECTOR_OPS
 #endif
 
