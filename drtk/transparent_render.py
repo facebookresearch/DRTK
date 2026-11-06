@@ -63,6 +63,7 @@ _RenderWithTexture = Callable[
         float,
         int,
         int,
+        bool,
     ],
     List[th.Tensor],
 ]
@@ -1069,6 +1070,7 @@ def render_transparent(
     transmittance_epsilon: float = 0.0,
     rgb_activation: str = "relu",
     alpha_activation: str = "relu_density",
+    edge_gradients: bool = True,
 ) -> Tuple[th.Tensor, th.Tensor]:
     """Render depth-sorted transparent textured triangles.
 
@@ -1081,9 +1083,11 @@ def render_transparent(
 
     CUDA backward traverses the same tile list in reverse and differentiates
     compositing, texture sampling, perspective-correct interpolation, and
-    opacity. Coverage follows DRTK's hard top-left rule; use explicitly
-    feathered geometry or opacity outside the renderer when a soft boundary is
-    needed. Set ``transmittance_epsilon`` only for inference: nonzero values
+    opacity. Coverage follows DRTK's hard top-left rule. Transparent silhouette
+    gradients are enabled by default; this adds a rasterized
+    boundary estimator to X/Y vertex gradients without changing forward images.
+    Ordinary shared mesh edges and zero-opacity edge traces are suppressed.
+    Set ``transmittance_epsilon`` only for inference: nonzero values
     permit early ray termination and therefore define a discrete approximation.
 
     This optimized entry point requires CUDA. Use
@@ -1116,6 +1120,15 @@ def render_transparent(
             (``sigmoid(x - 0.5)``), Instant-NGP-style ``"exp_density"``
             (``1 - exp(-exp(x))``, with ``x`` capped at 15 before
             exponentiation), and ``"clamp"``.
+
+        edge_gradients: Add transparent coverage-boundary gradients to vertex
+            X/Y motion. Defaults to ``True``; set to ``False`` to disable.
+            This is a filtered-surrogate estimator, not the pointwise derivative
+            of hard coverage. It uses
+            the same mean-triangle-depth order and adds no inference work.
+            Indexed shared tessellation edges and zero-alpha edge traces are
+            suppressed; folded shared boundaries are composited as a bundle.
+            The reference functions retain smooth/interior gradients only.
 
     Returns:
         Premultiplied RGB and accumulated alpha with shapes ``[N, 3, H, W]``
@@ -1150,6 +1163,7 @@ def render_transparent(
         transmittance_epsilon,
         rgb_activation_enum,
         alpha_activation_enum,
+        edge_gradients,
     )
     return outputs[0], outputs[1]
 
@@ -1172,6 +1186,7 @@ def render_transparent_mlp(
     transmittance_epsilon: float = 0.0,
     rgb_activation: str = "shifted_relu",
     alpha_activation: str = "shifted_relu_density",
+    edge_gradients: bool = True,
 ) -> Tuple[th.Tensor, th.Tensor]:
     """Render transparent triangles from one neural feature texture.
 
@@ -1235,6 +1250,15 @@ def render_transparent_mlp(
         rgb_activation: Final RGB activation described above.
         alpha_activation: Final appearance-alpha activation described above.
 
+        edge_gradients: Add transparent coverage-boundary gradients to vertex
+            X/Y motion. Defaults to ``True``; set to ``False`` to disable.
+            This is a filtered-surrogate estimator, not the pointwise derivative
+            of hard coverage. It uses
+            the same mean-triangle-depth order and adds no inference work.
+            Indexed shared tessellation edges and zero-alpha edge traces are
+            suppressed; folded shared boundaries are composited as a bundle.
+            The reference functions retain smooth/interior gradients only.
+
     Returns:
         Premultiplied RGB and accumulated alpha with shapes ``[N, 3, H, W]``
         and ``[N, 1, H, W]``. If ``background`` is supplied, RGB contains the
@@ -1261,6 +1285,7 @@ def render_transparent_mlp(
         transmittance_epsilon,
         rgb_activation,
         alpha_activation,
+        edge_gradients,
     )
 
 
@@ -1284,6 +1309,7 @@ def render_transparent_mlp_two_textures(
     transmittance_epsilon: float = 0.0,
     rgb_activation: str = "shifted_relu",
     alpha_activation: str = "shifted_relu_density",
+    edge_gradients: bool = True,
 ) -> Tuple[th.Tensor, th.Tensor]:
     """Render transparent triangles from two neural feature textures.
 
@@ -1357,6 +1383,15 @@ def render_transparent_mlp_two_textures(
         rgb_activation: Final RGB activation described above.
         alpha_activation: Final appearance-alpha activation described above.
 
+        edge_gradients: Add transparent coverage-boundary gradients to vertex
+            X/Y motion. Defaults to ``True``; set to ``False`` to disable.
+            This is a filtered-surrogate estimator, not the pointwise derivative
+            of hard coverage. It uses
+            the same mean-triangle-depth order and adds no inference work.
+            Indexed shared tessellation edges and zero-alpha edge traces are
+            suppressed; folded shared boundaries are composited as a bundle.
+            The reference functions retain smooth/interior gradients only.
+
     Returns:
         Premultiplied RGB and accumulated alpha with shapes ``[N, 3, H, W]``
         and ``[N, 1, H, W]``. If ``background`` is supplied, RGB contains the
@@ -1382,6 +1417,7 @@ def render_transparent_mlp_two_textures(
         transmittance_epsilon,
         rgb_activation,
         alpha_activation,
+        edge_gradients,
     )
 
 
@@ -1405,6 +1441,7 @@ def _render_transparent_mlp_impl(
     transmittance_epsilon: float = 0.0,
     rgb_activation: str = "shifted_relu",
     alpha_activation: str = "shifted_relu_density",
+    edge_gradients: bool = True,
 ) -> Tuple[th.Tensor, th.Tensor]:
     """Shared implementation for the one- and two-texture CUDA APIs."""
 
@@ -1445,5 +1482,6 @@ def _render_transparent_mlp_impl(
         transmittance_epsilon,
         rgb_activation_enum,
         alpha_activation_enum,
+        edge_gradients,
     )
     return outputs[0], outputs[1]

@@ -31,8 +31,43 @@ All variants support nearest, bilinear, and bicubic filtering together with
 zeros, border, and reflection padding. Texture coordinates consistently use
 ``align_corners=False`` semantics; this is deliberately not configurable.
 They differentiate compositing, perspective-correct interpolation, texture
-sampling, vertex opacity, and interior vertex motion. Triangle topology, hard
-coverage, and depth ordering are discrete.
+sampling, vertex opacity, and interior vertex motion. Triangle topology and
+depth ordering remain discrete. All CUDA entry points add transparent
+silhouette gradients to vertex X/Y motion by default. Set
+``edge_gradients=False`` to disable the boundary estimator. The
+forward image, compositing order, and appearance gradients are unchanged.
+
+Transparent edge gradients
+-------------------------
+
+This estimator extends `Rasterized Edge Gradients
+<https://arxiv.org/abs/2405.02508>`_ to transparent compositing. It averages the
+two neighboring pixels' loss-weighted insertion/removal effects at each
+geometric edge crossing. Each pixel supplies its own foreground attenuation
+and suffix composite at the queried triangle's position in the existing sort
+order. Final RGB/alpha alone cannot recover this information.
+
+Common indexed edges between triangles on opposite projected sides are
+ordinary tessellation and produce no boundary term. Incident triangles that
+fold onto the same side move together at their shared edge; their alpha
+interaction is evaluated jointly. Material opacity and sampled appearance
+are evaluated at the geometric edge. A zero-alpha edge therefore contributes
+zero even if nearby interior samples have nonzero alpha. Saturating an opacity
+activation does not suppress a nonzero silhouette gradient.
+
+Only vertex X/Y gradients receive this extra term. There are no derivatives
+of per-triangle ordering, topology, triangle intersections, or clipping at the
+image boundary. Separate coincident vertices remain separate geometry; callers
+should share indices where they intend a continuous, jointly moving edge.
+The pure-PyTorch references remain oracles for smooth/interior derivatives;
+the boundary estimator is validated against compositing identities and
+area-integrated references, not infinitesimal differences of hard coverage.
+
+All edge discovery and queries run on CUDA during geometry backward. Shared
+edges and zero material-opacity boundaries are removed before expensive
+queries. Sparse queries reuse the saved tile lists and replay shading only at
+boundary pixel pairs. No per-pixel sorting or fragment buffer is added, and
+inference and appearance-only differentiation do not run this work.
 
 Appearance activations
 ----------------------

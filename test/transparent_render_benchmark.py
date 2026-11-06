@@ -11,8 +11,9 @@ Run this after building DRTK in place::
 
 The forward measurements include triangle binning and sorting. Backward
 measurements use the public operators' native C++ autograd nodes and reuse the
-saved sorted tile lists. The benchmark does not depend on private kernel entry
-points.
+saved sorted tile lists. Transparent boundary gradients are enabled by
+default; pass --no-edge-gradients to measure smooth backward alone. The
+benchmark does not depend on private kernel entry points.
 """
 
 import argparse
@@ -28,6 +29,9 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--resolution", type=int, default=128)
     parser.add_argument("--layers", type=int, choices=(4, 5), default=4)
     parser.add_argument("--feature-channels-per-texture", type=int, default=4)
+    parser.add_argument(
+        "--edge-gradients", action=argparse.BooleanOptionalAction, default=True
+    )
     parser.add_argument("--warmup", type=int, default=20)
     parser.add_argument("--iterations", type=int, default=100)
     return parser.parse_args()
@@ -205,6 +209,7 @@ def main() -> None:
         args.resolution,
         args.resolution,
         opacity=texture_grad_inputs[3],
+        edge_gradients=args.edge_gradients,
         background=texture_grad_inputs[4],
     )
     texture_grad_outputs = (
@@ -253,6 +258,7 @@ def main() -> None:
         args.resolution,
         args.resolution,
         opacity=mlp_base_grad_inputs[5],
+        edge_gradients=args.edge_gradients,
         background=mlp_base_grad_inputs[6],
     )
     mlp_grad_outputs = (
@@ -272,6 +278,7 @@ def main() -> None:
     mlp_macs = 8 * total_feature_channels + (args.layers - 2) * 8 * 8 + 4 * 8
     result: Dict[str, Any] = {
         "gpu": th.cuda.get_device_name(),
+        "edge_gradients": args.edge_gradients,
         "torch": th.__version__,
         "resolution": args.resolution,
         "vertices": vertex_count,

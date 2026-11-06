@@ -62,7 +62,8 @@ std::vector<torch::Tensor> transparent_render_with_texture_cuda_backward(
     int64_t interpolation_mode,
     int64_t padding_mode,
     int64_t rgb_activation,
-    int64_t alpha_activation);
+    int64_t alpha_activation,
+    bool edge_gradients);
 
 std::vector<torch::Tensor> transparent_render_with_mlp_cuda_backward(
     const torch::Tensor& v,
@@ -85,4 +86,5 @@ std::vector<torch::Tensor> transparent_render_with_mlp_cuda_backward(
     int64_t interpolation_mode,
     int64_t padding_mode,
     int64_t rgb_activation,
-    int64_t alpha_activation);
+    int64_t alpha_activation,
+    bool edge_gradients);

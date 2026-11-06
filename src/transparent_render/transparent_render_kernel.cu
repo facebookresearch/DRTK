@@ -1557,6 +1557,507 @@ load_triangle(const GeometryParams& geometry, int32_t flattened_face_id, Triangl
   }
 }
 
+// Boundary queries use the same (mean triangle depth, face id) order as the
+// forward tile sort. They never introduce per-pixel depth sorting.
+__device__ __forceinline__ uint64_t triangle_order_key(const TriangleData& triangle, int32_t face) {
+  const float depth = (triangle.z[0] + triangle.z[1] + triangle.z[2]) / 3.0f;
+  return (static_cast<uint64_t>(__float_as_uint(depth)) << 32) | static_cast<uint32_t>(face);
+}
+
+__global__ void boundary_edge_keys_kernel(
+    GeometryParams geometry,
+    int32_t edge_count,
+    uint64_t* keys,
+    int32_t* edge_ids) {
+  const int32_t index = blockIdx.x * blockDim.x + threadIdx.x;
+  if (index >= edge_count) {
+    return;
+  }
+  edge_ids[index] = index;
+  keys[index] = UINT64_MAX;
+  const int32_t face = index / 3;
+  const int32_t n = face / geometry.face_count;
+  const int32_t* indices = geometry.faces + static_cast<int64_t>(face) * 3;
+#pragma unroll
+  for (int32_t c = 0; c < 3; ++c) {
+    if (indices[c] < 0 || indices[c] >= geometry.vertex_count) {
+      return;
+    }
+  }
+  TriangleData triangle;
+  load_triangle(geometry, face, triangle);
+#pragma unroll
+  for (int32_t c = 0; c < 3; ++c) {
+    if (!isfinite(triangle.x[c]) || !isfinite(triangle.y[c]) || !isfinite(triangle.z[c]) ||
+        triangle.z[c] <= 1.0e-8f) {
+      return;
+    }
+  }
+  const float area = cross2(
+      triangle.x[1] - triangle.x[0],
+      triangle.y[1] - triangle.y[0],
+      triangle.x[2] - triangle.x[0],
+      triangle.y[2] - triangle.y[0]);
+  if (fabsf(area) <= 1.0e-12f) {
+    return;
+  }
+  const int32_t c = index % 3;
+  const uint32_t a =
+      static_cast<uint32_t>(n * static_cast<int64_t>(geometry.vertex_count) + indices[c]);
+  const uint32_t b =
+      static_cast<uint32_t>(n * static_cast<int64_t>(geometry.vertex_count) + indices[(c + 1) % 3]);
+  keys[index] = (static_cast<uint64_t>(min(a, b)) << 32) | max(a, b);
+}
+
+__device__ __forceinline__ float
+edge_side(const TriangleData& triangle, int32_t edge, int32_t first_vertex) {
+  const int32_t a = triangle.vertex_id[edge] == first_vertex ? edge : (edge + 1) % 3;
+  const int32_t b = a == edge ? (edge + 1) % 3 : edge;
+  const int32_t c = (edge + 2) % 3;
+  return cross2(
+      triangle.x[b] - triangle.x[a],
+      triangle.y[b] - triangle.y[a],
+      triangle.x[c] - triangle.x[a],
+      triangle.y[c] - triangle.y[a]);
+}
+
+// Find the next incident face in reverse forward order. Indexed manifold edges
+// have one or two incident faces; the loop also handles nonmanifold bundles.
+__device__ int32_t next_boundary_face(
+    const GeometryParams& geometry,
+    const int32_t* edge_ids,
+    int32_t begin,
+    int32_t end,
+    uint64_t upper,
+    uint64_t& key) {
+  int32_t result = -1;
+  key = 0;
+  for (int32_t i = begin; i < end; ++i) {
+    TriangleData triangle;
+    load_triangle(geometry, edge_ids[i] / 3, triangle);
+    const uint64_t candidate = triangle_order_key(triangle, edge_ids[i] / 3);
+    if (candidate < upper && (result < 0 || candidate > key)) {
+      result = edge_ids[i];
+      key = candidate;
+    }
+  }
+  return result;
+}
+
+template <typename FragmentEvaluator>
+__device__ float boundary_query(
+    const GeometryParams& geometry,
+    const FragmentEvaluator& evaluator,
+    int32_t n,
+    int32_t x,
+    int32_t y,
+    int32_t height,
+    int32_t width,
+    const int32_t* tile_offsets,
+    const int32_t* face_ids,
+    const int32_t* edge_ids,
+    int32_t begin,
+    int32_t end,
+    int32_t first_vertex,
+    const float* edge_rgb,
+    float edge_alpha,
+    const float* background,
+    const float* grad_color,
+    const float* grad_alpha) {
+  const int64_t pixel = (static_cast<int64_t>(n) * height + y) * width + x;
+  float g[3];
+#pragma unroll
+  for (int32_t c = 0; c < 3; ++c) {
+    g[c] = grad_color[((static_cast<int64_t>(n) * 3 + c) * height + y) * width + x];
+  }
+  float suffix = g[0] * background[n * 3] + g[1] * background[n * 3 + 1] +
+      g[2] * background[n * 3 + 2] - grad_alpha[pixel];
+  float jump = 0.0f;
+  const float edge_dot = g[0] * edge_rgb[0] + g[1] * edge_rgb[1] + g[2] * edge_rgb[2];
+  const int32_t tile_width = (width + kTileSize - 1) / kTileSize;
+  const int32_t tile_height = (height + kTileSize - 1) / kTileSize;
+  const int32_t tile = n * tile_height * tile_width + (y / kTileSize) * tile_width + x / kTileSize;
+  int32_t actual = tile_offsets[tile + 1] - 1;
+  const int32_t actual_begin = tile_offsets[tile];
+  uint64_t query_key;
+  int32_t query = next_boundary_face(geometry, edge_ids, begin, end, UINT64_MAX, query_key);
+  while (actual >= actual_begin || query >= 0) {
+    TriangleData triangle;
+    uint64_t actual_key = 0;
+    if (actual >= actual_begin) {
+      load_triangle(geometry, face_ids[actual], triangle);
+      actual_key = triangle_order_key(triangle, face_ids[actual]);
+    }
+    if (query >= 0 && (actual < actual_begin || query_key >= actual_key)) {
+      if (actual >= actual_begin && query_key == actual_key) {
+        --actual;
+      }
+      load_triangle(geometry, query / 3, triangle);
+      if (edge_side(triangle, query % 3, first_vertex) > 0.0f) {
+        jump = edge_alpha * (edge_dot - suffix) + (1.0f - edge_alpha) * jump;
+      } else {
+        jump += edge_alpha * (suffix - edge_dot);
+        suffix = edge_alpha * edge_dot + (1.0f - edge_alpha) * suffix;
+      }
+      query = next_boundary_face(geometry, edge_ids, begin, end, query_key, query_key);
+      continue;
+    }
+    --actual;
+    const float area = cross2(
+        triangle.x[1] - triangle.x[0],
+        triangle.y[1] - triangle.y[0],
+        triangle.x[2] - triangle.x[0],
+        triangle.y[2] - triangle.y[0]);
+    float bary[3];
+    if (!hard_triangle_coverage(
+            triangle, static_cast<float>(x), static_cast<float>(y), area, bary)) {
+      continue;
+    }
+    float inverse_depth = 0.0f;
+#pragma unroll
+    for (int32_t c = 0; c < 3; ++c) {
+      bary[c] /= triangle.z[c];
+      inverse_depth += bary[c];
+    }
+    inverse_depth = clamp_away_from_zero(inverse_depth);
+    float material = 0.0f;
+#pragma unroll
+    for (int32_t c = 0; c < 3; ++c) {
+      bary[c] /= inverse_depth;
+      material += bary[c] * triangle.opacity[c];
+    }
+    material = fminf(fmaxf(material, 0.0f), 1.0f);
+    if (material <= 0.0f) {
+      continue;
+    }
+    float rgb[3];
+    float alpha;
+    evaluator.evaluate(n, triangle, bary, rgb, alpha);
+    alpha = fminf(material * alpha, kAlphaMax);
+    const float dot = g[0] * rgb[0] + g[1] * rgb[1] + g[2] * rgb[2];
+    suffix = alpha * dot + (1.0f - alpha) * suffix;
+    jump *= 1.0f - alpha;
+  }
+  return jump;
+}
+
+__global__ void compact_boundary_groups_kernel(
+    GeometryParams geometry,
+    int32_t edge_count,
+    const uint64_t* edge_keys,
+    const int32_t* edge_ids,
+    int32_t* active_groups,
+    int32_t* active_count) {
+  const int32_t group = blockIdx.x * blockDim.x + threadIdx.x;
+  if (group >= edge_count || edge_keys[group] == UINT64_MAX ||
+      (group > 0 && edge_keys[group - 1] == edge_keys[group])) {
+    return;
+  }
+  int32_t end = group + 1;
+  while (end < edge_count && edge_keys[end] == edge_keys[group]) {
+    ++end;
+  }
+  const int32_t edge = edge_ids[group];
+  TriangleData triangle;
+  load_triangle(geometry, edge / 3, triangle);
+  int32_t a = edge % 3;
+  int32_t b = (a + 1) % 3;
+  if (triangle.vertex_id[a] > triangle.vertex_id[b]) {
+    const int32_t tmp = a;
+    a = b;
+    b = tmp;
+  }
+  // Shared per-vertex attributes are continuous at a common indexed edge.
+  // Opposite projected sides form tessellation, not a coverage boundary.
+  if (end - group == 2) {
+    TriangleData neighbor;
+    load_triangle(geometry, edge_ids[group + 1] / 3, neighbor);
+    if ((edge_side(triangle, edge % 3, triangle.vertex_id[a]) > 0.0f) !=
+        (edge_side(neighbor, edge_ids[group + 1] % 3, triangle.vertex_id[a]) > 0.0f)) {
+      return;
+    }
+  }
+  if (triangle.opacity[a] <= 0.0f && triangle.opacity[b] <= 0.0f) {
+    return;
+  }
+  active_groups[atomicAdd(active_count, 1)] = group;
+}
+
+template <typename FragmentEvaluator>
+__device__ void boundary_group_backward(
+    GeometryParams geometry,
+    FragmentEvaluator evaluator,
+    int32_t edge_count,
+    const uint64_t* edge_keys,
+    const int32_t* edge_ids,
+    int32_t height,
+    int32_t width,
+    const int32_t* tile_offsets,
+    const int32_t* face_ids,
+    const float* background,
+    const float* grad_color,
+    const float* grad_alpha,
+    float* vertices_grad,
+    int32_t group,
+    int32_t lane) {
+  int32_t end = group + 1;
+  while (end < edge_count && edge_keys[end] == edge_keys[group]) {
+    ++end;
+  }
+  const int32_t edge = edge_ids[group];
+  const int32_t n = (edge / 3) / geometry.face_count;
+  TriangleData triangle;
+  load_triangle(geometry, edge / 3, triangle);
+  int32_t a = edge % 3;
+  int32_t b = (a + 1) % 3;
+  if (triangle.vertex_id[a] > triangle.vertex_id[b]) {
+    const int32_t tmp = a;
+    a = b;
+    b = tmp;
+  }
+  const float dx = triangle.x[b] - triangle.x[a];
+  const float dy = triangle.y[b] - triangle.y[a];
+  // Sample both grid-line families. Horizontal pairs contribute x motion;
+  // vertical pairs contribute y motion, without slope amplification or a
+  // second count of the same normal derivative.
+#pragma unroll
+  for (int32_t axis = 0; axis < 2; ++axis) {
+    const float start = axis == 0 ? triangle.y[a] : triangle.x[a];
+    const float stop = axis == 0 ? triangle.y[b] : triangle.x[b];
+    const float along_start = axis == 0 ? triangle.x[a] : triangle.y[a];
+    const float along_delta = axis == 0 ? dx : dy;
+    const int32_t scan_size = axis == 0 ? height : width;
+    const int32_t pair_size = axis == 0 ? width : height;
+    if (start == stop) {
+      continue;
+    }
+    // Clamp in floating point before conversion, including off-screen meshes.
+    const int32_t first = static_cast<int32_t>(
+        ceilf(fminf(fmaxf(fminf(start, stop), 0.0f), static_cast<float>(scan_size))));
+    const int32_t last = static_cast<int32_t>(
+        ceilf(fminf(fmaxf(fmaxf(start, stop), 0.0f), static_cast<float>(scan_size))));
+    for (int32_t scan = first + lane; scan < last; scan += 32) {
+      const float t = (static_cast<float>(scan) - start) / (stop - start);
+      const float crossing = along_start + t * along_delta;
+      if (!(crossing >= 0.0f && crossing <= static_cast<float>(pair_size - 1))) {
+        continue;
+      }
+      // Classify the nearest pixel with the actual forward edge function.
+      // Reconstructing an integer crossing can round to either side, so an
+      // equality check on the reconstructed crossing is insufficient.
+      const int32_t nearest = static_cast<int32_t>(floorf(crossing + 0.5f));
+      const float px = axis == 0 ? static_cast<float>(nearest) : static_cast<float>(scan);
+      const float py = axis == 0 ? static_cast<float>(scan) : static_cast<float>(nearest);
+      const float side =
+          edge_function(triangle.x[a], triangle.y[a], triangle.x[b], triangle.y[b], px, py);
+      const bool plus_owns =
+          side > 0.0f || (side == 0.0f && (dy < 0.0f || (dy == 0.0f && dx > 0.0f)));
+      const bool high_is_plus = axis == 0 ? dy < 0.0f : dx > 0.0f;
+      const int32_t low = nearest - (plus_owns == high_is_plus ? 1 : 0);
+      if (low < 0 || low + 1 >= pair_size) {
+        continue;
+      }
+      const int32_t x = axis == 0 ? low : scan;
+      const int32_t y = axis == 0 ? scan : low;
+      float bary[3] = {0.0f, 0.0f, 0.0f};
+      bary[a] = (1.0f - t) / triangle.z[a];
+      bary[b] = t / triangle.z[b];
+      const float inv_depth = clamp_away_from_zero(bary[a] + bary[b]);
+      bary[a] /= inv_depth;
+      bary[b] /= inv_depth;
+      const float material =
+          fminf(fmaxf(bary[a] * triangle.opacity[a] + bary[b] * triangle.opacity[b], 0.0f), 1.0f);
+      if (material <= 0.0f) {
+        continue;
+      }
+      float rgb[3];
+      float alpha;
+      evaluator.evaluate(n, triangle, bary, rgb, alpha);
+      alpha = fminf(material * alpha, kAlphaMax);
+      if (alpha <= 0.0f) {
+        continue;
+      }
+      const float jump0 = boundary_query(
+          geometry,
+          evaluator,
+          n,
+          x,
+          y,
+          height,
+          width,
+          tile_offsets,
+          face_ids,
+          edge_ids,
+          group,
+          end,
+          triangle.vertex_id[a],
+          rgb,
+          alpha,
+          background,
+          grad_color,
+          grad_alpha);
+      const float jump1 = boundary_query(
+          geometry,
+          evaluator,
+          n,
+          x + (axis == 0),
+          y + (axis == 1),
+          height,
+          width,
+          tile_offsets,
+          face_ids,
+          edge_ids,
+          group,
+          end,
+          triangle.vertex_id[a],
+          rgb,
+          alpha,
+          background,
+          grad_color,
+          grad_alpha);
+      const float sign = axis == 0 ? (dy > 0.0f ? 1.0f : -1.0f) : (dx > 0.0f ? -1.0f : 1.0f);
+      const float force = 0.5f * sign * (jump0 + jump1);
+      const int64_t vertex_a =
+          static_cast<int64_t>(n) * geometry.vertex_count + triangle.vertex_id[a];
+      const int64_t vertex_b =
+          static_cast<int64_t>(n) * geometry.vertex_count + triangle.vertex_id[b];
+      atomicAdd(vertices_grad + vertex_a * 3 + axis, (1.0f - t) * force);
+      atomicAdd(vertices_grad + vertex_b * 3 + axis, t * force);
+    }
+  }
+}
+
+template <typename FragmentEvaluator>
+__global__ void boundary_backward_kernel(
+    GeometryParams geometry,
+    FragmentEvaluator evaluator,
+    int32_t edge_count,
+    const uint64_t* edge_keys,
+    const int32_t* edge_ids,
+    const int32_t* active_groups,
+    const int32_t* active_count,
+    int32_t height,
+    int32_t width,
+    const int32_t* tile_offsets,
+    const int32_t* face_ids,
+    const float* background,
+    const float* grad_color,
+    const float* grad_alpha,
+    float* vertices_grad) {
+  const int32_t warp = (blockIdx.x * blockDim.x + threadIdx.x) / 32;
+  const int32_t stride = gridDim.x * blockDim.x / 32;
+  for (int32_t index = warp; index < *active_count; index += stride) {
+    boundary_group_backward(
+        geometry,
+        evaluator,
+        edge_count,
+        edge_keys,
+        edge_ids,
+        height,
+        width,
+        tile_offsets,
+        face_ids,
+        background,
+        grad_color,
+        grad_alpha,
+        vertices_grad,
+        active_groups[index],
+        threadIdx.x % 32);
+  }
+}
+
+template <typename FragmentEvaluator>
+void launch_boundary_backward(
+    const torch::Tensor& v,
+    const torch::Tensor& vi,
+    const GeometryParams& geometry,
+    const FragmentEvaluator& evaluator,
+    int32_t height,
+    int32_t width,
+    const torch::Tensor& offsets,
+    const torch::Tensor& faces,
+    const torch::Tensor& background,
+    const torch::Tensor& grad_color,
+    const torch::Tensor& grad_alpha,
+    torch::Tensor& vertices_grad) {
+  const int64_t count = vi.numel();
+  if (count == 0) {
+    return;
+  }
+  TORCH_CHECK(
+      count <= std::numeric_limits<int32_t>::max(),
+      "transparent edge gradients: too many face edges");
+  TORCH_CHECK(
+      v.numel() / 3 <= std::numeric_limits<uint32_t>::max(),
+      "transparent edge gradients: too many batched vertices");
+  auto keys = torch::empty({count}, vi.options().dtype(torch::kInt64));
+  auto ids = torch::empty({count}, vi.options());
+  auto sorted_keys = torch::empty_like(keys);
+  auto sorted_ids = torch::empty_like(ids);
+  const auto stream = at::cuda::getCurrentCUDAStream();
+  boundary_edge_keys_kernel<<<(count + 255) / 256, 256, 0, stream>>>(
+      geometry,
+      static_cast<int32_t>(count),
+      reinterpret_cast<uint64_t*>(keys.data_ptr<int64_t>()),
+      ids.data_ptr<int32_t>());
+  C10_CUDA_KERNEL_LAUNCH_CHECK();
+  size_t bytes = 0;
+  C10_CUDA_CHECK(
+      cub::DeviceRadixSort::SortPairs(
+          nullptr,
+          bytes,
+          reinterpret_cast<uint64_t*>(keys.data_ptr<int64_t>()),
+          reinterpret_cast<uint64_t*>(sorted_keys.data_ptr<int64_t>()),
+          ids.data_ptr<int32_t>(),
+          sorted_ids.data_ptr<int32_t>(),
+          count,
+          0,
+          64,
+          stream));
+  auto temporary = torch::empty({static_cast<int64_t>(bytes)}, vi.options().dtype(torch::kUInt8));
+  C10_CUDA_CHECK(
+      cub::DeviceRadixSort::SortPairs(
+          temporary.data_ptr<uint8_t>(),
+          bytes,
+          reinterpret_cast<uint64_t*>(keys.data_ptr<int64_t>()),
+          reinterpret_cast<uint64_t*>(sorted_keys.data_ptr<int64_t>()),
+          ids.data_ptr<int32_t>(),
+          sorted_ids.data_ptr<int32_t>(),
+          count,
+          0,
+          64,
+          stream));
+  auto active_groups = torch::empty_like(ids);
+  auto active_count = torch::zeros({1}, vi.options());
+  compact_boundary_groups_kernel<<<(count + 255) / 256, 256, 0, stream>>>(
+      geometry,
+      static_cast<int32_t>(count),
+      reinterpret_cast<uint64_t*>(sorted_keys.data_ptr<int64_t>()),
+      sorted_ids.data_ptr<int32_t>(),
+      active_groups.data_ptr<int32_t>(),
+      active_count.data_ptr<int32_t>());
+  C10_CUDA_KERNEL_LAUNCH_CHECK();
+  const int32_t blocks = std::min<int64_t>(
+      (count + 3) / 4, 4 * at::cuda::getCurrentDeviceProperties()->multiProcessorCount);
+  boundary_backward_kernel<<<blocks, 128, 0, stream>>>(
+      geometry,
+      evaluator,
+      static_cast<int32_t>(count),
+      reinterpret_cast<uint64_t*>(sorted_keys.data_ptr<int64_t>()),
+      sorted_ids.data_ptr<int32_t>(),
+      active_groups.data_ptr<int32_t>(),
+      active_count.data_ptr<int32_t>(),
+      height,
+      width,
+      offsets.data_ptr<int32_t>(),
+      faces.data_ptr<int32_t>(),
+      background.data_ptr<float>(),
+      grad_color.data_ptr<float>(),
+      grad_alpha.data_ptr<float>(),
+      vertices_grad.data_ptr<float>());
+  C10_CUDA_KERNEL_LAUNCH_CHECK();
+}
+
 template <typename FragmentEvaluator>
 __global__ void render_tiles_kernel(
     GeometryParams geometry,
@@ -2236,7 +2737,8 @@ std::vector<torch::Tensor> launch_render_backward(
     const torch::Tensor& saved_transmittance_exponent,
     const torch::Tensor& grad_color,
     const torch::Tensor& grad_alpha,
-    const FragmentEvaluator& fragment_evaluator) {
+    const FragmentEvaluator& fragment_evaluator,
+    bool edge_gradients) {
   const c10::cuda::CUDAGuard device_guard(v.device());
   const int32_t batch_size = static_cast<int32_t>(v.size(0));
   const int32_t vertex_count = static_cast<int32_t>(v.size(1));
@@ -2287,6 +2789,21 @@ std::vector<torch::Tensor> launch_render_backward(
         opacity_grad.data_ptr<float>(),
         background_grad.data_ptr<float>());
     C10_CUDA_KERNEL_LAUNCH_CHECK();
+    if (edge_gradients) {
+      launch_boundary_backward(
+          v,
+          vi,
+          geometry,
+          fragment_evaluator.forward,
+          image_height,
+          image_width,
+          tile_offsets,
+          sorted_face_ids,
+          background,
+          grad_color,
+          grad_alpha,
+          vertices_grad);
+    }
   }
   return {vertices_grad, uv_grad, reference_uv_grad, opacity_grad, background_grad};
 }
@@ -2502,7 +3019,8 @@ std::vector<torch::Tensor> transparent_render_with_texture_cuda_backward(
     int64_t interpolation_mode,
     int64_t padding_mode,
     int64_t rgb_activation,
-    int64_t alpha_activation) {
+    int64_t alpha_activation,
+    bool edge_gradients) {
   check_backward_inputs(
       v,
       vi,
@@ -2549,7 +3067,8 @@ std::vector<torch::Tensor> transparent_render_with_texture_cuda_backward(
       saved_transmittance_exponent,
       grad_color,
       grad_alpha,
-      fragment_evaluator);
+      fragment_evaluator,
+      edge_gradients);
   return {common_grads[0], common_grads[1], texture_grad, common_grads[3], common_grads[4]};
 }
 
@@ -2574,7 +3093,8 @@ std::vector<torch::Tensor> transparent_render_with_mlp_cuda_backward(
     int64_t interpolation_mode,
     int64_t padding_mode,
     int64_t rgb_activation,
-    int64_t alpha_activation) {
+    int64_t alpha_activation,
+    bool edge_gradients) {
   check_backward_inputs(
       v,
       vi,
@@ -2671,7 +3191,8 @@ std::vector<torch::Tensor> transparent_render_with_mlp_cuda_backward(
         saved_transmittance_exponent,
         grad_color,
         grad_alpha,
-        fragment_evaluator);
+        fragment_evaluator,
+        edge_gradients);
   } else {
     MlpFragmentBackward<5> fragment_evaluator{
         MlpFragmentEvaluator<5>{
@@ -2705,7 +3226,8 @@ std::vector<torch::Tensor> transparent_render_with_mlp_cuda_backward(
         saved_transmittance_exponent,
         grad_color,
         grad_alpha,
-        fragment_evaluator);
+        fragment_evaluator,
+        edge_gradients);
   }
 
   std::vector<torch::Tensor> result = {

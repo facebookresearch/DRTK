@@ -258,7 +258,7 @@ tiles amortize list and launch overhead but force every pixel to test many
 triangles that only touch another part of the tile. Tiny tiles reduce candidate
 tests but underfill the GPU and increase bin-list overhead.
 
-### 4. Hard DRTK coverage and externally authored feathering
+### 4. Hard DRTK coverage, feathering, and transparent edge gradients
 
 Coverage matches DRTK rasterization rather than defining a second soft
 rasterizer. Edge functions use canonical vertex-index endpoint ordering, then
@@ -267,20 +267,92 @@ triangle. Both windings are supported. This matters for transparency: if both
 triangles owned the shared edge, that pixel would be composited twice and
 would become spuriously opaque.
 
-Coverage is binary and its membership decision does not receive a gradient in
-this fused operator. We intentionally do not synthesize a renderer-wide
-`feather` distance or invoke DRTK's separate opaque edge-gradient estimator.
-The target representation needs the transformer, not the renderer, to control
-where a discontinuity is soft and how wide that transition is.
+Coverage stays binary in forward. The renderer does not synthesize a global
+`feather` distance: upstream geometry and vertex opacity still control the
+width of soft transitions. A strip whose outside vertices have zero opacity
+receives ordinary interior derivatives, with zero additional boundary term at
+its outside edge.
 
-When a soft edge is required, the upstream mesh supplies an explicit narrow
-strip of triangles and per-vertex opacity. Vertices at the outside edge of the
-strip should have opacity zero. Pixels inside that geometry receive ordinary
-gradients through interpolated opacity, UVs, sampled features, MLP RGBA, and
-perspective-correct barycentrics. Moving the hard outside silhouette alone has
-no coverage gradient; this is an accepted limitation for the current stage.
-Transparency-aware edge gradients can be added later if training demonstrates
-that the explicit strip does not provide enough signal.
+All three CUDA APIs enable the boundary estimator by default; set
+`edge_gradients=False` to disable it. The estimator adds a
+transparent extension of [Rasterized Edge Gradients](https://arxiv.org/abs/2405.02508)
+to geometry backward. Inference, forward values, and the smooth appearance /
+interpolation derivatives are unchanged. It is a filtered boundary estimator,
+not the almost-everywhere-zero derivative of point-sampled hard coverage.
+
+For a virtual fragment with edge-trace color `c` and opacity `a`, let `F` be
+the accumulated premultiplied foreground, `T` its remaining transmittance,
+and `B` the suffix color including the background with unit incident light:
+
+```text
+C_without = F + T B
+C_with    = F + T [a c + (1-a) B]
+Delta C   = T a (c-B)
+Delta A   = a T_total_without
+```
+
+`F` cancels. The neighbor needs its own prefix/suffix state at the fragment's
+**mean-triangle-depth rank**, including the stable face-ID tie break. Final
+RGB/alpha do not determine that state. Queries follow exactly the existing
+forward ordering, even when actual depth at a pixel would suggest otherwise.
+No per-pixel sort or triangle-intersection estimator is introduced.
+
+The loss-weighted jump can be evaluated with scalar suffix adjoints. Initialize
+`h = dot(g_rgb, background) - g_alpha` and `d = 0`, then traverse the ordered
+list in reverse. Here `h` is the suffix on the negative side of the indexed
+edge and `d` is the positive-minus-negative suffix difference:
+
+```text
+ordinary fragment on both sides:
+  h = a dot(g_rgb, c) + (1-a) h
+  d = (1-a) d
+boundary fragment present only on positive side:
+  d = a [dot(g_rgb, c)-h] + (1-a) d
+boundary fragment present only on negative side:
+  d = d + a [h-dot(g_rgb, c)]
+  h = a dot(g_rgb, c) + (1-a) h
+```
+
+The boundary fragment uses perspective-correct attributes on the actual edge,
+not an interior sample. These updates evaluate the whole incident-face bundle,
+including nonlinear alpha interactions, without subtracting two large final
+colors. Each of the two neighboring pixels uses its own incoming loss gradient
+and its own non-bundle fragments; their jumps are averaged. Horizontal pixel
+pairs scatter only X motion, vertical pairs only Y motion, with screen-linear
+edge endpoint weights. Z already affects projection upstream and smooth
+interpolation here; the boundary term adds no derivative of sorting.
+
+Implementation:
+
+1. Build GPU keys for undirected indexed edges, including batch identity, and
+   radix-sort their incident faces. Invalid/rejected geometry is ignored.
+2. Compact surviving groups on GPU. Two incident faces on opposite projected
+   sides form a continuous tessellation edge and are suppressed. Shared folded
+   edges are retained as one bundle. An edge whose two material endpoints are
+   nonpositive is rejected before appearance evaluation.
+3. A bounded persistent warp pool traverses the active groups. Each warp samples
+   horizontal/vertical grid crossings along an edge; zero sampled appearance
+   alpha also exits before a query.
+4. For each crossing, merge the incident faces with each neighbor's saved tile
+   list in **the same triangle order**, replay the scalar compositing jump, and
+   atomically add the boundary force to the two endpoint X/Y gradients.
+
+There is no host readback of the active count, no dense fragment tape, and no
+additional inference work. Current queries replay shading at each boundary
+pair; queries that touch the same pixel are not yet coalesced. This bounds
+implementation complexity but leaves a performance opportunity in dense
+triangle soup or deep overlap. Indexed topology avoids treating ordinary
+triangulation as a large set of independent boundaries.
+
+The estimator suppresses continuous shared tessellation edges by convention;
+it does not differentiate artificial seams caused by changing mean-depth rank
+across neighboring faces. Topology changes, rank swaps, per-pixel depth
+intersections, and image-border clipping remain outside its scope. Duplicate
+vertices are independent; representing a jointly moving shared edge requires
+shared indices. Pixel-aligned crossings select the neighboring pair according to the same
+canonical top-left ownership as forward; edge endpoints use half-open
+grid-line intervals. The operator does not promise exact derivatives of
+arbitrary spatial reconstruction filters or texture discontinuities.
 
 ### 5. Perspective-correct interpolation
 
@@ -377,12 +449,13 @@ The following choices do not receive gradients:
 - triangle rejection and degeneracy tests;
 - center-depth ordering and equal-depth tie order;
 - the sign selected for triangle winding;
-- hard coverage and top-left edge ownership; and
+- exact hard coverage and top-left edge ownership (the boundary term
+  differentiates a filtered surrogate instead); and
 - inference-only early termination.
 
-Gradients are therefore the derivative of shading and compositing while the
-current visibility order and candidate set are fixed. This is the same
-practical convention used by splatting and many differentiable rasterizers.
+Smooth gradients differentiate shading and compositing while visibility order
+and candidate membership are fixed. The boundary estimator adds
+coverage-motion terms while preserving that same order.
 
 ## Performance model
 
@@ -558,7 +631,12 @@ MLPs, rejection of non-width-8 parameter shapes, and CUDA parity for outputs
 and all returned gradients. Regression cases include two/three/six/32 opaque
 layers, float32 transmittance underflow, both MLP depths and texture variants,
 material opacity at and outside clamp endpoints, and alpha exactly at the
-fragment cap. Boundary-position gradients are deliberately not claimed.
+fragment cap. Transparent boundary tests additionally check independent
+area-integrated derivatives, neighbor-specific occlusion, mean-depth order and
+tie order, tile crossings, shared-edge cancellation, folded and nonmanifold
+bundles, zero-alpha traces with positive interior alpha, both MLP depths and
+variants, batch separation, and empty/rejected geometry. The unchanged forward
+outputs and non-geometry gradients are checked explicitly.
 
 All transparent-render tests live alongside the existing DRTK GPU tests in
 `fbcode/frl/codec_avatar/tre/projects/drtk_tests_gpu/src/transparent_render_tests.py`.
