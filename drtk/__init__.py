@@ -29,5 +29,13 @@ from .msi import msi  # noqa
 from .rasterize import rasterize, rasterize_with_depth  # noqa
 from .render import render, render_ref  # noqa
 from .transform import transform, transform_with_v_cam  # noqa
+from .transparent_render import (  # noqa
+    render_transparent,
+    render_transparent_mlp,
+    render_transparent_mlp_ref,
+    render_transparent_mlp_two_textures,
+    render_transparent_mlp_two_textures_ref,
+    render_transparent_ref,
+)
 
 __version__ = "0.1.0"  # noqa

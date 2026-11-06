@@ -142,6 +142,15 @@ def main(debug: bool) -> None:
                 include_dirs=include_dir,
             ),
             CUDAExtension(
+                "drtk.transparent_render_ext",
+                sources=[
+                    "src/transparent_render/transparent_render_module.cpp",
+                    "src/transparent_render/transparent_render_kernel.cu",
+                ],
+                extra_compile_args={"cxx": cxx_args[target_os], "nvcc": nvcc_args},
+                include_dirs=include_dir,
+            ),
+            CUDAExtension(
                 "drtk.edge_grad_ext",
                 sources=[
                     "src/edge_grad/edge_grad_module.cpp",

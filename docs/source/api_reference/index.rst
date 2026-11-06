@@ -11,6 +11,7 @@ The package consists of five main modules:
 * :doc:`transform`
 * :doc:`rasterize`
 * :doc:`render`
+* :doc:`transparent_render`
 * :doc:`interpolate`
 * :doc:`filter2d`
 * :doc:`edge_grad_estimator`
@@ -24,6 +25,7 @@ The package consists of five main modules:
    transform
    rasterize
    render
+   transparent_render
    interpolate
    filter2d
    edge_grad_estimator
