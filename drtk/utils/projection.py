@@ -19,6 +19,33 @@ DISTORTION_MODES: Set[Optional[str]] = {
 
 _FISHEYE62_MODES: Set[str] = {"fisheye62", "fisheye62_lut"}
 
+_ROCM: bool = th.version.hip is not None
+
+
+def _apply_matrix(m: th.Tensor, x: th.Tensor) -> th.Tensor:
+    """Apply each batch item's matrix to each of its points: ``(m[:, None] @ x[..., None])[..., 0]``.
+
+    On ROCm, PyTorch runs that per-point product as a batched GEMM with one 3x3 (or 2x2) GEMM per
+    point, which made the projection most of the GPU time of a DRTK fitting loop on MI300X. There
+    ``_apply_matrix_rocm`` replaces it. CPU, CUDA and TorchScript keep the matmul form, bit for bit.
+    """
+    # TorchScript compiles only the matmul form, so scripted and saved graphs are the same on every device.
+    if not th.jit.is_scripting():
+        if _ROCM and x.is_cuda:
+            return _apply_matrix_rocm(m, x)
+    return (m[:, None] @ x[..., None])[..., 0]
+
+
+def _apply_matrix_rocm(m: th.Tensor, x: th.Tensor) -> th.Tensor:
+    """``_apply_matrix`` as a broadcast multiply and sum, with no GEMM: TF32 and autocast do not
+    lower its precision. Refuses the size and dtype mismatches the matmul refuses."""
+    mixed = x.dtype != m.dtype and not th.is_autocast_enabled(x.device.type)
+    if x.shape[-1] != m.shape[-1] or mixed:
+        raise RuntimeError(
+            f"cannot apply a {tuple(m.shape)} {m.dtype} matrix to {tuple(x.shape)} {x.dtype} points"
+        )
+    return (x[..., None, :] * m[:, None]).sum(-1)
+
 
 def _any_mode_is_fisheye62(
     distortion_mode: Optional[Union[List[str], str]],
@@ -48,7 +75,7 @@ def project_pinhole(
     z = th.where(z < 0, z.clamp(max=-1e-8), z.clamp(min=1e-8))
 
     v_proj = v_cam[:, :, 0:2] / z
-    v_pix = (focal[:, None] @ v_proj[..., None])[..., 0] + princpt[:, None]
+    v_pix = _apply_matrix(focal, v_proj) + princpt[:, None]
 
     return v_pix
 
@@ -130,7 +157,7 @@ def project_pinhole_distort_rt(
         dim=-1,
     )
 
-    v_pix_dist = (focal[:, None] @ v_proj_dist[..., None])[..., 0] + princpt[:, None]
+    v_pix_dist = _apply_matrix(focal, v_proj_dist) + princpt[:, None]
 
     return v_pix_dist
 
@@ -178,7 +205,7 @@ def project_fisheye_distort(
     )
     r = th.where(r < 0, r.clamp(max=-1e-8), r.clamp(min=1e-8))
     v_proj_dist = v_proj * (theta_d / r)[..., None]
-    v_pix_dist = (focal[:, None] @ v_proj_dist[..., None])[..., 0] + princpt[:, None]
+    v_pix_dist = _apply_matrix(focal, v_proj_dist) + princpt[:, None]
 
     return v_pix_dist
 
@@ -272,7 +299,7 @@ def project_fisheye_distort_62(
 
     v_proj_dist = v_proj_dist + pTangential
 
-    v_pix_dist = (focal[:, None] @ v_proj_dist[..., None])[..., 0] + princpt[:, None]
+    v_pix_dist = _apply_matrix(focal, v_proj_dist) + princpt[:, None]
 
     if lut_vector_field is not None:
         assert lut_spacing is not None, (
@@ -538,7 +565,7 @@ def project_points(
     if distortion_mode is not None:
         assert distortion_coeff is not None, "Missing distortion coefficients."
 
-    v_cam = (camrot[:, None] @ (v - campos[:, None])[..., None])[..., 0]
+    v_cam = _apply_matrix(camrot, v - campos[:, None])
 
     # Fall back to single distortion mode if all the distortion modes are the same.
     if isinstance(distortion_mode, (list, tuple)):
@@ -684,8 +711,8 @@ def project_points_grad(
         assert distortion_coeff is not None, "Missing distortion coefficients."
 
     # d v_cam = d (Rv + T) = Rdv
-    v_cam_grad = (camrot[:, None] @ v_grad[..., None])[..., 0]
-    v_cam = (camrot[:, None] @ (v - campos[:, None])[..., None])[..., 0]
+    v_cam_grad = _apply_matrix(camrot, v_grad)
+    v_cam = _apply_matrix(camrot, v - campos[:, None])
 
     if distortion_mode is None:
         z = v_cam[:, :, 2:3]
@@ -697,7 +724,7 @@ def project_points_grad(
         v_proj_grad = (v_cam_grad[:, :, 0:2] * z - v_cam[:, :, 0:2] * z_grad) / z**2.0
 
         # d v_pix = d (Kv + cp) = Kdv
-        v_pix_grad = (focal[:, None] @ v_proj_grad[..., None])[..., 0]
+        v_pix_grad = _apply_matrix(focal, v_proj_grad)
 
     elif distortion_mode == "radial-tangential":
         raise NotImplementedError
