@@ -20,6 +20,12 @@ DISTORTION_MODES: Set[Optional[str]] = {
 _FISHEYE62_MODES: Set[str] = {"fisheye62", "fisheye62_lut"}
 
 _ROCM: bool = th.version.hip is not None
+_ROCM_FORM_DTYPES: tuple[th.dtype, ...] = (
+    th.float16,
+    th.bfloat16,
+    th.float32,
+    th.float64,
+)
 
 
 def _apply_matrix(m: th.Tensor, x: th.Tensor) -> th.Tensor:
@@ -27,23 +33,40 @@ def _apply_matrix(m: th.Tensor, x: th.Tensor) -> th.Tensor:
 
     On ROCm, PyTorch runs that per-point product as a batched GEMM with one 3x3 (or 2x2) GEMM per
     point, which made the projection most of the GPU time of a DRTK fitting loop on MI300X. There
-    ``_apply_matrix_rocm`` replaces it. CPU, CUDA and TorchScript keep the matmul form, bit for bit.
+    ``_apply_matrix_rocm`` replaces it for the inputs ``_rocm_form_applies`` accepts. CPU, CUDA and
+    TorchScript keep the matmul form, bit for bit.
     """
-    # TorchScript compiles only the matmul form, so scripted and saved graphs are the same on every device.
+    # TorchScript compiles only the matmul form, so scripted graphs are the same on every device.
     if not th.jit.is_scripting():
-        if _ROCM and x.is_cuda:
+        if _ROCM and x.is_cuda and _rocm_form_applies(m, x):
             return _apply_matrix_rocm(m, x)
     return (m[:, None] @ x[..., None])[..., 0]
 
 
+def _rocm_form_applies(m: th.Tensor, x: th.Tensor) -> bool:
+    """Whether the broadcast form can stand in for the matmul: the matmul accepts ``m`` and ``x``,
+    and the broadcast form computes the same products in float32 or float64, without TF32 or
+    autocast lowering their precision (under autocast it returns float32, or float64 for float64
+    inputs). Every other input goes to the matmul, so it behaves exactly as before."""
+    if m.dim() < 2 or x.dim() < 1 or x.shape[-1] != m.shape[-1]:
+        return False
+    if m.dtype not in _ROCM_FORM_DTYPES or x.dtype not in _ROCM_FORM_DTYPES:
+        return False
+    # Products in float16 or bfloat16 would round before the sum (and float16 ones could overflow).
+    if th.promote_types(m.dtype, x.dtype) not in (th.float32, th.float64):
+        return False
+    if m.dtype == x.dtype:
+        return True
+    # Autocast casts both operands of the matmul to one dtype, but never float64 ones.
+    return th.is_autocast_enabled(x.device.type) and th.float64 not in (
+        m.dtype,
+        x.dtype,
+    )
+
+
 def _apply_matrix_rocm(m: th.Tensor, x: th.Tensor) -> th.Tensor:
     """``_apply_matrix`` as a broadcast multiply and sum, with no GEMM: TF32 and autocast do not
-    lower its precision. Refuses the size and dtype mismatches the matmul refuses."""
-    mixed = x.dtype != m.dtype and not th.is_autocast_enabled(x.device.type)
-    if x.shape[-1] != m.shape[-1] or mixed:
-        raise RuntimeError(
-            f"cannot apply a {tuple(m.shape)} {m.dtype} matrix to {tuple(x.shape)} {x.dtype} points"
-        )
+    lower its precision."""
     return (x[..., None, :] * m[:, None]).sum(-1)
 
 
