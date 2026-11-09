@@ -151,6 +151,15 @@ def main(debug: bool) -> None:
                 include_dirs=include_dir,
             ),
             CUDAExtension(
+                "drtk.pixel_grid_mesh_ext",
+                sources=[
+                    "src/pixel_grid_mesh/pixel_grid_mesh_module.cpp",
+                    "src/pixel_grid_mesh/pixel_grid_mesh_kernel.cu",
+                ],
+                extra_compile_args={"cxx": cxx_args[target_os], "nvcc": nvcc_args},
+                include_dirs=include_dir,
+            ),
+            CUDAExtension(
                 "drtk.edge_grad_ext",
                 sources=[
                     "src/edge_grad/edge_grad_module.cpp",

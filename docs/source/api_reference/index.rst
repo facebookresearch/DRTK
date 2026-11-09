@@ -6,12 +6,13 @@ DRTK API
 
 DRTK is a PyTorch library that provides functionality for differentiable rasterization.
 
-The package consists of five main modules:
+The package includes the following modules:
 
 * :doc:`transform`
 * :doc:`rasterize`
 * :doc:`render`
 * :doc:`transparent_render`
+* :doc:`pixel_grid_mesh`
 * :doc:`interpolate`
 * :doc:`filter2d`
 * :doc:`edge_grad_estimator`
@@ -26,6 +27,7 @@ The package consists of five main modules:
    rasterize
    render
    transparent_render
+   pixel_grid_mesh
    interpolate
    filter2d
    edge_grad_estimator

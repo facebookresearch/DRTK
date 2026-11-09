@@ -26,6 +26,12 @@ from .interpolate import (  # noqa
 )
 from .mipmap_grid_sample import mipmap_grid_sample, mipmap_grid_sample_ref  # noqa
 from .msi import msi  # noqa
+from .pixel_grid_mesh import (  # noqa
+    bernoulli_render_loss,
+    bernoulli_topology_samples,
+    pixel_grid_mesh,
+    pixel_grid_mesh_ref,
+)
 from .rasterize import rasterize, rasterize_with_depth  # noqa
 from .render import render, render_ref  # noqa
 from .transform import transform, transform_with_v_cam  # noqa
