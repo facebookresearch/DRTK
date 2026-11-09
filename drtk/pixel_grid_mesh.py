@@ -461,7 +461,25 @@ def pixel_grid_mesh(
 def bernoulli_topology_samples(
     logits: th.Tensor, *, generator: Optional[th.Generator] = None
 ) -> Tuple[th.Tensor, th.Tensor, th.Tensor]:
-    """Return ARM's correlated hard samples and their shared uniform noise."""
+    """Sample two correlated hard topologies for the ARM estimator.
+
+    Args:
+        logits: Floating-point Bernoulli logits of any shape. Each element
+            describes one independent proposal decision.
+        generator: Optional random generator matching the logits' device.
+
+    Returns:
+        A three-element tuple ``(plus, minus, uniform)`` with the same shape
+        and device as ``logits``. For ``p = sigmoid(logits)`` and shared
+        ``u = uniform``, ``plus = (u > 1 - p)`` and ``minus = (u < p)`` are
+        boolean tensors. ``uniform`` has the logits' floating dtype.
+
+    Both hard samples have Bernoulli marginals with probability ``p``; they
+    are correlated, not independent samples or elementwise complements.
+    The returned samples and random numbers have no gradient to ``logits``.
+    Use :func:`bernoulli_render_loss` to obtain an ARM loss gradient, or use
+    the pair and shared noise to implement a custom estimator.
+    """
     if not logits.is_floating_point():
         raise ValueError("logits must be floating point")
     uniform = th.rand(
@@ -478,18 +496,36 @@ def bernoulli_render_loss(
     pairs: int = 1,
     generator: Optional[th.Generator] = None,
 ) -> th.Tensor:
-    """Estimate expected sampled loss and its Bernoulli-logit gradient with ARM.
+    """Estimate expected rendered loss and its Bernoulli-logit gradient with ARM.
 
-    ``evaluate(bits)`` builds the hard mesh, renders, and returns a scalar loss.
-    Each pair requires two evaluations. Returned value is their mean loss;
-    backward adds the ARM logit estimate and retains ordinary continuous-input
-    gradients from both samples. The score term uses detached loss differences.
-    Any topology cleanup must depend on sampled bits, not detached logits.
+    Args:
+        logits: Floating-point Bernoulli logits of any shape, typically a
+            learnable tensor or the output of a prediction network.
+        evaluate: Callable accepting a boolean tensor with the same shape
+            as ``logits`` and returning a scalar loss tensor. It constructs
+            a hard mesh, renders it, and compares the render with the target.
+            Continuous parameters captured by the callable retain ordinary
+            autograd through the sampled mesh and renderer.
+        pairs: Positive number of correlated sample pairs. Each pair calls
+            ``evaluate`` twice; more pairs reduce sampling variance at the
+            cost of more evaluations.
+        generator: Optional random generator matching the logits' device.
 
-    This is the unbiased full-loss reference, not a locality-masked estimator.
-    Average losses, not rendered images. Use deterministic evaluation or common
-    auxiliary randomness within each pair. This helper does not change renderer
-    ordering, compute visibility masks, or supply task-specific regularizers.
+    Returns:
+        A scalar whose forward value is the mean of the ``2 * pairs`` loss
+        evaluations. Backward adds the ARM estimator for ``logits`` and
+        preserves ordinary continuous-input gradients from those evaluations.
+        Calling ``backward()`` accumulates these gradients normally.
+
+    The score term uses detached loss differences. Any topology cleanup must
+    depend on sampled bits, not detached logits. Use deterministic evaluation,
+    common auxiliary randomness within each pair, or auxiliary randomness
+    independent of the sampled topology.
+
+    This helper estimates the expectation of the full loss: average losses,
+    not rendered images. It does not compute visibility masks or supply
+    task-specific regularizers. :func:`bernoulli_topology_samples` exposes
+    the underlying correlated samples for custom estimators.
     """
     if pairs < 1:
         raise ValueError("pairs must be positive")

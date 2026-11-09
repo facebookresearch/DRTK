@@ -1,6 +1,6 @@
-# Pixel-grid meshes with stochastic topology gradients
+# Pixel-grid topology and gradients
 
-This block builds a triangle mesh from a regular grid of **cells centered on
+The mesh builder creates a triangle mesh from a regular grid of **cells centered on
 source-image pixels**. Each live cell contributes a quad whose initial corners
 are at pixel corners. Neighbor affinities determine which corner vertices are
 shared. Geometry construction is independent of the model producing its inputs:
@@ -10,7 +10,11 @@ The differentiable training objective is the expected loss of sampled hard
 meshes. It is not a derivative of triangle indices and is not the loss of an
 averaged rendered image. At inference, construct one deterministic hard mesh.
 
-## Accepted representation and API
+For function signatures, see [the module reference](pixel_grid_mesh.rst).
+The [optimization tutorial](../tutorials/DRTK_Tutorial_pixel_grid_mesh.rst)
+shows how to use these pieces together.
+
+## Inputs and outputs
 
 ```python
 v, vt0, vt1, vi, vertex_opacity, face_cell_ids, face_ids = pixel_grid_mesh(
@@ -111,15 +115,15 @@ deterministic realization.
 
 For a cell c and its source corner q, form the proposal
 
-\[
+```{math}
 Y_{cq}=d_c K^{-1}[q_x,q_y,1]^T+\Delta_c.
-\]
+```
 
 For a corner fan S, use its least-squares fit
 
-\[
+```{math}
 V_{q,S}=\frac{1}{|S|}\sum_{c\in S}Y_{cq}.
-\]
+```
 
 No averaging crosses a cut except the intentionally shared tip. This is local
 and closed form, with ordinary autograd through depth, displacement and K.
@@ -161,23 +165,23 @@ separate work. Miter/bevel switching is also discrete.
 Let independent proposal bits have p=σ(η), and let M include the cut cleanup.
 The intended objective is
 
-\[
+```{math}
 F(\eta,x)=\mathbb E_z[\mathcal L(R(M(z,x)))].
-\]
+```
 
 For one bit,
 
-\[
+```{math}
 \frac{\partial F}{\partial\eta_i}
 =p_i(1-p_i)\mathbb E_{z_{-i}}[\mathcal L(z_i=1)-\mathcal L(z_i=0)].
-\]
+```
 
 `bernoulli_render_loss` uses ARM with the full scalar loss. For shared uniform u, sample
 z⁺=1[u>1−p] and z⁻=1[u<p]. Its logit estimate is
 
-\[
+```{math}
 g_\eta=(\mathcal L(z^+)-\mathcal L(z^-))(u-\tfrac12).
-\]
+```
 
 ```python
 loss = bernoulli_render_loss(logits, evaluate, pairs=1, generator=rng)
@@ -228,26 +232,12 @@ The renderer's per-triangle ordering and analytic continuous gradients are
 unchanged. The builder does not add per-pixel depth sorting, global feather
 intersection repair, or a geometry-validity constraint.
 
-## Tests
+## Validation
 
 The regression suite covers an independent local-topology oracle, cut tips and boundary cases,
 native/reference geometry and gradients, finite differences, feathering, empty
 meshes, stable face ordering, and exact expected-rendered-loss gradients for the
 stochastic helper.
-
-## Python API
-
-```{eval-rst}
-.. currentmodule:: drtk
-
-.. autofunction:: pixel_grid_mesh
-
-.. autofunction:: pixel_grid_mesh_ref
-
-.. autofunction:: bernoulli_topology_samples
-
-.. autofunction:: bernoulli_render_loss
-```
 
 ## References
 

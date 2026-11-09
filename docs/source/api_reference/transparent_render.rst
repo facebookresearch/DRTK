@@ -1,6 +1,18 @@
 drtk.transparent_render
 =======================
 
+.. currentmodule:: drtk
+
+.. autosummary::
+    :nosignatures:
+
+    render_transparent
+    render_transparent_mlp
+    render_transparent_mlp_two_textures
+    render_transparent_ref
+    render_transparent_mlp_ref
+    render_transparent_mlp_two_textures_ref
+
 These functions render arbitrary triangle meshes with depth-sorted
 transparency. Covered fragments are evaluated from front to back and
 composited into a color and alpha image without a hard z-buffer selecting a
@@ -38,7 +50,7 @@ silhouette gradients to vertex X/Y motion by default. Set
 forward image, compositing order, and appearance gradients are unchanged.
 
 Transparent edge gradients
--------------------------
+--------------------------
 
 This estimator extends `Rasterized Edge Gradients
 <https://arxiv.org/abs/2405.02508>`_ to transparent compositing. It averages the
@@ -134,16 +146,6 @@ zero gradient at zero, including the lower bound on final fragment alpha.
     :no-index:
 
 .. currentmodule:: drtk
-
-.. autosummary::
-    :nosignatures:
-
-    render_transparent
-    render_transparent_mlp
-    render_transparent_mlp_two_textures
-    render_transparent_ref
-    render_transparent_mlp_ref
-    render_transparent_mlp_two_textures_ref
 
 .. autofunction:: render_transparent
 

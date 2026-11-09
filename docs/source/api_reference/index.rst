@@ -44,3 +44,10 @@ The package includes the following modules:
    projection
    geometry
    indexing
+
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Concepts
+
+   pixel_grid_topology

@@ -554,45 +554,12 @@ def render_transparent_ref(
     rgb_activation: str = "relu",
     alpha_activation: str = "relu_density",
 ) -> Tuple[th.Tensor, th.Tensor]:
-    """Pure-PyTorch reference for transparent RGBA-textured triangles.
+    """Pure-PyTorch correctness reference for :func:`render_transparent`.
 
-    Triangle order is ascending arithmetic mean vertex depth. Equal-depth
-    triangles retain face-index order. Sorting, tile membership, and degenerate
-    face rejection are intentionally discrete; all shading/compositing terms
-    are differentiable while that fragment order is fixed.
-
-    Args:
-        v: Screen-space vertices ``[N, V, 3]``. X/Y use DRTK pixel coordinates
-            and positive Z is camera depth (smaller values are nearer).
-        vi: Triangle indices ``[F, 3]``, ``[1, F, 3]``, or ``[N, F, 3]``.
-        uv: Per-vertex normalized texture coordinates in ``[0, 1]``.
-        texture: RGB or RGBA texture ``[N or 1, 3 or 4, Ht, Wt]``.
-        height: Output image height.
-        width: Output image width.
-        opacity: Optional per-vertex material opacity ``[N or 1, V]``. The
-            default is one. RGBA texture alpha, when present, is multiplied by
-            this value.
-        background: Optional RGB background ``[3]`` or ``[N or 1, 3]``.
-        mode: Texture interpolation mode: ``"bilinear"``, ``"nearest"``, or
-            ``"bicubic"``.
-        padding_mode: Texture padding mode: ``"zeros"``, ``"border"``, or
-            ``"reflection"``. Texture coordinates always use
-            ``align_corners=False`` semantics.
-        rgb_activation: Activation applied after texture filtering. The default
-            ``"relu"`` computes ``max(x, 0)``. Alternatives are ``"identity"``,
-            ``"shifted_sigmoid"`` (``sigmoid(x - 0.5)``), and ``"clamp"``.
-        alpha_activation: Activation applied to filtered texture alpha. The
-            default ``"relu_density"`` computes ``1 - exp(-max(x, 0))``.
-            Alternatives are ``"shifted_sigmoid"``
-            (``sigmoid(x - 0.5)``), ``"exp_density"``
-            (``1 - exp(-exp(x))``, with ``x`` capped at 15 before
-            exponentiation), and ``"clamp"``. RGB textures have implicit
-            alpha one.
-
-    Returns:
-        Premultiplied RGB and accumulated alpha with shapes ``[N, 3, H, W]``
-        and ``[N, 1, H, W]``. If a background is supplied, RGB contains the
-        fully composited color instead, matching gsplat.
+    See the main function for the argument and return-value contract.
+    This CPU/CUDA reference differentiates smooth shading and compositing
+    with coverage and triangle order fixed. It does not implement the
+    CUDA entry point's silhouette-gradient estimator or early termination.
     """
 
     _validate_common(v, vi, height, width)
@@ -683,59 +650,12 @@ def render_transparent_mlp_ref(
     rgb_activation: str = "shifted_relu",
     alpha_activation: str = "shifted_relu_density",
 ) -> Tuple[th.Tensor, th.Tensor]:
-    """Pure-PyTorch transparent renderer with one neural feature texture.
+    """Pure-PyTorch correctness reference for :func:`render_transparent_mlp`.
 
-    For every covered fragment, this function samples ``texture`` at the
-    perspective-correct interpolated ``uv`` and evaluates a small appearance
-    MLP. The MLP has exactly four or five affine layers, hidden width eight,
-    and LeakyReLU hidden activations. Its final four raw values are converted
-    to fragment RGB and appearance alpha before front-to-back compositing.
-
-    ``rgb_activation`` defaults to ``"shifted_relu"``, which computes
-    ``max(x + 0.5, 0)``. It also accepts ``"shifted_identity"`` (``x + 0.5``),
-    ``"sigmoid"`` (``sigmoid(x)``), and ``"shifted_clamp"``
-    (``clamp(x + 0.5, 0, 1)``). ``alpha_activation`` defaults to
-    ``"shifted_relu_density"``, which computes
-    ``1 - exp(-max(x + 0.5, 0))``. It also accepts ``"sigmoid"``,
-    ``"exp_density"`` (``1 - exp(-exp(x))``, with ``x`` capped at 15 before
-    exponentiation), and ``"shifted_clamp"``.
-    The shifts make a zero-centered MLP output represent a useful mid-range
-    value. Activation follows feature filtering and MLP evaluation.
-
-    Triangles are stably sorted by ascending mean vertex depth; there is no
-    hard z-buffer. Hard top-left coverage and clamped interpolated material
-    opacity remain outside the MLP. The resulting fragment alpha is capped at
-    0.999 before front-to-back transmittance compositing.
-
-    Args:
-        v: Screen-space vertices ``[N, V, 3]``. X/Y use DRTK pixel coordinates
-            and smaller positive Z values are nearer.
-        vi: Triangle indices ``[F, 3]``, ``[1, F, 3]``, or ``[N, F, 3]``.
-        uv: Per-vertex normalized coordinates ``[V, 2]``, ``[1, V, 2]``, or
-            ``[N, V, 2]`` for ``texture``.
-        texture: Feature texture ``[N or 1, C, Ht, Wt]``, where
-            ``1 <= C <= 32``.
-        weights: Four or five affine weight tensors. Hidden outputs have width
-            eight and the final weight has shape ``[4, 8]``.
-        biases: One bias tensor per weight; the final bias has shape ``[4]``.
-        height: Output image height.
-        width: Output image width.
-        opacity: Optional per-vertex material opacity ``[V]``, ``[1, V]``, or
-            ``[N, V]``. The default is one.
-        background: Optional RGB background ``[3]`` or ``[N or 1, 3]``.
-        negative_slope: LeakyReLU slope for hidden MLP activations.
-        mode: Texture interpolation mode: ``"bilinear"``, ``"nearest"``, or
-            ``"bicubic"``.
-        padding_mode: Texture padding mode: ``"zeros"``, ``"border"``, or
-            ``"reflection"``. Sampling always uses ``align_corners=False``
-            semantics.
-        rgb_activation: Final RGB activation described above.
-        alpha_activation: Final appearance-alpha activation described above.
-
-    Returns:
-        Premultiplied RGB and accumulated alpha with shapes ``[N, 3, H, W]``
-        and ``[N, 1, H, W]``. If ``background`` is supplied, RGB contains the
-        fully composited color instead.
+    See the main function for the argument and return-value contract.
+    This CPU/CUDA reference differentiates smooth shading and compositing
+    with coverage and triangle order fixed. It does not implement the
+    CUDA entry point's silhouette-gradient estimator or early termination.
     """
 
     empty_texture = texture.new_empty((1, 0, 1, 1))
@@ -779,68 +699,12 @@ def render_transparent_mlp_two_textures_ref(
     rgb_activation: str = "shifted_relu",
     alpha_activation: str = "shifted_relu_density",
 ) -> Tuple[th.Tensor, th.Tensor]:
-    """Pure-PyTorch transparent renderer with two neural feature textures.
+    """Pure-PyTorch correctness reference for :func:`render_transparent_mlp_two_textures`.
 
-    For every covered fragment, this function samples ``texture0`` at the
-    perspective-correct interpolated ``uv0`` and ``texture1`` at ``uv1``. The
-    feature vectors are concatenated in that order and evaluated by a small
-    appearance MLP. The MLP has exactly four or five affine layers, hidden
-    width eight, and LeakyReLU hidden activations. Its final four raw values
-    are converted to fragment RGB and appearance alpha before front-to-back
-    compositing.
-
-    ``rgb_activation`` defaults to ``"shifted_relu"``, which computes
-    ``max(x + 0.5, 0)``. It also accepts ``"shifted_identity"`` (``x + 0.5``),
-    ``"sigmoid"`` (``sigmoid(x)``), and ``"shifted_clamp"``
-    (``clamp(x + 0.5, 0, 1)``). ``alpha_activation`` defaults to
-    ``"shifted_relu_density"``, which computes
-    ``1 - exp(-max(x + 0.5, 0))``. It also accepts ``"sigmoid"``,
-    ``"exp_density"`` (``1 - exp(-exp(x))``, with ``x`` capped at 15 before
-    exponentiation), and ``"shifted_clamp"``.
-    The shifts make a zero-centered MLP output represent a useful mid-range
-    value. Activation follows feature filtering and MLP evaluation.
-
-    Triangles are stably sorted by ascending mean vertex depth; there is no
-    hard z-buffer. Hard top-left coverage and clamped interpolated material
-    opacity remain outside the MLP. The resulting fragment alpha is capped at
-    0.999 before front-to-back transmittance compositing.
-
-    The caller must gate features from occluded or unrelated surfaces and
-    provide visibility/provenance validity information where needed. Separate
-    UV coordinates do not perform this gating automatically.
-
-    Args:
-        v: Screen-space vertices ``[N, V, 3]``. X/Y use DRTK pixel coordinates
-            and smaller positive Z values are nearer.
-        vi: Triangle indices ``[F, 3]``, ``[1, F, 3]``, or ``[N, F, 3]``.
-        uv0: Per-vertex normalized coordinates ``[V, 2]``, ``[1, V, 2]``, or
-            ``[N, V, 2]`` for ``texture0``.
-        uv1: Per-vertex normalized coordinates with the same supported shapes
-            as ``uv0`` for ``texture1``.
-        texture0: First feature texture ``[N or 1, C0, H0, W0]``.
-        texture1: Second feature texture ``[N or 1, C1, H1, W1]``. The channel
-            counts must satisfy ``1 <= C0 + C1 <= 32``.
-        weights: Four or five affine weight tensors. Hidden outputs have width
-            eight and the final weight has shape ``[4, 8]``.
-        biases: One bias tensor per weight; the final bias has shape ``[4]``.
-        height: Output image height.
-        width: Output image width.
-        opacity: Optional per-vertex material opacity ``[V]``, ``[1, V]``, or
-            ``[N, V]``. The default is one.
-        background: Optional RGB background ``[3]`` or ``[N or 1, 3]``.
-        negative_slope: LeakyReLU slope for hidden MLP activations.
-        mode: Interpolation mode shared by both textures: ``"bilinear"``,
-            ``"nearest"``, or ``"bicubic"``.
-        padding_mode: Padding mode shared by both textures: ``"zeros"``,
-            ``"border"``, or ``"reflection"``. Sampling always uses
-            ``align_corners=False`` semantics.
-        rgb_activation: Final RGB activation described above.
-        alpha_activation: Final appearance-alpha activation described above.
-
-    Returns:
-        Premultiplied RGB and accumulated alpha with shapes ``[N, 3, H, W]``
-        and ``[N, 1, H, W]``. If ``background`` is supplied, RGB contains the
-        fully composited color instead.
+    See the main function for the argument and return-value contract.
+    This CPU/CUDA reference differentiates smooth shading and compositing
+    with coverage and triangle order fixed. It does not implement the
+    CUDA entry point's silhouette-gradient estimator or early termination.
     """
 
     return _render_transparent_mlp_ref_impl(
