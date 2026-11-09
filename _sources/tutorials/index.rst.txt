@@ -27,6 +27,7 @@ Tutorials
    :caption: Computing Gradients and Fitting
    :hidden:
 
+   DRTK_Tutorial_pixel_grid_mesh
    DRTK_Tutorial_hand_fitting
 
 .. grid::
@@ -69,6 +70,13 @@ Tutorials
           :width: 400
 
 .. grid::
+
+    .. grid-item-card:: :doc:`DRTK_Tutorial_pixel_grid_mesh`
+
+        Learn mesh deformation, holes, and cuts from rendered images using hard sampled topology.
+
+        .. image:: ../_static/pixel_grid_mesh_demo_poster.png
+          :width: 400
 
     .. grid-item-card:: :doc:`DRTK_Tutorial_hand_fitting`
 

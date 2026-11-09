@@ -31,7 +31,7 @@
 
     <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
     <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
-    <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=723fa940" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=697b55c0" />
   
   <!-- So that users can add custom icons -->
   <script defer src="../../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
@@ -847,7 +847,25 @@
 <span class="k">def</span><span class="w"> </span><span class="nf">bernoulli_topology_samples</span><span class="p">(</span>
     <span class="n">logits</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">generator</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Generator</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return ARM&#39;s correlated hard samples and their shared uniform noise.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Sample two correlated hard topologies for the ARM estimator.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        logits: Floating-point Bernoulli logits of any shape. Each element</span>
+<span class="sd">            describes one independent proposal decision.</span>
+<span class="sd">        generator: Optional random generator matching the logits&#39; device.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        A three-element tuple ``(plus, minus, uniform)`` with the same shape</span>
+<span class="sd">        and device as ``logits``. For ``p = sigmoid(logits)`` and shared</span>
+<span class="sd">        ``u = uniform``, ``plus = (u &gt; 1 - p)`` and ``minus = (u &lt; p)`` are</span>
+<span class="sd">        boolean tensors. ``uniform`` has the logits&#39; floating dtype.</span>
+
+<span class="sd">    Both hard samples have Bernoulli marginals with probability ``p``; they</span>
+<span class="sd">    are correlated, not independent samples or elementwise complements.</span>
+<span class="sd">    The returned samples and random numbers have no gradient to ``logits``.</span>
+<span class="sd">    Use :func:`bernoulli_render_loss` to obtain an ARM loss gradient, or use</span>
+<span class="sd">    the pair and shared noise to implement a custom estimator.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">logits</span><span class="o">.</span><span class="n">is_floating_point</span><span class="p">():</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;logits must be floating point&quot;</span><span class="p">)</span>
     <span class="n">uniform</span> <span class="o">=</span> <span class="n">th</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span>
@@ -867,18 +885,36 @@
     <span class="n">pairs</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
     <span class="n">generator</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Generator</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Estimate expected sampled loss and its Bernoulli-logit gradient with ARM.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Estimate expected rendered loss and its Bernoulli-logit gradient with ARM.</span>
 
-<span class="sd">    ``evaluate(bits)`` builds the hard mesh, renders, and returns a scalar loss.</span>
-<span class="sd">    Each pair requires two evaluations. Returned value is their mean loss;</span>
-<span class="sd">    backward adds the ARM logit estimate and retains ordinary continuous-input</span>
-<span class="sd">    gradients from both samples. The score term uses detached loss differences.</span>
-<span class="sd">    Any topology cleanup must depend on sampled bits, not detached logits.</span>
+<span class="sd">    Args:</span>
+<span class="sd">        logits: Floating-point Bernoulli logits of any shape, typically a</span>
+<span class="sd">            learnable tensor or the output of a prediction network.</span>
+<span class="sd">        evaluate: Callable accepting a boolean tensor with the same shape</span>
+<span class="sd">            as ``logits`` and returning a scalar loss tensor. It constructs</span>
+<span class="sd">            a hard mesh, renders it, and compares the render with the target.</span>
+<span class="sd">            Continuous parameters captured by the callable retain ordinary</span>
+<span class="sd">            autograd through the sampled mesh and renderer.</span>
+<span class="sd">        pairs: Positive number of correlated sample pairs. Each pair calls</span>
+<span class="sd">            ``evaluate`` twice; more pairs reduce sampling variance at the</span>
+<span class="sd">            cost of more evaluations.</span>
+<span class="sd">        generator: Optional random generator matching the logits&#39; device.</span>
 
-<span class="sd">    This is the unbiased full-loss reference, not a locality-masked estimator.</span>
-<span class="sd">    Average losses, not rendered images. Use deterministic evaluation or common</span>
-<span class="sd">    auxiliary randomness within each pair. This helper does not change renderer</span>
-<span class="sd">    ordering, compute visibility masks, or supply task-specific regularizers.</span>
+<span class="sd">    Returns:</span>
+<span class="sd">        A scalar whose forward value is the mean of the ``2 * pairs`` loss</span>
+<span class="sd">        evaluations. Backward adds the ARM estimator for ``logits`` and</span>
+<span class="sd">        preserves ordinary continuous-input gradients from those evaluations.</span>
+<span class="sd">        Calling ``backward()`` accumulates these gradients normally.</span>
+
+<span class="sd">    The score term uses detached loss differences. Any topology cleanup must</span>
+<span class="sd">    depend on sampled bits, not detached logits. Use deterministic evaluation,</span>
+<span class="sd">    common auxiliary randomness within each pair, or auxiliary randomness</span>
+<span class="sd">    independent of the sampled topology.</span>
+
+<span class="sd">    This helper estimates the expectation of the full loss: average losses,</span>
+<span class="sd">    not rendered images. It does not compute visibility masks or supply</span>
+<span class="sd">    task-specific regularizers. :func:`bernoulli_topology_samples` exposes</span>
+<span class="sd">    the underlying correlated samples for custom estimators.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">if</span> <span class="n">pairs</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;pairs must be positive&quot;</span><span class="p">)</span>

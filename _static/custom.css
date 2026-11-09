@@ -86,3 +86,7 @@ p.bd-links__title {
 .full-width {
   width: 100%
 }
+/* Keep long API names readable on narrow screens. */
+article.bd-article h1 {
+  overflow-wrap: anywhere;
+}

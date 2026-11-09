@@ -91,13 +91,15 @@ the same geometry, sorting, and compositing model.
 Gradient scope
 --------------
 
-Gradients to vertex positions arise from perspective-correct interpolation of
-UVs and opacity inside covered triangles. Hard triangle coverage and changes in
-depth order remain discrete. This example therefore holds both transparent
-patch boundaries fixed. Smooth texture variation and interpolated opacity
-inside each triangle supply the image-space signal for interior deformation.
+Gradients to vertex positions include smooth shading and compositing
+derivatives. The native CUDA renderers also enable a silhouette-gradient
+estimator by default through ``edge_gradients=True``. It handles visible
+coverage boundaries, including nonzero-opacity contours; ordinary shared
+tessellation edges and zero-alpha outer boundaries contribute no extra jump.
 
-Applications that must move a visible silhouette can combine this renderer
-with explicit feather geometry, a suitable edge-gradient method, or another
-problem-specific visibility approximation. These choices belong to the mesh
-and optimization model rather than to the general transparent-compositing API.
+This example keeps patch boundaries fixed and optimizes interior vertices,
+so its fitting signal comes from texture variation and interpolated opacity.
+The reference renderers provide smooth/interior derivatives only. Triangle
+topology and depth-order changes remain discrete; the
+:doc:`pixel-grid tutorial <DRTK_Tutorial_pixel_grid_mesh>` shows how to optimize
+sampled connectivity decisions separately.

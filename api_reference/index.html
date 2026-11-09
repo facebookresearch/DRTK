@@ -32,7 +32,7 @@
 
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
     <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
-    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=723fa940" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=697b55c0" />
   
   <!-- So that users can add custom icons -->
   <script defer src="../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
@@ -339,7 +339,7 @@
 <li class="toctree-l1"><a class="reference internal" href="rasterize.html">drtk.rasterize</a></li>
 <li class="toctree-l1"><a class="reference internal" href="render.html">drtk.render</a></li>
 <li class="toctree-l1"><a class="reference internal" href="transparent_render.html">drtk.transparent_render</a></li>
-<li class="toctree-l1"><a class="reference internal" href="pixel_grid_mesh.html">Pixel-grid meshes with stochastic topology gradients</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pixel_grid_mesh.html">drtk.pixel_grid_mesh</a></li>
 <li class="toctree-l1"><a class="reference internal" href="interpolate.html">drtk.interpolate</a></li>
 <li class="toctree-l1"><a class="reference internal" href="filter2d.html">drtk.filter2d</a></li>
 <li class="toctree-l1"><a class="reference internal" href="edge_grad_estimator.html">drtk.edge_grad_estimator</a></li>
@@ -352,6 +352,10 @@
 <li class="toctree-l1"><a class="reference internal" href="projection.html">Projection functions</a></li>
 <li class="toctree-l1"><a class="reference internal" href="geometry.html">Geometry utils</a></li>
 <li class="toctree-l1"><a class="reference internal" href="indexing.html">Indexing utils</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Concepts</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="pixel_grid_topology.html">Pixel-grid topology and gradients</a></li>
 </ul>
 </div>
 </nav></div>
@@ -418,7 +422,7 @@
 <li><p><a class="reference internal" href="rasterize.html"><span class="doc">drtk.rasterize</span></a></p></li>
 <li><p><a class="reference internal" href="render.html"><span class="doc">drtk.render</span></a></p></li>
 <li><p><a class="reference internal" href="transparent_render.html"><span class="doc">drtk.transparent_render</span></a></p></li>
-<li><p><a class="reference internal" href="pixel_grid_mesh.html"><span class="doc">Pixel-grid meshes with stochastic topology gradients</span></a></p></li>
+<li><p><a class="reference internal" href="pixel_grid_mesh.html"><span class="doc">drtk.pixel_grid_mesh</span></a></p></li>
 <li><p><a class="reference internal" href="interpolate.html"><span class="doc">drtk.interpolate</span></a></p></li>
 <li><p><a class="reference internal" href="filter2d.html"><span class="doc">drtk.filter2d</span></a></p></li>
 <li><p><a class="reference internal" href="edge_grad_estimator.html"><span class="doc">drtk.edge_grad_estimator</span></a></p></li>
@@ -454,23 +458,11 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="pixel_grid_mesh.html">Pixel-grid meshes with stochastic topology gradients</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="pixel_grid_mesh.html#accepted-representation-and-api">Accepted representation and API</a></li>
-<li class="toctree-l2"><a class="reference internal" href="pixel_grid_mesh.html#pixel-and-camera-convention">Pixel and camera convention</a></li>
-<li class="toctree-l2"><a class="reference internal" href="pixel_grid_mesh.html#cuts-and-corner-sharing">Cuts and corner sharing</a></li>
-<li class="toctree-l2"><a class="reference internal" href="pixel_grid_mesh.html#closed-form-displaced-corners-and-diagonals">Closed-form displaced corners and diagonals</a></li>
-<li class="toctree-l2"><a class="reference internal" href="pixel_grid_mesh.html#optional-boundary-feathering">Optional boundary feathering</a></li>
-<li class="toctree-l2"><a class="reference internal" href="pixel_grid_mesh.html#stochastic-topology-objective">Stochastic topology objective</a></li>
-<li class="toctree-l2"><a class="reference internal" href="pixel_grid_mesh.html#native-implementation-and-limitations">Native implementation and limitations</a></li>
-<li class="toctree-l2"><a class="reference internal" href="pixel_grid_mesh.html#tests">Tests</a></li>
-<li class="toctree-l2"><a class="reference internal" href="pixel_grid_mesh.html#python-api">Python API</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="pixel_grid_mesh.html#drtk.pixel_grid_mesh"><code class="docutils literal notranslate"><span class="pre">pixel_grid_mesh()</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="pixel_grid_mesh.html#drtk.pixel_grid_mesh_ref"><code class="docutils literal notranslate"><span class="pre">pixel_grid_mesh_ref()</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="pixel_grid_mesh.html#drtk.bernoulli_topology_samples"><code class="docutils literal notranslate"><span class="pre">bernoulli_topology_samples()</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="pixel_grid_mesh.html#drtk.bernoulli_render_loss"><code class="docutils literal notranslate"><span class="pre">bernoulli_render_loss()</span></code></a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="pixel_grid_mesh.html#references">References</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pixel_grid_mesh.html">drtk.pixel_grid_mesh</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="pixel_grid_mesh.html#drtk.pixel_grid_mesh"><code class="docutils literal notranslate"><span class="pre">pixel_grid_mesh()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="pixel_grid_mesh.html#drtk.bernoulli_topology_samples"><code class="docutils literal notranslate"><span class="pre">bernoulli_topology_samples()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="pixel_grid_mesh.html#drtk.bernoulli_render_loss"><code class="docutils literal notranslate"><span class="pre">bernoulli_render_loss()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="pixel_grid_mesh.html#drtk.pixel_grid_mesh_ref"><code class="docutils literal notranslate"><span class="pre">pixel_grid_mesh_ref()</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="interpolate.html">drtk.interpolate</a><ul>
@@ -535,6 +527,23 @@
 </li>
 <li class="toctree-l1"><a class="reference internal" href="indexing.html">Indexing utils</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="indexing.html#drtk.utils.indexing.index"><code class="docutils literal notranslate"><span class="pre">index()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</div>
+<div class="toctree-wrapper compound">
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Concepts</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="pixel_grid_topology.html">Pixel-grid topology and gradients</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="pixel_grid_topology.html#inputs-and-outputs">Inputs and outputs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pixel_grid_topology.html#pixel-and-camera-convention">Pixel and camera convention</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pixel_grid_topology.html#cuts-and-corner-sharing">Cuts and corner sharing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pixel_grid_topology.html#closed-form-displaced-corners-and-diagonals">Closed-form displaced corners and diagonals</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pixel_grid_topology.html#optional-boundary-feathering">Optional boundary feathering</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pixel_grid_topology.html#stochastic-topology-objective">Stochastic topology objective</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pixel_grid_topology.html#native-implementation-and-limitations">Native implementation and limitations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pixel_grid_topology.html#validation">Validation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pixel_grid_topology.html#references">References</a></li>
 </ul>
 </li>
 </ul>

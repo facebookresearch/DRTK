@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Pixel-grid meshes with stochastic topology gradients &#8212; DRTK  documentation</title>
+    <title>drtk.pixel_grid_mesh &#8212; DRTK  documentation</title>
   
   
   
@@ -32,7 +32,7 @@
 
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
     <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
-    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=723fa940" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=697b55c0" />
   
   <!-- So that users can add custom icons -->
   <script defer src="../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
@@ -343,7 +343,7 @@
 <li class="toctree-l1"><a class="reference internal" href="rasterize.html">drtk.rasterize</a></li>
 <li class="toctree-l1"><a class="reference internal" href="render.html">drtk.render</a></li>
 <li class="toctree-l1"><a class="reference internal" href="transparent_render.html">drtk.transparent_render</a></li>
-<li class="toctree-l1 current active"><a class="current reference internal" href="#">Pixel-grid meshes with stochastic topology gradients</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">drtk.pixel_grid_mesh</a></li>
 <li class="toctree-l1"><a class="reference internal" href="interpolate.html">drtk.interpolate</a></li>
 <li class="toctree-l1"><a class="reference internal" href="filter2d.html">drtk.filter2d</a></li>
 <li class="toctree-l1"><a class="reference internal" href="edge_grad_estimator.html">drtk.edge_grad_estimator</a></li>
@@ -356,6 +356,10 @@
 <li class="toctree-l1"><a class="reference internal" href="projection.html">Projection functions</a></li>
 <li class="toctree-l1"><a class="reference internal" href="geometry.html">Geometry utils</a></li>
 <li class="toctree-l1"><a class="reference internal" href="indexing.html">Indexing utils</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Concepts</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="pixel_grid_topology.html">Pixel-grid topology and gradients</a></li>
 </ul>
 </div>
 </nav></div>
@@ -399,7 +403,7 @@
     
     <li class="breadcrumb-item"><a href="index.html" class="nav-link">DRTK API</a></li>
     
-    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Pixel-grid meshes with stochastic topology gradients</span></li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">drtk.pixel_grid_mesh</span></li>
   </ul>
 </nav>
 </div>
@@ -416,268 +420,31 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="pixel-grid-meshes-with-stochastic-topology-gradients">
-<h1>Pixel-grid meshes with stochastic topology gradients<a class="headerlink" href="#pixel-grid-meshes-with-stochastic-topology-gradients" title="Link to this heading">#</a></h1>
-<p>This block builds a triangle mesh from a regular grid of <strong>cells centered on
-source-image pixels</strong>. Each live cell contributes a quad whose initial corners
-are at pixel corners. Neighbor affinities determine which corner vertices are
-shared. Geometry construction is independent of the model producing its inputs:
-prediction heads, task losses, and camera-placement policies remain with the caller.</p>
-<p>The differentiable training objective is the expected loss of sampled hard
-meshes. It is not a derivative of triangle indices and is not the loss of an
-averaged rendered image. At inference, construct one deterministic hard mesh.</p>
-<section id="accepted-representation-and-api">
-<h2>Accepted representation and API<a class="headerlink" href="#accepted-representation-and-api" title="Link to this heading">#</a></h2>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">v</span><span class="p">,</span> <span class="n">vt0</span><span class="p">,</span> <span class="n">vt1</span><span class="p">,</span> <span class="n">vi</span><span class="p">,</span> <span class="n">vertex_opacity</span><span class="p">,</span> <span class="n">face_cell_ids</span><span class="p">,</span> <span class="n">face_ids</span> <span class="o">=</span> <span class="n">pixel_grid_mesh</span><span class="p">(</span>
-    <span class="n">depth_z</span><span class="p">,</span> <span class="n">displacement_xyz</span><span class="p">,</span> <span class="n">intrinsics</span><span class="p">,</span>
-    <span class="n">alive</span><span class="p">,</span> <span class="n">join_right</span><span class="p">,</span> <span class="n">join_down</span><span class="p">,</span>
-    <span class="n">diagonal</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-    <span class="n">feather_width</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-    <span class="n">return_metadata</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-<span class="p">)</span>
-</pre></div>
-</div>
-<p>The return value is always a plain <strong>seven-element tuple</strong>. Optional entries
-become <code class="docutils literal notranslate"><span class="pre">None</span></code>; they are never omitted and do not change position.</p>
-<div class="pst-scrollable-table-container"><table class="table">
-<thead>
-<tr class="row-odd"><th class="head"><p>Input</p></th>
-<th class="head"><p>Shape</p></th>
-<th class="head"><p>Meaning</p></th>
-</tr>
-</thead>
+  <section id="drtk-pixel-grid-mesh">
+<h1>drtk.pixel_grid_mesh<a class="headerlink" href="#drtk-pixel-grid-mesh" title="Link to this heading">#</a></h1>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table">
 <tbody>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">depth_z</span></code></p></td>
-<td><p>H × W</p></td>
-<td><p>Positive source-camera Z depth, not inverse depth or ray distance</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#drtk.pixel_grid_mesh" title="drtk.pixel_grid_mesh"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pixel_grid_mesh</span></code></a></p></td>
+<td><p>Build a displaced pixel-cell mesh with native CUDA forward/backward.</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">displacement_xyz</span></code></p></td>
-<td><p>H × W × 3</p></td>
-<td><p>Translation proposal in source-camera units</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#drtk.bernoulli_topology_samples" title="drtk.bernoulli_topology_samples"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bernoulli_topology_samples</span></code></a></p></td>
+<td><p>Sample two correlated hard topologies for the ARM estimator.</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">intrinsics</span></code></p></td>
-<td><p>3 × 3</p></td>
-<td><p>Pinhole K for this source grid, including any crop/resize</p></td>
+<tr class="row-odd"><td><p><a class="reference internal" href="#drtk.bernoulli_render_loss" title="drtk.bernoulli_render_loss"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bernoulli_render_loss</span></code></a></p></td>
+<td><p>Estimate expected rendered loss and its Bernoulli-logit gradient with ARM.</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">alive</span></code></p></td>
-<td><p>H × W</p></td>
-<td><p>Boolean cell participation</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">join_right</span></code></p></td>
-<td><p>H × (W−1)</p></td>
-<td><p>Boolean connection to the right neighbor</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">join_down</span></code></p></td>
-<td><p>(H−1) × W</p></td>
-<td><p>Boolean connection to the neighbor below</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">diagonal</span></code></p></td>
-<td><p>H × W or <code class="docutils literal notranslate"><span class="pre">None</span></code></p></td>
-<td><p>False: TL–BR; True: TR–BL; None: geometric choice</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">feather_width</span></code></p></td>
-<td><p>H × W or <code class="docutils literal notranslate"><span class="pre">None</span></code></p></td>
-<td><p>Nonnegative strip width in source-image pixels</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#drtk.pixel_grid_mesh_ref" title="drtk.pixel_grid_mesh_ref"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pixel_grid_mesh_ref</span></code></a></p></td>
+<td><p>Tensor reference for <a class="reference internal" href="#drtk.pixel_grid_mesh" title="drtk.pixel_grid_mesh"><code class="xref py py-func docutils literal notranslate"><span class="pre">pixel_grid_mesh()</span></code></a>, supporting CPU and CUDA.</p></td>
 </tr>
 </tbody>
 </table>
 </div>
-<p>The first implementation operates on one grid per call. Call it per example
-for a ragged batch; do not treat different examples as one connected grid.
-Floating inputs share float32/float64 dtype and device; hard decisions are bool.
-Depth, K, displacement, and widths must be finite and geometrically valid. The
-displaced surface must remain in front of the source camera. Metadata/shape
-validation is at the API boundary, not repeated in pixel loops.</p>
-<div class="pst-scrollable-table-container"><table class="table">
-<thead>
-<tr class="row-odd"><th class="head"><p>Output</p></th>
-<th class="head"><p>Meaning</p></th>
-</tr>
-</thead>
-<tbody>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">v</span></code></p></td>
-<td><p>Final source-camera <strong>3D positions, already fitted and displaced</strong>, including strips when enabled</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">vt0</span></code></p></td>
-<td><p>Original anchor UVs in [0,1]; strip vertices copy their boundary anchor</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">vt1</span></code></p></td>
-<td><p>Source-camera projection of the final positions; may leave [0,1]</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">vi</span></code></p></td>
-<td><p>Compact int32 triangle indices</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">vertex_opacity</span></code></p></td>
-<td><p>Generated material-opacity multiplier: core 1, outer strip 0; <code class="docutils literal notranslate"><span class="pre">None</span></code> without strips</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">face_cell_ids</span></code></p></td>
-<td><p>Source-cell ownership, or <code class="docutils literal notranslate"><span class="pre">None</span></code> unless metadata is requested</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">face_ids</span></code></p></td>
-<td><p>Stable cell/local-face identifiers, or <code class="docutils literal notranslate"><span class="pre">None</span></code> unless metadata is requested</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<p>Faces are emitted in increasing stable-ID order, including strips. Removing
-unrelated cells preserves relative tie order for the renderer’s equal-depth
-triangles. Native and reference implementations use the same order.</p>
-<p><code class="docutils literal notranslate"><span class="pre">vertex_opacity</span></code> defines the boundary fade. Pass it as
-<code class="docutils literal notranslate"><span class="pre">opacity=vertex_opacity</span></code> to the transparent renderer to multiply the appearance
-alpha. None means an all-one multiplier.</p>
-<p>Project <code class="docutils literal notranslate"><span class="pre">v</span></code> into the desired target camera before rendering: the transparent
-renderer accepts target pixel XY and camera Z, not source-camera XYZ. Both UVs
-use the existing 2D interpolation; no homogeneous/projective-UV extension is
-introduced in this version. Exact projective resampling is deliberately deferred
-because the triangles are small. Source visibility/provenance gating remains
-the caller’s responsibility; a reprojected UV alone does not establish that the
-source feature belongs to this surface.</p>
-</section>
-<section id="pixel-and-camera-convention">
-<h2>Pixel and camera convention<a class="headerlink" href="#pixel-and-camera-convention" title="Link to this heading">#</a></h2>
-<p>Source pixel (x,y) has its center at integer coordinates. Its corners are
-(x±0.5,y±0.5). Normalized texture UV is ((x+0.5)/W,(y+0.5)/H), without a vertical
-flip. A K resized by sx,sy needs fx’=sx·fx and cx’=sx·(cx+0.5)−0.5, and likewise
-for Y. The same convention must be used when resizing the source image and its camera.</p>
-<p>Camera Z and camera-space displacement are sufficient. There is no inverse-depth
-plane fitting in this implementation. World/placement transforms remain outside
-the builder.</p>
-</section>
-<section id="cuts-and-corner-sharing">
-<h2>Cuts and corner sharing<a class="headerlink" href="#cuts-and-corner-sharing" title="Link to this heading">#</a></h2>
-<p>Connection decisions are undirected and exist once per neighboring pair. A
-connection requires both cells alive. Alive/dead borders and the outer grid
-boundary are exposed boundaries, regardless of a join bit.</p>
-<p>An interior cut consisting of <strong>one isolated grid edge is ignored</strong>. It survives
-when either endpoint touches another cut edge, or an already exposed boundary.
-“Border” includes the outside grid and a live/dead boundary, including holes.
-Two remote isolated cuts do not support each other. Two cuts meeting at a corner
-do. Classification uses the original sampled cuts simultaneously, not an
-iterative endpoint-pruning algorithm that would erase a two-edge chain.</p>
-<p>Construct a connected fan among the at-most-four live cell corners incident on
-each lattice corner. Give each fan one shared vertex. Diagonally touching but
-unconnected cells remain separate. Connections elsewhere in the mesh never
-weld a local cut. An open fan can contain all four incident cells: its two
-boundary edges share one <strong>crack-tip vertex</strong>. That tip is intentional; do not
-force an additional cut or duplicate the tip. Interior cuts with both tips on
-one edge are already removed by the isolated-cut rule; no extra midpoint
-vertices are introduced to represent them.</p>
-<p>Cut realization depends only on sampled bits. The effective probability
-that an edge is cut is therefore not simply its raw Bernoulli probability.
-Training differentiates the distribution of proposals followed by this exact
-deterministic realization.</p>
-</section>
-<section id="closed-form-displaced-corners-and-diagonals">
-<h2>Closed-form displaced corners and diagonals<a class="headerlink" href="#closed-form-displaced-corners-and-diagonals" title="Link to this heading">#</a></h2>
-<p>For a cell c and its source corner q, form the proposal</p>
-<p>[
-Y_{cq}=d_c K^{-1}[q_x,q_y,1]^T+\Delta_c.
-]</p>
-<p>For a corner fan S, use its least-squares fit</p>
-<p>[
-V_{q,S}=\frac{1}{|S|}\sum_{c\in S}Y_{cq}.
-]</p>
-<p>No averaging crosses a cut except the intentionally shared tip. This is local
-and closed form, with ordinary autograd through depth, displacement and K.
-The displacement is a <strong>proposal</strong>, not an exact constraint on every final
-cell center after welding. Exact independent centers would require extra center
-vertices or a coupled solve; neither is part of this contract.</p>
-<p>Each live quad emits two triangles. Automatic diagonal choice compares the two
-diagonal midpoints to the requested displaced cell center in 3D, choosing the
-smaller squared error and TL–BR on a tie. This is a geometric heuristic, not a
-claim of optimal rendered tessellation. The decision itself is discrete. Pass
-explicit sampled diagonal bits to learn it from rendered loss. No soft overlay
-of both triangulations is rendered. Degenerate/folded predictions are not
-repaired into a different shape; geometry regularization belongs to the caller.</p>
-</section>
-<section id="optional-boundary-feathering">
-<h2>Optional boundary feathering<a class="headerlink" href="#optional-boundary-feathering" title="Link to this heading">#</a></h2>
-<p>Feathering extrudes source-screen-normal strips at the fitted boundary depth.
-Widths at a boundary vertex average the two incident boundary-cell widths in
-that fan. Separate sides of a cut do not share widths except at a shared tip.
-The construction uses shared miter joins where bounded, bevels otherwise, and
-caps for reversals. All outer vertices carry opacity multiplier zero; the core
-vertices remain one. Linear interpolation gives the fade across each strip.</p>
-<p>Original UVs extend constantly across the strip; reprojected UVs use the new
-positions. The network supplies only width. Geometry and width receive ordinary
-render gradients. The zero-alpha outer contour contributes no artificial
-coverage jump to the existing edge estimator.</p>
-<p>This is a <strong>local extrusion</strong>, not global polygon offset/Boolean surgery.
-Large widths, acute crack tips, nearby opposing boundaries, and folded geometry
-can cause strip overlap. The initial implementation does not claim to eliminate
-those intersections or compensate their alpha. Keep strips narrow; test the
-zero-feather baseline. Global overlap resolution and learned width policies are
-separate work. Miter/bevel switching is also discrete.</p>
-</section>
-<section id="stochastic-topology-objective">
-<h2>Stochastic topology objective<a class="headerlink" href="#stochastic-topology-objective" title="Link to this heading">#</a></h2>
-<p>Let independent proposal bits have p=σ(η), and let M include the cut cleanup.
-The intended objective is</p>
-<p>[
-F(\eta,x)=\mathbb E_z[\mathcal L(R(M(z,x)))].
-]</p>
-<p>For one bit,</p>
-<p>[
-\frac{\partial F}{\partial\eta_i}
-=p_i(1-p_i)\mathbb E_{z_{-i}}[\mathcal L(z_i=1)-\mathcal L(z_i=0)].
-]</p>
-<p><code class="docutils literal notranslate"><span class="pre">bernoulli_render_loss</span></code> uses ARM with the full scalar loss. For shared uniform u, sample
-z⁺=1[u&gt;1−p] and z⁻=1[u&lt;p]. Its logit estimate is</p>
-<p>[
-g_\eta=(\mathcal L(z^+)-\mathcal L(z^-))(u-\tfrac12).
-]</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">loss</span> <span class="o">=</span> <span class="n">bernoulli_render_loss</span><span class="p">(</span><span class="n">logits</span><span class="p">,</span> <span class="n">evaluate</span><span class="p">,</span> <span class="n">pairs</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">generator</span><span class="o">=</span><span class="n">rng</span><span class="p">)</span>
-<span class="n">loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
-</pre></div>
-</div>
-<p>The callback unpacks hard bits, calls the mesh builder and renderer, and returns
-a scalar loss. Each pair uses two renders. The returned value is the mean of
-their losses. Its surrogate backward supplies ARM to the logits and preserves
-ordinary continuous gradients from both evaluations. Detach the loss difference
-inside the score term, not the ordinary rendered losses. If a callback has other
-randomness, keep it fixed within a pair or make it independent of the topology
-sampling. No visibility-dependent loss mask may silently discard the error of
-deleted geometry. Target validity and loss normalization must not be controlled
-by predicted alive bits.</p>
-<p>Average <strong>losses</strong>, not images: E[L(I)] and L(E[I]) can have opposite gradients.
-The latter can reward an unrealizable mixture of topologies. Likewise, a fixed
-hard mesh cannot acquire these gradients merely by returning differentiable
-positions alongside integer triangle indices.</p>
-<p>The estimator remains valid after isolated-cut cleanup because cleanup is a
-deterministic function of the sampled bits. Do not replace it with a detached
-logit-dependent repair. A cut with no rendering consequence has zero expected
-loss gradient; nearby views, geometry evidence and initialization matter.</p>
-</section>
-<section id="native-implementation-and-limitations">
-<h2>Native implementation and limitations<a class="headerlink" href="#native-implementation-and-limitations" title="Link to this heading">#</a></h2>
-<p><code class="docutils literal notranslate"><span class="pre">pixel_grid_mesh</span></code> uses a native CUDA extension for topology realization, corner
-fitting, output compaction, triangulation, feather construction, and backward.
-<code class="docutils literal notranslate"><span class="pre">pixel_grid_mesh_ref</span></code> provides a tensor implementation for CPU/CUDA correctness
-comparisons. The default path does not silently fall back to that implementation.</p>
-<p>Native corner fans contain at most four cells. GPU prefix scans compute compact
-vertex and triangle offsets. One small count transfer determines allocation
-sizes; the native path is therefore not CUDA-graph static. Backward differentiates
-positions, source UV reprojection, and strip geometry into depth, displacement,
-intrinsics, and width. First-order gradients are supported; floating-point atomic
-accumulation can differ in its last bits between runs.</p>
-<p>The ARM estimator can have high variance on large grids. Increasing the pair
-count trades additional evaluations for lower sampling variance. Geometry
-regularization, loss design, optimization schedules, and convergence remain the
-caller’s responsibility. Absent cells must still contribute to the image loss;
-masking evaluation by predicted visibility can hide missing geometry.</p>
-<p>The renderer’s per-triangle ordering and analytic continuous gradients are
-unchanged. The builder does not add per-pixel depth sorting, global feather
-intersection repair, or a geometry-validity constraint.</p>
-</section>
-<section id="tests">
-<h2>Tests<a class="headerlink" href="#tests" title="Link to this heading">#</a></h2>
-<p>The regression suite covers an independent local-topology oracle, cut tips and boundary cases,
-native/reference geometry and gradients, finite differences, feathering, empty
-meshes, stable face ordering, and exact expected-rendered-loss gradients for the
-stochastic helper.</p>
-</section>
-<section id="python-api">
-<h2>Python API<a class="headerlink" href="#python-api" title="Link to this heading">#</a></h2>
+<p>Build a mesh from an image-aligned grid, deform its cells, and learn which
+cells and connections to keep. The mesh builder uses hard topology; the
+Bernoulli helpers estimate gradients of the expected loss over sampled meshes.</p>
+<p>See <a class="reference internal" href="pixel_grid_topology.html"><span class="doc">Pixel-grid topology and gradients</span></a> for camera conventions, cuts, feathering, and
+the gradient model, and <a class="reference internal" href="../tutorials/DRTK_Tutorial_pixel_grid_mesh.html"><span class="doc">Learning pixel-grid geometry and topology</span></a> for
+a rendered optimization example.</p>
 <dl class="py function">
 <dt class="sig sig-object py" id="drtk.pixel_grid_mesh">
 <span class="sig-prename descclassname"><span class="pre">drtk.</span></span><span class="sig-name descname"><span class="pre">pixel_grid_mesh</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">depth_z</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">displacement_xyz</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">intrinsics</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alive</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">join_right</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">join_down</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">diagonal</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">feather_width</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_metadata</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/drtk/pixel_grid_mesh.html#pixel_grid_mesh"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#drtk.pixel_grid_mesh" title="Link to this definition">#</a></dt>
@@ -729,6 +496,69 @@ geometry.</p>
 </dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="drtk.bernoulli_topology_samples">
+<span class="sig-prename descclassname"><span class="pre">drtk.</span></span><span class="sig-name descname"><span class="pre">bernoulli_topology_samples</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">logits</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">generator</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/drtk/pixel_grid_mesh.html#bernoulli_topology_samples"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#drtk.bernoulli_topology_samples" title="Link to this definition">#</a></dt>
+<dd><p>Sample two correlated hard topologies for the ARM estimator.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>logits</strong> – Floating-point Bernoulli logits of any shape. Each element
+describes one independent proposal decision.</p></li>
+<li><p><strong>generator</strong> – Optional random generator matching the logits’ device.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A three-element tuple <code class="docutils literal notranslate"><span class="pre">(plus,</span> <span class="pre">minus,</span> <span class="pre">uniform)</span></code> with the same shape
+and device as <code class="docutils literal notranslate"><span class="pre">logits</span></code>. For <code class="docutils literal notranslate"><span class="pre">p</span> <span class="pre">=</span> <span class="pre">sigmoid(logits)</span></code> and shared
+<code class="docutils literal notranslate"><span class="pre">u</span> <span class="pre">=</span> <span class="pre">uniform</span></code>, <code class="docutils literal notranslate"><span class="pre">plus</span> <span class="pre">=</span> <span class="pre">(u</span> <span class="pre">&gt;</span> <span class="pre">1</span> <span class="pre">-</span> <span class="pre">p)</span></code> and <code class="docutils literal notranslate"><span class="pre">minus</span> <span class="pre">=</span> <span class="pre">(u</span> <span class="pre">&lt;</span> <span class="pre">p)</span></code> are
+boolean tensors. <code class="docutils literal notranslate"><span class="pre">uniform</span></code> has the logits’ floating dtype.</p>
+</dd>
+</dl>
+<p>Both hard samples have Bernoulli marginals with probability <code class="docutils literal notranslate"><span class="pre">p</span></code>; they
+are correlated, not independent samples or elementwise complements.
+The returned samples and random numbers have no gradient to <code class="docutils literal notranslate"><span class="pre">logits</span></code>.
+Use <a class="reference internal" href="#drtk.bernoulli_render_loss" title="drtk.bernoulli_render_loss"><code class="xref py py-func docutils literal notranslate"><span class="pre">bernoulli_render_loss()</span></code></a> to obtain an ARM loss gradient, or use
+the pair and shared noise to implement a custom estimator.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="drtk.bernoulli_render_loss">
+<span class="sig-prename descclassname"><span class="pre">drtk.</span></span><span class="sig-name descname"><span class="pre">bernoulli_render_loss</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">logits</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">evaluate</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">pairs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">generator</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/drtk/pixel_grid_mesh.html#bernoulli_render_loss"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#drtk.bernoulli_render_loss" title="Link to this definition">#</a></dt>
+<dd><p>Estimate expected rendered loss and its Bernoulli-logit gradient with ARM.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>logits</strong> – Floating-point Bernoulli logits of any shape, typically a
+learnable tensor or the output of a prediction network.</p></li>
+<li><p><strong>evaluate</strong> – Callable accepting a boolean tensor with the same shape
+as <code class="docutils literal notranslate"><span class="pre">logits</span></code> and returning a scalar loss tensor. It constructs
+a hard mesh, renders it, and compares the render with the target.
+Continuous parameters captured by the callable retain ordinary
+autograd through the sampled mesh and renderer.</p></li>
+<li><p><strong>pairs</strong> – Positive number of correlated sample pairs. Each pair calls
+<code class="docutils literal notranslate"><span class="pre">evaluate</span></code> twice; more pairs reduce sampling variance at the
+cost of more evaluations.</p></li>
+<li><p><strong>generator</strong> – Optional random generator matching the logits’ device.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A scalar whose forward value is the mean of the <code class="docutils literal notranslate"><span class="pre">2</span> <span class="pre">*</span> <span class="pre">pairs</span></code> loss
+evaluations. Backward adds the ARM estimator for <code class="docutils literal notranslate"><span class="pre">logits</span></code> and
+preserves ordinary continuous-input gradients from those evaluations.
+Calling <code class="docutils literal notranslate"><span class="pre">backward()</span></code> accumulates these gradients normally.</p>
+</dd>
+</dl>
+<p>The score term uses detached loss differences. Any topology cleanup must
+depend on sampled bits, not detached logits. Use deterministic evaluation,
+common auxiliary randomness within each pair, or auxiliary randomness
+independent of the sampled topology.</p>
+<p>This helper estimates the expectation of the full loss: average losses,
+not rendered images. It does not compute visibility masks or supply
+task-specific regularizers. <a class="reference internal" href="#drtk.bernoulli_topology_samples" title="drtk.bernoulli_topology_samples"><code class="xref py py-func docutils literal notranslate"><span class="pre">bernoulli_topology_samples()</span></code></a> exposes
+the underlying correlated samples for custom estimators.</p>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="drtk.pixel_grid_mesh_ref">
 <span class="sig-prename descclassname"><span class="pre">drtk.</span></span><span class="sig-name descname"><span class="pre">pixel_grid_mesh_ref</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">depth_z</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">displacement_xyz</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">intrinsics</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alive</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">join_right</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">join_down</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">diagonal</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">feather_width</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_metadata</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/drtk/pixel_grid_mesh.html#pixel_grid_mesh_ref"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#drtk.pixel_grid_mesh_ref" title="Link to this definition">#</a></dt>
 <dd><p>Tensor reference for <a class="reference internal" href="#drtk.pixel_grid_mesh" title="drtk.pixel_grid_mesh"><code class="xref py py-func docutils literal notranslate"><span class="pre">pixel_grid_mesh()</span></code></a>, supporting CPU and CUDA.</p>
@@ -737,37 +567,6 @@ contract. This implementation uses tensor operations for correctness
 comparisons; the public function uses native CUDA forward/backward.</p>
 </dd></dl>
 
-<dl class="py function">
-<dt class="sig sig-object py" id="drtk.bernoulli_topology_samples">
-<span class="sig-prename descclassname"><span class="pre">drtk.</span></span><span class="sig-name descname"><span class="pre">bernoulli_topology_samples</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">logits</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">generator</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/drtk/pixel_grid_mesh.html#bernoulli_topology_samples"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#drtk.bernoulli_topology_samples" title="Link to this definition">#</a></dt>
-<dd><p>Return ARM’s correlated hard samples and their shared uniform noise.</p>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="drtk.bernoulli_render_loss">
-<span class="sig-prename descclassname"><span class="pre">drtk.</span></span><span class="sig-name descname"><span class="pre">bernoulli_render_loss</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">logits</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">evaluate</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">pairs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">generator</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/drtk/pixel_grid_mesh.html#bernoulli_render_loss"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#drtk.bernoulli_render_loss" title="Link to this definition">#</a></dt>
-<dd><p>Estimate expected sampled loss and its Bernoulli-logit gradient with ARM.</p>
-<p><code class="docutils literal notranslate"><span class="pre">evaluate(bits)</span></code> builds the hard mesh, renders, and returns a scalar loss.
-Each pair requires two evaluations. Returned value is their mean loss;
-backward adds the ARM logit estimate and retains ordinary continuous-input
-gradients from both samples. The score term uses detached loss differences.
-Any topology cleanup must depend on sampled bits, not detached logits.</p>
-<p>This is the unbiased full-loss reference, not a locality-masked estimator.
-Average losses, not rendered images. Use deterministic evaluation or common
-auxiliary randomness within each pair. This helper does not change renderer
-ordering, compute visibility masks, or supply task-specific regularizers.</p>
-</dd></dl>
-
-</section>
-<section id="references">
-<h2>References<a class="headerlink" href="#references" title="Link to this heading">#</a></h2>
-<ul class="simple">
-<li><p>Deliot, Heitz, Belcour: <a class="reference external" href="https://arxiv.org/abs/2404.09758">Transforming a Non-Differentiable Rasterizer into a
-Differentiable One with Stochastic Gradient Estimation</a>.</p></li>
-<li><p>Yin, Zhou: <a class="reference external" href="https://arxiv.org/abs/1807.11143">ARM: Augment-REINFORCE-Merge Gradient for Stochastic Binary
-Networks</a>.</p></li>
-</ul>
-</section>
 </section>
 
 
@@ -793,22 +592,10 @@ Networks</a>.</p></li>
   </div>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#accepted-representation-and-api">Accepted representation and API</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#pixel-and-camera-convention">Pixel and camera convention</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#cuts-and-corner-sharing">Cuts and corner sharing</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#closed-form-displaced-corners-and-diagonals">Closed-form displaced corners and diagonals</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#optional-boundary-feathering">Optional boundary feathering</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#stochastic-topology-objective">Stochastic topology objective</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#native-implementation-and-limitations">Native implementation and limitations</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#tests">Tests</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#python-api">Python API</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.pixel_grid_mesh"><code class="docutils literal notranslate"><span class="pre">pixel_grid_mesh()</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.pixel_grid_mesh_ref"><code class="docutils literal notranslate"><span class="pre">pixel_grid_mesh_ref()</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.bernoulli_topology_samples"><code class="docutils literal notranslate"><span class="pre">bernoulli_topology_samples()</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.bernoulli_render_loss"><code class="docutils literal notranslate"><span class="pre">bernoulli_render_loss()</span></code></a></li>
-</ul>
-</li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#references">References</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.pixel_grid_mesh"><code class="docutils literal notranslate"><span class="pre">pixel_grid_mesh()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.bernoulli_topology_samples"><code class="docutils literal notranslate"><span class="pre">bernoulli_topology_samples()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.bernoulli_render_loss"><code class="docutils literal notranslate"><span class="pre">bernoulli_render_loss()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.pixel_grid_mesh_ref"><code class="docutils literal notranslate"><span class="pre">pixel_grid_mesh_ref()</span></code></a></li>
 </ul>
   </nav></div>
 

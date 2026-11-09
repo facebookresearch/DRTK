@@ -32,7 +32,7 @@
 
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
     <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
-    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=723fa940" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=697b55c0" />
   
   <!-- So that users can add custom icons -->
   <script defer src="../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
@@ -49,7 +49,7 @@
     <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Pixel-grid meshes with stochastic topology gradients" href="pixel_grid_mesh.html" />
+    <link rel="next" title="drtk.pixel_grid_mesh" href="pixel_grid_mesh.html" />
     <link rel="prev" title="drtk.render" href="render.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
@@ -343,7 +343,7 @@
 <li class="toctree-l1"><a class="reference internal" href="rasterize.html">drtk.rasterize</a></li>
 <li class="toctree-l1"><a class="reference internal" href="render.html">drtk.render</a></li>
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">drtk.transparent_render</a></li>
-<li class="toctree-l1"><a class="reference internal" href="pixel_grid_mesh.html">Pixel-grid meshes with stochastic topology gradients</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pixel_grid_mesh.html">drtk.pixel_grid_mesh</a></li>
 <li class="toctree-l1"><a class="reference internal" href="interpolate.html">drtk.interpolate</a></li>
 <li class="toctree-l1"><a class="reference internal" href="filter2d.html">drtk.filter2d</a></li>
 <li class="toctree-l1"><a class="reference internal" href="edge_grad_estimator.html">drtk.edge_grad_estimator</a></li>
@@ -356,6 +356,10 @@
 <li class="toctree-l1"><a class="reference internal" href="projection.html">Projection functions</a></li>
 <li class="toctree-l1"><a class="reference internal" href="geometry.html">Geometry utils</a></li>
 <li class="toctree-l1"><a class="reference internal" href="indexing.html">Indexing utils</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Concepts</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="pixel_grid_topology.html">Pixel-grid topology and gradients</a></li>
 </ul>
 </div>
 </nav></div>
@@ -418,6 +422,29 @@
                   
   <section id="drtk-transparent-render">
 <h1>drtk.transparent_render<a class="headerlink" href="#drtk-transparent-render" title="Link to this heading">#</a></h1>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#drtk.render_transparent" title="drtk.render_transparent"><code class="xref py py-obj docutils literal notranslate"><span class="pre">render_transparent</span></code></a></p></td>
+<td><p>Render depth-sorted transparent textured triangles.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#drtk.render_transparent_mlp" title="drtk.render_transparent_mlp"><code class="xref py py-obj docutils literal notranslate"><span class="pre">render_transparent_mlp</span></code></a></p></td>
+<td><p>Render transparent triangles from one neural feature texture.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#drtk.render_transparent_mlp_two_textures" title="drtk.render_transparent_mlp_two_textures"><code class="xref py py-obj docutils literal notranslate"><span class="pre">render_transparent_mlp_two_textures</span></code></a></p></td>
+<td><p>Render transparent triangles from two neural feature textures.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#drtk.render_transparent_ref" title="drtk.render_transparent_ref"><code class="xref py py-obj docutils literal notranslate"><span class="pre">render_transparent_ref</span></code></a></p></td>
+<td><p>Pure-PyTorch correctness reference for <a class="reference internal" href="#drtk.render_transparent" title="drtk.render_transparent"><code class="xref py py-func docutils literal notranslate"><span class="pre">render_transparent()</span></code></a>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#drtk.render_transparent_mlp_ref" title="drtk.render_transparent_mlp_ref"><code class="xref py py-obj docutils literal notranslate"><span class="pre">render_transparent_mlp_ref</span></code></a></p></td>
+<td><p>Pure-PyTorch correctness reference for <a class="reference internal" href="#drtk.render_transparent_mlp" title="drtk.render_transparent_mlp"><code class="xref py py-func docutils literal notranslate"><span class="pre">render_transparent_mlp()</span></code></a>.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#drtk.render_transparent_mlp_two_textures_ref" title="drtk.render_transparent_mlp_two_textures_ref"><code class="xref py py-obj docutils literal notranslate"><span class="pre">render_transparent_mlp_two_textures_ref</span></code></a></p></td>
+<td><p>Pure-PyTorch correctness reference for <a class="reference internal" href="#drtk.render_transparent_mlp_two_textures" title="drtk.render_transparent_mlp_two_textures"><code class="xref py py-func docutils literal notranslate"><span class="pre">render_transparent_mlp_two_textures()</span></code></a>.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
 <p>These functions render arbitrary triangle meshes with depth-sorted
 transparency. Covered fragments are evaluated from front to back and
 composited into a color and alpha image without a hard z-buffer selecting a
@@ -545,29 +572,6 @@ renderers: their complexity is <code class="docutils literal notranslate"><span 
 zero outside the interval. This convention is explicit in the references,
 independent of the installed PyTorch build. ReLU retains zero gradient at zero,
 including the lower bound on final fragment alpha.</p>
-<div class="pst-scrollable-table-container"><table class="autosummary longtable table">
-<tbody>
-<tr class="row-odd"><td><p><a class="reference internal" href="#drtk.render_transparent" title="drtk.render_transparent"><code class="xref py py-obj docutils literal notranslate"><span class="pre">render_transparent</span></code></a></p></td>
-<td><p>Render depth-sorted transparent textured triangles.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#drtk.render_transparent_mlp" title="drtk.render_transparent_mlp"><code class="xref py py-obj docutils literal notranslate"><span class="pre">render_transparent_mlp</span></code></a></p></td>
-<td><p>Render transparent triangles from one neural feature texture.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#drtk.render_transparent_mlp_two_textures" title="drtk.render_transparent_mlp_two_textures"><code class="xref py py-obj docutils literal notranslate"><span class="pre">render_transparent_mlp_two_textures</span></code></a></p></td>
-<td><p>Render transparent triangles from two neural feature textures.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#drtk.render_transparent_ref" title="drtk.render_transparent_ref"><code class="xref py py-obj docutils literal notranslate"><span class="pre">render_transparent_ref</span></code></a></p></td>
-<td><p>Pure-PyTorch reference for transparent RGBA-textured triangles.</p></td>
-</tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#drtk.render_transparent_mlp_ref" title="drtk.render_transparent_mlp_ref"><code class="xref py py-obj docutils literal notranslate"><span class="pre">render_transparent_mlp_ref</span></code></a></p></td>
-<td><p>Pure-PyTorch transparent renderer with one neural feature texture.</p></td>
-</tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#drtk.render_transparent_mlp_two_textures_ref" title="drtk.render_transparent_mlp_two_textures_ref"><code class="xref py py-obj docutils literal notranslate"><span class="pre">render_transparent_mlp_two_textures_ref</span></code></a></p></td>
-<td><p>Pure-PyTorch transparent renderer with two neural feature textures.</p></td>
-</tr>
-</tbody>
-</table>
-</div>
 <dl class="py function">
 <dt class="sig sig-object py" id="drtk.render_transparent">
 <span class="sig-prename descclassname"><span class="pre">drtk.</span></span><span class="sig-name descname"><span class="pre">render_transparent</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vi</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">uv</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">texture</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">height</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">width</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">opacity</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">background</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'bilinear'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">padding_mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'border'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transmittance_epsilon</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rgb_activation</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'relu'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha_activation</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'relu_density'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">edge_gradients</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/drtk/transparent_render.html#render_transparent"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#drtk.render_transparent" title="Link to this definition">#</a></dt>
@@ -804,174 +808,31 @@ fully composited color instead.</p>
 <dl class="py function">
 <dt class="sig sig-object py" id="drtk.render_transparent_ref">
 <span class="sig-prename descclassname"><span class="pre">drtk.</span></span><span class="sig-name descname"><span class="pre">render_transparent_ref</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vi</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">uv</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">texture</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">height</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">width</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">opacity</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">background</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'bilinear'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">padding_mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'border'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rgb_activation</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'relu'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha_activation</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'relu_density'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/drtk/transparent_render.html#render_transparent_ref"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#drtk.render_transparent_ref" title="Link to this definition">#</a></dt>
-<dd><p>Pure-PyTorch reference for transparent RGBA-textured triangles.</p>
-<p>Triangle order is ascending arithmetic mean vertex depth. Equal-depth
-triangles retain face-index order. Sorting, tile membership, and degenerate
-face rejection are intentionally discrete; all shading/compositing terms
-are differentiable while that fragment order is fixed.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>v</strong> – Screen-space vertices <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">V,</span> <span class="pre">3]</span></code>. X/Y use DRTK pixel coordinates
-and positive Z is camera depth (smaller values are nearer).</p></li>
-<li><p><strong>vi</strong> – Triangle indices <code class="docutils literal notranslate"><span class="pre">[F,</span> <span class="pre">3]</span></code>, <code class="docutils literal notranslate"><span class="pre">[1,</span> <span class="pre">F,</span> <span class="pre">3]</span></code>, or <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">F,</span> <span class="pre">3]</span></code>.</p></li>
-<li><p><strong>uv</strong> – Per-vertex normalized texture coordinates in <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">1]</span></code>.</p></li>
-<li><p><strong>texture</strong> – RGB or RGBA texture <code class="docutils literal notranslate"><span class="pre">[N</span> <span class="pre">or</span> <span class="pre">1,</span> <span class="pre">3</span> <span class="pre">or</span> <span class="pre">4,</span> <span class="pre">Ht,</span> <span class="pre">Wt]</span></code>.</p></li>
-<li><p><strong>height</strong> – Output image height.</p></li>
-<li><p><strong>width</strong> – Output image width.</p></li>
-<li><p><strong>opacity</strong> – Optional per-vertex material opacity <code class="docutils literal notranslate"><span class="pre">[N</span> <span class="pre">or</span> <span class="pre">1,</span> <span class="pre">V]</span></code>. The
-default is one. RGBA texture alpha, when present, is multiplied by
-this value.</p></li>
-<li><p><strong>background</strong> – Optional RGB background <code class="docutils literal notranslate"><span class="pre">[3]</span></code> or <code class="docutils literal notranslate"><span class="pre">[N</span> <span class="pre">or</span> <span class="pre">1,</span> <span class="pre">3]</span></code>.</p></li>
-<li><p><strong>mode</strong> – Texture interpolation mode: <code class="docutils literal notranslate"><span class="pre">&quot;bilinear&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;nearest&quot;</span></code>, or
-<code class="docutils literal notranslate"><span class="pre">&quot;bicubic&quot;</span></code>.</p></li>
-<li><p><strong>padding_mode</strong> – Texture padding mode: <code class="docutils literal notranslate"><span class="pre">&quot;zeros&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;border&quot;</span></code>, or
-<code class="docutils literal notranslate"><span class="pre">&quot;reflection&quot;</span></code>. Texture coordinates always use
-<code class="docutils literal notranslate"><span class="pre">align_corners=False</span></code> semantics.</p></li>
-<li><p><strong>rgb_activation</strong> – Activation applied after texture filtering. The default
-<code class="docutils literal notranslate"><span class="pre">&quot;relu&quot;</span></code> computes <code class="docutils literal notranslate"><span class="pre">max(x,</span> <span class="pre">0)</span></code>. Alternatives are <code class="docutils literal notranslate"><span class="pre">&quot;identity&quot;</span></code>,
-<code class="docutils literal notranslate"><span class="pre">&quot;shifted_sigmoid&quot;</span></code> (<code class="docutils literal notranslate"><span class="pre">sigmoid(x</span> <span class="pre">-</span> <span class="pre">0.5)</span></code>), and <code class="docutils literal notranslate"><span class="pre">&quot;clamp&quot;</span></code>.</p></li>
-<li><p><strong>alpha_activation</strong> – Activation applied to filtered texture alpha. The
-default <code class="docutils literal notranslate"><span class="pre">&quot;relu_density&quot;</span></code> computes <code class="docutils literal notranslate"><span class="pre">1</span> <span class="pre">-</span> <span class="pre">exp(-max(x,</span> <span class="pre">0))</span></code>.
-Alternatives are <code class="docutils literal notranslate"><span class="pre">&quot;shifted_sigmoid&quot;</span></code>
-(<code class="docutils literal notranslate"><span class="pre">sigmoid(x</span> <span class="pre">-</span> <span class="pre">0.5)</span></code>), <code class="docutils literal notranslate"><span class="pre">&quot;exp_density&quot;</span></code>
-(<code class="docutils literal notranslate"><span class="pre">1</span> <span class="pre">-</span> <span class="pre">exp(-exp(x))</span></code>, with <code class="docutils literal notranslate"><span class="pre">x</span></code> capped at 15 before
-exponentiation), and <code class="docutils literal notranslate"><span class="pre">&quot;clamp&quot;</span></code>. RGB textures have implicit
-alpha one.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>Premultiplied RGB and accumulated alpha with shapes <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">3,</span> <span class="pre">H,</span> <span class="pre">W]</span></code>
-and <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">1,</span> <span class="pre">H,</span> <span class="pre">W]</span></code>. If a background is supplied, RGB contains the
-fully composited color instead, matching gsplat.</p>
-</dd>
-</dl>
+<dd><p>Pure-PyTorch correctness reference for <a class="reference internal" href="#drtk.render_transparent" title="drtk.render_transparent"><code class="xref py py-func docutils literal notranslate"><span class="pre">render_transparent()</span></code></a>.</p>
+<p>See the main function for the argument and return-value contract.
+This CPU/CUDA reference differentiates smooth shading and compositing
+with coverage and triangle order fixed. It does not implement the
+CUDA entry point’s silhouette-gradient estimator or early termination.</p>
 </dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="drtk.render_transparent_mlp_ref">
 <span class="sig-prename descclassname"><span class="pre">drtk.</span></span><span class="sig-name descname"><span class="pre">render_transparent_mlp_ref</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vi</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">uv</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">texture</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weights</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">biases</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">height</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">width</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">opacity</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">background</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">negative_slope</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'bilinear'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">padding_mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'border'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rgb_activation</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'shifted_relu'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha_activation</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'shifted_relu_density'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/drtk/transparent_render.html#render_transparent_mlp_ref"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#drtk.render_transparent_mlp_ref" title="Link to this definition">#</a></dt>
-<dd><p>Pure-PyTorch transparent renderer with one neural feature texture.</p>
-<p>For every covered fragment, this function samples <code class="docutils literal notranslate"><span class="pre">texture</span></code> at the
-perspective-correct interpolated <code class="docutils literal notranslate"><span class="pre">uv</span></code> and evaluates a small appearance
-MLP. The MLP has exactly four or five affine layers, hidden width eight,
-and LeakyReLU hidden activations. Its final four raw values are converted
-to fragment RGB and appearance alpha before front-to-back compositing.</p>
-<p><code class="docutils literal notranslate"><span class="pre">rgb_activation</span></code> defaults to <code class="docutils literal notranslate"><span class="pre">&quot;shifted_relu&quot;</span></code>, which computes
-<code class="docutils literal notranslate"><span class="pre">max(x</span> <span class="pre">+</span> <span class="pre">0.5,</span> <span class="pre">0)</span></code>. It also accepts <code class="docutils literal notranslate"><span class="pre">&quot;shifted_identity&quot;</span></code> (<code class="docutils literal notranslate"><span class="pre">x</span> <span class="pre">+</span> <span class="pre">0.5</span></code>),
-<code class="docutils literal notranslate"><span class="pre">&quot;sigmoid&quot;</span></code> (<code class="docutils literal notranslate"><span class="pre">sigmoid(x)</span></code>), and <code class="docutils literal notranslate"><span class="pre">&quot;shifted_clamp&quot;</span></code>
-(<code class="docutils literal notranslate"><span class="pre">clamp(x</span> <span class="pre">+</span> <span class="pre">0.5,</span> <span class="pre">0,</span> <span class="pre">1)</span></code>). <code class="docutils literal notranslate"><span class="pre">alpha_activation</span></code> defaults to
-<code class="docutils literal notranslate"><span class="pre">&quot;shifted_relu_density&quot;</span></code>, which computes
-<code class="docutils literal notranslate"><span class="pre">1</span> <span class="pre">-</span> <span class="pre">exp(-max(x</span> <span class="pre">+</span> <span class="pre">0.5,</span> <span class="pre">0))</span></code>. It also accepts <code class="docutils literal notranslate"><span class="pre">&quot;sigmoid&quot;</span></code>,
-<code class="docutils literal notranslate"><span class="pre">&quot;exp_density&quot;</span></code> (<code class="docutils literal notranslate"><span class="pre">1</span> <span class="pre">-</span> <span class="pre">exp(-exp(x))</span></code>, with <code class="docutils literal notranslate"><span class="pre">x</span></code> capped at 15 before
-exponentiation), and <code class="docutils literal notranslate"><span class="pre">&quot;shifted_clamp&quot;</span></code>.
-The shifts make a zero-centered MLP output represent a useful mid-range
-value. Activation follows feature filtering and MLP evaluation.</p>
-<p>Triangles are stably sorted by ascending mean vertex depth; there is no
-hard z-buffer. Hard top-left coverage and clamped interpolated material
-opacity remain outside the MLP. The resulting fragment alpha is capped at
-0.999 before front-to-back transmittance compositing.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>v</strong> – Screen-space vertices <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">V,</span> <span class="pre">3]</span></code>. X/Y use DRTK pixel coordinates
-and smaller positive Z values are nearer.</p></li>
-<li><p><strong>vi</strong> – Triangle indices <code class="docutils literal notranslate"><span class="pre">[F,</span> <span class="pre">3]</span></code>, <code class="docutils literal notranslate"><span class="pre">[1,</span> <span class="pre">F,</span> <span class="pre">3]</span></code>, or <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">F,</span> <span class="pre">3]</span></code>.</p></li>
-<li><p><strong>uv</strong> – Per-vertex normalized coordinates <code class="docutils literal notranslate"><span class="pre">[V,</span> <span class="pre">2]</span></code>, <code class="docutils literal notranslate"><span class="pre">[1,</span> <span class="pre">V,</span> <span class="pre">2]</span></code>, or
-<code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">V,</span> <span class="pre">2]</span></code> for <code class="docutils literal notranslate"><span class="pre">texture</span></code>.</p></li>
-<li><p><strong>texture</strong> – Feature texture <code class="docutils literal notranslate"><span class="pre">[N</span> <span class="pre">or</span> <span class="pre">1,</span> <span class="pre">C,</span> <span class="pre">Ht,</span> <span class="pre">Wt]</span></code>, where
-<code class="docutils literal notranslate"><span class="pre">1</span> <span class="pre">&lt;=</span> <span class="pre">C</span> <span class="pre">&lt;=</span> <span class="pre">32</span></code>.</p></li>
-<li><p><strong>weights</strong> – Four or five affine weight tensors. Hidden outputs have width
-eight and the final weight has shape <code class="docutils literal notranslate"><span class="pre">[4,</span> <span class="pre">8]</span></code>.</p></li>
-<li><p><strong>biases</strong> – One bias tensor per weight; the final bias has shape <code class="docutils literal notranslate"><span class="pre">[4]</span></code>.</p></li>
-<li><p><strong>height</strong> – Output image height.</p></li>
-<li><p><strong>width</strong> – Output image width.</p></li>
-<li><p><strong>opacity</strong> – Optional per-vertex material opacity <code class="docutils literal notranslate"><span class="pre">[V]</span></code>, <code class="docutils literal notranslate"><span class="pre">[1,</span> <span class="pre">V]</span></code>, or
-<code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">V]</span></code>. The default is one.</p></li>
-<li><p><strong>background</strong> – Optional RGB background <code class="docutils literal notranslate"><span class="pre">[3]</span></code> or <code class="docutils literal notranslate"><span class="pre">[N</span> <span class="pre">or</span> <span class="pre">1,</span> <span class="pre">3]</span></code>.</p></li>
-<li><p><strong>negative_slope</strong> – LeakyReLU slope for hidden MLP activations.</p></li>
-<li><p><strong>mode</strong> – Texture interpolation mode: <code class="docutils literal notranslate"><span class="pre">&quot;bilinear&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;nearest&quot;</span></code>, or
-<code class="docutils literal notranslate"><span class="pre">&quot;bicubic&quot;</span></code>.</p></li>
-<li><p><strong>padding_mode</strong> – Texture padding mode: <code class="docutils literal notranslate"><span class="pre">&quot;zeros&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;border&quot;</span></code>, or
-<code class="docutils literal notranslate"><span class="pre">&quot;reflection&quot;</span></code>. Sampling always uses <code class="docutils literal notranslate"><span class="pre">align_corners=False</span></code>
-semantics.</p></li>
-<li><p><strong>rgb_activation</strong> – Final RGB activation described above.</p></li>
-<li><p><strong>alpha_activation</strong> – Final appearance-alpha activation described above.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>Premultiplied RGB and accumulated alpha with shapes <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">3,</span> <span class="pre">H,</span> <span class="pre">W]</span></code>
-and <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">1,</span> <span class="pre">H,</span> <span class="pre">W]</span></code>. If <code class="docutils literal notranslate"><span class="pre">background</span></code> is supplied, RGB contains the
-fully composited color instead.</p>
-</dd>
-</dl>
+<dd><p>Pure-PyTorch correctness reference for <a class="reference internal" href="#drtk.render_transparent_mlp" title="drtk.render_transparent_mlp"><code class="xref py py-func docutils literal notranslate"><span class="pre">render_transparent_mlp()</span></code></a>.</p>
+<p>See the main function for the argument and return-value contract.
+This CPU/CUDA reference differentiates smooth shading and compositing
+with coverage and triangle order fixed. It does not implement the
+CUDA entry point’s silhouette-gradient estimator or early termination.</p>
 </dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="drtk.render_transparent_mlp_two_textures_ref">
 <span class="sig-prename descclassname"><span class="pre">drtk.</span></span><span class="sig-name descname"><span class="pre">render_transparent_mlp_two_textures_ref</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vi</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">uv0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">uv1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">texture0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">texture1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weights</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">biases</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">height</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">width</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">opacity</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">background</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">negative_slope</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'bilinear'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">padding_mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'border'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rgb_activation</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'shifted_relu'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha_activation</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'shifted_relu_density'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/drtk/transparent_render.html#render_transparent_mlp_two_textures_ref"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#drtk.render_transparent_mlp_two_textures_ref" title="Link to this definition">#</a></dt>
-<dd><p>Pure-PyTorch transparent renderer with two neural feature textures.</p>
-<p>For every covered fragment, this function samples <code class="docutils literal notranslate"><span class="pre">texture0</span></code> at the
-perspective-correct interpolated <code class="docutils literal notranslate"><span class="pre">uv0</span></code> and <code class="docutils literal notranslate"><span class="pre">texture1</span></code> at <code class="docutils literal notranslate"><span class="pre">uv1</span></code>. The
-feature vectors are concatenated in that order and evaluated by a small
-appearance MLP. The MLP has exactly four or five affine layers, hidden
-width eight, and LeakyReLU hidden activations. Its final four raw values
-are converted to fragment RGB and appearance alpha before front-to-back
-compositing.</p>
-<p><code class="docutils literal notranslate"><span class="pre">rgb_activation</span></code> defaults to <code class="docutils literal notranslate"><span class="pre">&quot;shifted_relu&quot;</span></code>, which computes
-<code class="docutils literal notranslate"><span class="pre">max(x</span> <span class="pre">+</span> <span class="pre">0.5,</span> <span class="pre">0)</span></code>. It also accepts <code class="docutils literal notranslate"><span class="pre">&quot;shifted_identity&quot;</span></code> (<code class="docutils literal notranslate"><span class="pre">x</span> <span class="pre">+</span> <span class="pre">0.5</span></code>),
-<code class="docutils literal notranslate"><span class="pre">&quot;sigmoid&quot;</span></code> (<code class="docutils literal notranslate"><span class="pre">sigmoid(x)</span></code>), and <code class="docutils literal notranslate"><span class="pre">&quot;shifted_clamp&quot;</span></code>
-(<code class="docutils literal notranslate"><span class="pre">clamp(x</span> <span class="pre">+</span> <span class="pre">0.5,</span> <span class="pre">0,</span> <span class="pre">1)</span></code>). <code class="docutils literal notranslate"><span class="pre">alpha_activation</span></code> defaults to
-<code class="docutils literal notranslate"><span class="pre">&quot;shifted_relu_density&quot;</span></code>, which computes
-<code class="docutils literal notranslate"><span class="pre">1</span> <span class="pre">-</span> <span class="pre">exp(-max(x</span> <span class="pre">+</span> <span class="pre">0.5,</span> <span class="pre">0))</span></code>. It also accepts <code class="docutils literal notranslate"><span class="pre">&quot;sigmoid&quot;</span></code>,
-<code class="docutils literal notranslate"><span class="pre">&quot;exp_density&quot;</span></code> (<code class="docutils literal notranslate"><span class="pre">1</span> <span class="pre">-</span> <span class="pre">exp(-exp(x))</span></code>, with <code class="docutils literal notranslate"><span class="pre">x</span></code> capped at 15 before
-exponentiation), and <code class="docutils literal notranslate"><span class="pre">&quot;shifted_clamp&quot;</span></code>.
-The shifts make a zero-centered MLP output represent a useful mid-range
-value. Activation follows feature filtering and MLP evaluation.</p>
-<p>Triangles are stably sorted by ascending mean vertex depth; there is no
-hard z-buffer. Hard top-left coverage and clamped interpolated material
-opacity remain outside the MLP. The resulting fragment alpha is capped at
-0.999 before front-to-back transmittance compositing.</p>
-<p>The caller must gate features from occluded or unrelated surfaces and
-provide visibility/provenance validity information where needed. Separate
-UV coordinates do not perform this gating automatically.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>v</strong> – Screen-space vertices <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">V,</span> <span class="pre">3]</span></code>. X/Y use DRTK pixel coordinates
-and smaller positive Z values are nearer.</p></li>
-<li><p><strong>vi</strong> – Triangle indices <code class="docutils literal notranslate"><span class="pre">[F,</span> <span class="pre">3]</span></code>, <code class="docutils literal notranslate"><span class="pre">[1,</span> <span class="pre">F,</span> <span class="pre">3]</span></code>, or <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">F,</span> <span class="pre">3]</span></code>.</p></li>
-<li><p><strong>uv0</strong> – Per-vertex normalized coordinates <code class="docutils literal notranslate"><span class="pre">[V,</span> <span class="pre">2]</span></code>, <code class="docutils literal notranslate"><span class="pre">[1,</span> <span class="pre">V,</span> <span class="pre">2]</span></code>, or
-<code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">V,</span> <span class="pre">2]</span></code> for <code class="docutils literal notranslate"><span class="pre">texture0</span></code>.</p></li>
-<li><p><strong>uv1</strong> – Per-vertex normalized coordinates with the same supported shapes
-as <code class="docutils literal notranslate"><span class="pre">uv0</span></code> for <code class="docutils literal notranslate"><span class="pre">texture1</span></code>.</p></li>
-<li><p><strong>texture0</strong> – First feature texture <code class="docutils literal notranslate"><span class="pre">[N</span> <span class="pre">or</span> <span class="pre">1,</span> <span class="pre">C0,</span> <span class="pre">H0,</span> <span class="pre">W0]</span></code>.</p></li>
-<li><p><strong>texture1</strong> – Second feature texture <code class="docutils literal notranslate"><span class="pre">[N</span> <span class="pre">or</span> <span class="pre">1,</span> <span class="pre">C1,</span> <span class="pre">H1,</span> <span class="pre">W1]</span></code>. The channel
-counts must satisfy <code class="docutils literal notranslate"><span class="pre">1</span> <span class="pre">&lt;=</span> <span class="pre">C0</span> <span class="pre">+</span> <span class="pre">C1</span> <span class="pre">&lt;=</span> <span class="pre">32</span></code>.</p></li>
-<li><p><strong>weights</strong> – Four or five affine weight tensors. Hidden outputs have width
-eight and the final weight has shape <code class="docutils literal notranslate"><span class="pre">[4,</span> <span class="pre">8]</span></code>.</p></li>
-<li><p><strong>biases</strong> – One bias tensor per weight; the final bias has shape <code class="docutils literal notranslate"><span class="pre">[4]</span></code>.</p></li>
-<li><p><strong>height</strong> – Output image height.</p></li>
-<li><p><strong>width</strong> – Output image width.</p></li>
-<li><p><strong>opacity</strong> – Optional per-vertex material opacity <code class="docutils literal notranslate"><span class="pre">[V]</span></code>, <code class="docutils literal notranslate"><span class="pre">[1,</span> <span class="pre">V]</span></code>, or
-<code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">V]</span></code>. The default is one.</p></li>
-<li><p><strong>background</strong> – Optional RGB background <code class="docutils literal notranslate"><span class="pre">[3]</span></code> or <code class="docutils literal notranslate"><span class="pre">[N</span> <span class="pre">or</span> <span class="pre">1,</span> <span class="pre">3]</span></code>.</p></li>
-<li><p><strong>negative_slope</strong> – LeakyReLU slope for hidden MLP activations.</p></li>
-<li><p><strong>mode</strong> – Interpolation mode shared by both textures: <code class="docutils literal notranslate"><span class="pre">&quot;bilinear&quot;</span></code>,
-<code class="docutils literal notranslate"><span class="pre">&quot;nearest&quot;</span></code>, or <code class="docutils literal notranslate"><span class="pre">&quot;bicubic&quot;</span></code>.</p></li>
-<li><p><strong>padding_mode</strong> – Padding mode shared by both textures: <code class="docutils literal notranslate"><span class="pre">&quot;zeros&quot;</span></code>,
-<code class="docutils literal notranslate"><span class="pre">&quot;border&quot;</span></code>, or <code class="docutils literal notranslate"><span class="pre">&quot;reflection&quot;</span></code>. Sampling always uses
-<code class="docutils literal notranslate"><span class="pre">align_corners=False</span></code> semantics.</p></li>
-<li><p><strong>rgb_activation</strong> – Final RGB activation described above.</p></li>
-<li><p><strong>alpha_activation</strong> – Final appearance-alpha activation described above.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>Premultiplied RGB and accumulated alpha with shapes <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">3,</span> <span class="pre">H,</span> <span class="pre">W]</span></code>
-and <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">1,</span> <span class="pre">H,</span> <span class="pre">W]</span></code>. If <code class="docutils literal notranslate"><span class="pre">background</span></code> is supplied, RGB contains the
-fully composited color instead.</p>
-</dd>
-</dl>
+<dd><p>Pure-PyTorch correctness reference for <a class="reference internal" href="#drtk.render_transparent_mlp_two_textures" title="drtk.render_transparent_mlp_two_textures"><code class="xref py py-func docutils literal notranslate"><span class="pre">render_transparent_mlp_two_textures()</span></code></a>.</p>
+<p>See the main function for the argument and return-value contract.
+This CPU/CUDA reference differentiates smooth shading and compositing
+with coverage and triangle order fixed. It does not implement the
+CUDA entry point’s silhouette-gradient estimator or early termination.</p>
 </dd></dl>
 
 </section>
