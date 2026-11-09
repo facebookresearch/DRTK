@@ -1,0 +1,1210 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Transparent triangle renderer: design and performance notes &#8212; DRTK  documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=a95f357e85573c9b56d5" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=a95f357e85573c9b56d5" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=723fa940" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=a95f357e85573c9b56d5" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=a95f357e85573c9b56d5" />
+
+    <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'api_reference/transparent_render_design';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="0.1.0" />
+  
+    
+    <script src="../_static/searchtools.js"></script>
+    <script src="../_static/language_data.js"></script>
+    <script src="../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">DRTK</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../installation/index.html">
+    Installation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../tutorials/index.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="index.html">
+    DRTK API
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-external" href="https://github.com/facebookresearch/DRTK">
+    GitHub
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/facebookresearch/DRTK" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-github fa-2xl fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar hide-on-wide">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../installation/index.html">
+    Installation
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../tutorials/index.html">
+    Tutorials
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="index.html">
+    DRTK API
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-external" href="https://github.com/facebookresearch/DRTK">
+    GitHub
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/facebookresearch/DRTK" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-brands fa-github fa-2xl fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+        
+      </div>
+    
+  </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Transparent triangle renderer: design and performance notes</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="transparent-triangle-renderer-design-and-performance-notes">
+<h1>Transparent triangle renderer: design and performance notes<a class="headerlink" href="#transparent-triangle-renderer-design-and-performance-notes" title="Link to this heading">#</a></h1>
+<section id="purpose-and-scope">
+<h2>Purpose and scope<a class="headerlink" href="#purpose-and-scope" title="Link to this heading">#</a></h2>
+<p>The transparent renderer is a fused, differentiable path for a specific kind
+of scene: many small, potentially overlapping triangles whose opacity must be
+composited in depth order. It was added because the normal DRTK pipeline
+deliberately separates rasterization, barycentric interpolation, shading, and
+edge-gradient estimation. That separation is useful for ordinary opaque mesh
+rendering, but it cannot represent an arbitrary number of translucent
+fragments per pixel without materializing and sorting a fragment list.</p>
+<p>The new path keeps the entire per-fragment computation together:</p>
+<ol class="arabic simple">
+<li><p>bin triangles into small screen-space tiles;</p></li>
+<li><p>sort each tile’s triangle references by depth;</p></li>
+<li><p>test the sorted candidates at every pixel in the tile;</p></li>
+<li><p>apply DRTK’s hard top-left coverage rule and compute perspective-correct
+attributes;</p></li>
+<li><p>shade the fragment; and</p></li>
+<li><p>immediately composite it into the final pixel.</p></li>
+</ol>
+<p>No dense <code class="docutils literal notranslate"><span class="pre">[faces,</span> <span class="pre">height,</span> <span class="pre">width]</span></code> tensor and no per-pixel fragment buffer is
+created. Memory is proportional to the triangle/tile intersection list rather
+than to faces times pixels or to a fixed maximum number of layers per pixel.</p>
+<p>This renderer consumes a triangle topology; it does <strong>not</strong> generate topology.
+Quads can be supplied after a deterministic split into triangles. Topology
+prediction, pixel-aligned resampling, vertex duplication at discontinuities,
+and the decision to preserve or separate a foreground/background boundary are
+upstream representation problems.</p>
+<p>The implementation is not a volumetric shell or a ray marcher. For the close
+novel-view use case, explicitly controlled edge opacity is cheaper and more
+direct than pretending that a thin surface is a participating volume.</p>
+</section>
+<section id="the-three-appearance-entry-points">
+<h2>The three appearance entry points<a class="headerlink" href="#the-three-appearance-entry-points" title="Link to this heading">#</a></h2>
+<section id="direct-sampled-texture-variant">
+<h3>Direct sampled-texture variant<a class="headerlink" href="#direct-sampled-texture-variant" title="Link to this heading">#</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">render_transparent</span></code> interpolates one UV coordinate and samples an RGB or RGBA
+texture. Filtering supports nearest, bilinear (default), or bicubic, with
+zeros, border (default), or reflection padding and fixed <code class="docutils literal notranslate"><span class="pre">align_corners=False</span></code>.
+Activations follow interpolation: RGB defaults to <code class="docutils literal notranslate"><span class="pre">max(x,</span> <span class="pre">0)</span></code> and alpha to
+<code class="docutils literal notranslate"><span class="pre">1</span> <span class="pre">-</span> <span class="pre">exp(-max(x,</span> <span class="pre">0))</span></code>. An RGB texture has implicit alpha one. Appearance alpha
+is multiplied by clamped interpolated material opacity before the fixed
+fragment-alpha cap. For conventional preactivated RGBA, explicitly select
+<code class="docutils literal notranslate"><span class="pre">rgb_activation=&quot;identity&quot;</span></code> and <code class="docutils literal notranslate"><span class="pre">alpha_activation=&quot;clamp&quot;</span></code>.</p>
+</section>
+<section id="single-and-dual-feature-tiny-mlp-variants">
+<h3>Single- and dual-feature tiny-MLP variants<a class="headerlink" href="#single-and-dual-feature-tiny-mlp-variants" title="Link to this heading">#</a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">render_transparent_mlp</span></code> samples one feature texture at one UV coordinate.
+<code class="docutils literal notranslate"><span class="pre">render_transparent_mlp_two_textures</span></code> samples <code class="docutils literal notranslate"><span class="pre">texture0</span></code> at <code class="docutils literal notranslate"><span class="pre">uv0</span></code> and <code class="docutils literal notranslate"><span class="pre">texture1</span></code>
+at independent <code class="docutils literal notranslate"><span class="pre">uv1</span></code>, then concatenates the vectors in that order before the
+MLP. For a displaced-mesh workflow, one coordinate can follow the current mesh
+and the other can retain the original pixel-aligned source location.</p>
+<p>The two-texture API does not determine which source is visible or reliable.
+Upstream code must gate samples using visibility and component provenance and
+provide appropriate validity information to the appearance model. A hidden
+chest vertex must not sample the foreground hand merely because both project
+to the same current pixel. Independent UVs alone do not prevent this leakage.</p>
+<p>The neural appearance model contract is intentionally narrow:</p>
+<ul class="simple">
+<li><p>exactly four affine layers by default, or five when the extra capacity is
+justified;</p></li>
+<li><p>every non-output layer has width 8;</p></li>
+<li><p>LeakyReLU follows every hidden affine layer;</p></li>
+<li><p>the final layer produces three RGB values and one alpha value, followed by
+the explicit appearance activations described below; and</p></li>
+<li><p>at most 32 total input feature channels are accepted.</p></li>
+</ul>
+<p>There is no configurable wider variant. Width is fixed in the CUDA templates
+so loops unroll and intermediate vectors remain small. A wider per-fragment
+MLP quickly dominates a renderer because it is evaluated once for every
+accepted translucent fragment, not once per output pixel.</p>
+<p>If the two sampled feature vectors contain a total of <code class="docutils literal notranslate"><span class="pre">C</span></code> channels, the exact
+affine multiply-accumulate count per accepted fragment is:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>4 affine layers: 8*C + 2*8*8 + 4*8 = 8*C + 160 MACs
+5 affine layers: 8*C + 3*8*8 + 4*8 = 8*C + 224 MACs
+</pre></div>
+</div>
+<p>For the common <code class="docutils literal notranslate"><span class="pre">C</span> <span class="pre">=</span> <span class="pre">8</span></code> case, that is 224 MACs for four layers or 288 MACs for
+five layers. The four-layer network has three width-8 hidden activations; the
+five-layer network has four. Dual bilinear feature sampling performs <code class="docutils literal notranslate"><span class="pre">4*C</span></code>
+scalar texel loads per accepted fragment before cache effects. By comparison,
+the direct RGBA path performs 16 scalar texel loads.</p>
+<p>Hard geometric coverage and material opacity deliberately remain outside the
+MLP. The MLP alpha controls appearance-dependent translucency inside covered
+geometry; interpolated vertex opacity remains an independent, interpretable
+visibility control. An upstream model can therefore guarantee a zero-alpha
+outer boundary even when the MLP predicts nonzero alpha.</p>
+<p>MLP RGB defaults to <code class="docutils literal notranslate"><span class="pre">max(x</span> <span class="pre">+</span> <span class="pre">0.5,</span> <span class="pre">0)</span></code> (<code class="docutils literal notranslate"><span class="pre">shifted_relu</span></code>), and MLP alpha to
+<code class="docutils literal notranslate"><span class="pre">1</span> <span class="pre">-</span> <span class="pre">exp(-max(x</span> <span class="pre">+</span> <span class="pre">0.5,</span> <span class="pre">0))</span></code> (<code class="docutils literal notranslate"><span class="pre">shifted_relu_density</span></code>). Alternatives for RGB are
+<code class="docutils literal notranslate"><span class="pre">shifted_identity</span></code> (<code class="docutils literal notranslate"><span class="pre">x</span> <span class="pre">+</span> <span class="pre">0.5</span></code>), <code class="docutils literal notranslate"><span class="pre">sigmoid</span></code>, and <code class="docutils literal notranslate"><span class="pre">shifted_clamp</span></code>; alternatives for
+alpha are <code class="docutils literal notranslate"><span class="pre">sigmoid</span></code>, <code class="docutils literal notranslate"><span class="pre">exp_density</span></code>, and <code class="docutils literal notranslate"><span class="pre">shifted_clamp</span></code>. Direct-texture RGB
+alternatives are <code class="docutils literal notranslate"><span class="pre">identity</span></code>, <code class="docutils literal notranslate"><span class="pre">shifted_sigmoid</span></code> (<code class="docutils literal notranslate"><span class="pre">sigmoid(x</span> <span class="pre">-</span> <span class="pre">0.5)</span></code>), and <code class="docutils literal notranslate"><span class="pre">clamp</span></code>;
+direct-texture alpha alternatives are <code class="docutils literal notranslate"><span class="pre">shifted_sigmoid</span></code>, <code class="docutils literal notranslate"><span class="pre">exp_density</span></code>, and
+<code class="docutils literal notranslate"><span class="pre">clamp</span></code>. <code class="docutils literal notranslate"><span class="pre">exp_density</span></code> computes <code class="docutils literal notranslate"><span class="pre">1</span> <span class="pre">-</span> <span class="pre">exp(-exp(x))</span></code> with <code class="docutils literal notranslate"><span class="pre">x</span></code> capped at 15.</p>
+<p>Appearance and material-opacity clamps, the density-input cap, and the upper
+fragment-alpha cap use a unit subgradient at an exact endpoint and zero outside
+the interval. ReLU still has zero gradient at zero, including the final
+fragment-alpha lower bound. The reference uses explicit selections for these
+clamps: fbcode and upstream PyTorch disagree on scalar-clamp endpoint gradients,
+so delegating this convention to <code class="docutils literal notranslate"><span class="pre">Tensor.clamp</span></code> would make parity depend on the
+PyTorch build. Endpoint tests use exactly representable barycentrics to avoid
+crossing a clamp boundary through interpolation roundoff.</p>
+<p>The post-interpolation ReLU is inspired by
+<a class="reference external" href="https://arxiv.org/abs/2205.10824">ReLU Fields: The Little Non-linearity That Could</a>.
+It allows an interpolated field to express a sharp zero set without requiring
+each grid value to be nonnegative. The half-unit MLP shifts and opacity mapping
+are renderer-specific choices. Density here is per-fragment optical thickness,
+not a world-space density integrated along a ray. Material opacity remains
+outside the MLP, so a zero-opacity boundary stays transparent.</p>
+</section>
+<section id="minimal-four-layer-setup">
+<h3>Minimal four-layer setup<a class="headerlink" href="#minimal-four-layer-setup" title="Link to this heading">#</a></h3>
+<p>The word “layer” counts affine transforms, including the final RGBA transform.
+For two four-channel feature textures, a four-layer parameter set therefore
+has these exact shapes:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">drtk</span>
+
+<span class="n">weights</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cuda&quot;</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.02</span><span class="p">),</span>
+    <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cuda&quot;</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.02</span><span class="p">),</span>
+    <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cuda&quot;</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.02</span><span class="p">),</span>
+    <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cuda&quot;</span><span class="p">)</span> <span class="o">*</span> <span class="mf">0.02</span><span class="p">),</span>
+<span class="p">]</span>
+<span class="n">biases</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cuda&quot;</span><span class="p">)),</span>
+    <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cuda&quot;</span><span class="p">)),</span>
+    <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cuda&quot;</span><span class="p">)),</span>
+    <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cuda&quot;</span><span class="p">)),</span>
+<span class="p">]</span>
+
+<span class="n">color</span><span class="p">,</span> <span class="n">alpha</span> <span class="o">=</span> <span class="n">drtk</span><span class="o">.</span><span class="n">render_transparent_mlp_two_textures</span><span class="p">(</span>
+    <span class="n">projected_vertices</span><span class="p">,</span>
+    <span class="n">triangle_indices</span><span class="p">,</span>
+    <span class="n">displaced_uv</span><span class="p">,</span>
+    <span class="n">original_pixel_aligned_uv</span><span class="p">,</span>
+    <span class="n">displaced_features</span><span class="p">,</span>
+    <span class="n">original_features</span><span class="p">,</span>
+    <span class="n">weights</span><span class="p">,</span>
+    <span class="n">biases</span><span class="p">,</span>
+    <span class="n">height</span><span class="p">,</span>
+    <span class="n">width</span><span class="p">,</span>
+    <span class="n">opacity</span><span class="o">=</span><span class="n">vertex_opacity</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>A five-layer setup inserts one additional <code class="docutils literal notranslate"><span class="pre">(8,</span> <span class="pre">8)</span></code> weight and length-8 bias
+immediately before the <code class="docutils literal notranslate"><span class="pre">(4,</span> <span class="pre">8)</span></code> RGBA output transform. The implementation
+rejects every other depth or hidden width instead of silently taking a slow
+generic path.</p>
+</section>
+</section>
+<section id="drtk-operator-and-autograd-integration">
+<h2>DRTK operator and autograd integration<a class="headerlink" href="#drtk-operator-and-autograd-integration" title="Link to this heading">#</a></h2>
+<p>The optimized API follows the same ownership boundary as the rest of DRTK.
+Python performs lightweight validation, broadcasting, dtype normalization, and
+default construction, then calls one of two native operators:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>transparent_render_ext::render_with_texture
+transparent_render_ext::render_with_mlp
+</pre></div>
+</div>
+<p>Both names denote complete transparent-rendering operations. The suffix only
+selects the per-fragment appearance calculation performed inside the tiled
+render kernel; neither operator exposes texture sampling or MLP evaluation as
+a separate stage.</p>
+<p>CUDA dispatch, autocast handling, saved forward state, and backward dispatch
+all live in <code class="docutils literal notranslate"><span class="pre">transparent_render_module.cpp</span></code>. The CUDA forward/backward entry
+points are not registered as Python-visible operators; they are implementation
+details called by the native dispatcher and C++ <code class="docutils literal notranslate"><span class="pre">torch::autograd::Function</span></code>
+classes. Consequently, Python never selects an inference path versus an
+autograd path and never handles tile offsets or sorted face lists.</p>
+<p>The MLP schema accepts <code class="docutils literal notranslate"><span class="pre">Tensor[]</span></code> weights and biases. PyTorch’s C++ custom
+function machinery expands each tensor-list element into its own autograd edge,
+so the one native MLP operator supports both allowed depths while returning an
+independent gradient for every weight and bias. Separate four- and five-layer
+operator schemas are unnecessary.</p>
+<p>The fused operators are CUDA-only. The explicit <code class="docutils literal notranslate"><span class="pre">render_transparent_ref</span></code>,
+<code class="docutils literal notranslate"><span class="pre">render_transparent_mlp_ref</span></code>, and <code class="docutils literal notranslate"><span class="pre">render_transparent_mlp_two_textures_ref</span></code>
+functions remain available as slow, pure-PyTorch
+CPU correctness oracles. Calling an optimized entry point with CPU tensors
+produces a direct error that points to the appropriate reference function.</p>
+</section>
+<section id="coordinate-depth-and-texture-conventions">
+<h2>Coordinate, depth, and texture conventions<a class="headerlink" href="#coordinate-depth-and-texture-conventions" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p>Vertex tensors have shape <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">V,</span> <span class="pre">3]</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">x</span></code> and <code class="docutils literal notranslate"><span class="pre">y</span></code> are already projected DRTK pixel coordinates. Integer coordinates
+are pixel sample locations.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">z</span></code> is positive camera depth; smaller values are nearer.</p></li>
+<li><p>Faces are int32 triangles with shape <code class="docutils literal notranslate"><span class="pre">[F,</span> <span class="pre">3]</span></code>, <code class="docutils literal notranslate"><span class="pre">[1,</span> <span class="pre">F,</span> <span class="pre">3]</span></code>, or <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">F,</span> <span class="pre">3]</span></code>.</p></li>
+<li><p>UV coordinates are normalized to <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">1]</span></code>.</p></li>
+<li><p>Sampling matches <code class="docutils literal notranslate"><span class="pre">torch.nn.functional.grid_sample</span></code>: nearest, bilinear, or
+bicubic filtering; zeros, border, or reflection padding; fixed
+<code class="docutils literal notranslate"><span class="pre">align_corners=False</span></code>. Defaults are bilinear filtering and border padding.</p></li>
+<li><p>Textures may have a batch of one, which broadcasts, or the same batch as the
+vertices.</p></li>
+<li><p>A triangle’s sort depth is the arithmetic mean of its three vertex depths.</p></li>
+<li><p>Equal-depth triangles retain face-index order through a stable radix sort.</p></li>
+</ul>
+<p>Triangles with invalid indices, duplicate vertex indices, non-finite vertices,
+near-zero projected area, non-positive depth, or no overlap with the image are
+discarded before tile-list emission.</p>
+</section>
+<section id="forward-pipeline">
+<h2>Forward pipeline<a class="headerlink" href="#forward-pipeline" title="Link to this heading">#</a></h2>
+<section id="screen-space-bounds">
+<h3>1. Screen-space bounds<a class="headerlink" href="#screen-space-bounds" title="Link to this heading">#</a></h3>
+<p>For each triangle, the kernel computes its exact projected bounding box. The
+bounds are converted to a rectangle of 4x4 tiles. A prefix sum of
+per-triangle tile counts allocates a compact triangle/tile intersection list.</p>
+</section>
+<section id="stable-tile-depth-sort">
+<h3>2. Stable tile/depth sort<a class="headerlink" href="#stable-tile-depth-sort" title="Link to this heading">#</a></h3>
+<p>Every intersection emits a 64-bit key:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>high 32 bits: flattened (batch, tile_y, tile_x) identifier
+low  32 bits: positive float depth bit pattern
+</pre></div>
+</div>
+<p>Positive IEEE-754 float bit patterns preserve numerical order. CUB performs a
+stable radix sort of key/face pairs, so face order deterministically resolves
+equal depths. A binary search for each tile boundary then creates an offset
+array into the sorted face list.</p>
+<p>This design follows the useful part of Gaussian-splatting renderers: duplicate
+primitives into the tiles they touch, globally sort compact keys, and let one
+pixel program consume a contiguous sorted range. The primitive test and
+appearance evaluation are triangle-specific rather than Gaussian-specific.</p>
+</section>
+<section id="one-4x4-cuda-block-per-tile">
+<h3>3. One 4x4 CUDA block per tile<a class="headerlink" href="#one-4x4-cuda-block-per-tile" title="Link to this heading">#</a></h3>
+<p>Each CUDA block owns one image tile and each thread owns one pixel. Candidate
+triangles are loaded into shared memory in small batches. All pixels in the
+tile traverse the same front-to-back candidate order, but reject candidates
+that do not cover that pixel under the hard rasterization rule.</p>
+<p>Four-pixel tiles were selected empirically for the current workload. Large
+tiles amortize list and launch overhead but force every pixel to test many
+triangles that only touch another part of the tile. Tiny tiles reduce candidate
+tests but underfill the GPU and increase bin-list overhead.</p>
+</section>
+<section id="hard-drtk-coverage-feathering-and-transparent-edge-gradients">
+<h3>4. Hard DRTK coverage, feathering, and transparent edge gradients<a class="headerlink" href="#hard-drtk-coverage-feathering-and-transparent-edge-gradients" title="Link to this heading">#</a></h3>
+<p>Coverage matches DRTK rasterization rather than defining a second soft
+rasterizer. Edge functions use canonical vertex-index endpoint ordering, then
+the top-left rule assigns a pixel exactly on a shared edge to one adjacent
+triangle. Both windings are supported. This matters for transparency: if both
+triangles owned the shared edge, that pixel would be composited twice and
+would become spuriously opaque.</p>
+<p>Coverage stays binary in forward. The renderer does not synthesize a global
+<code class="docutils literal notranslate"><span class="pre">feather</span></code> distance: upstream geometry and vertex opacity still control the
+width of soft transitions. A strip whose outside vertices have zero opacity
+receives ordinary interior derivatives, with zero additional boundary term at
+its outside edge.</p>
+<p>All three CUDA APIs enable the boundary estimator by default; set
+<code class="docutils literal notranslate"><span class="pre">edge_gradients=False</span></code> to disable it. The estimator adds a
+transparent extension of <a class="reference external" href="https://arxiv.org/abs/2405.02508">Rasterized Edge Gradients</a>
+to geometry backward. Inference, forward values, and the smooth appearance /
+interpolation derivatives are unchanged. It is a filtered boundary estimator,
+not the almost-everywhere-zero derivative of point-sampled hard coverage.</p>
+<p>For a virtual fragment with edge-trace color <code class="docutils literal notranslate"><span class="pre">c</span></code> and opacity <code class="docutils literal notranslate"><span class="pre">a</span></code>, let <code class="docutils literal notranslate"><span class="pre">F</span></code> be
+the accumulated premultiplied foreground, <code class="docutils literal notranslate"><span class="pre">T</span></code> its remaining transmittance,
+and <code class="docutils literal notranslate"><span class="pre">B</span></code> the suffix color including the background with unit incident light:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>C_without = F + T B
+C_with    = F + T [a c + (1-a) B]
+Delta C   = T a (c-B)
+Delta A   = a T_total_without
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">F</span></code> cancels. The neighbor needs its own prefix/suffix state at the fragment’s
+<strong>mean-triangle-depth rank</strong>, including the stable face-ID tie break. Final
+RGB/alpha do not determine that state. Queries follow exactly the existing
+forward ordering, even when actual depth at a pixel would suggest otherwise.
+No per-pixel sort or triangle-intersection estimator is introduced.</p>
+<p>The loss-weighted jump can be evaluated with scalar suffix adjoints. Initialize
+<code class="docutils literal notranslate"><span class="pre">h</span> <span class="pre">=</span> <span class="pre">dot(g_rgb,</span> <span class="pre">background)</span> <span class="pre">-</span> <span class="pre">g_alpha</span></code> and <code class="docutils literal notranslate"><span class="pre">d</span> <span class="pre">=</span> <span class="pre">0</span></code>, then traverse the ordered
+list in reverse. Here <code class="docutils literal notranslate"><span class="pre">h</span></code> is the suffix on the negative side of the indexed
+edge and <code class="docutils literal notranslate"><span class="pre">d</span></code> is the positive-minus-negative suffix difference:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>ordinary fragment on both sides:
+  h = a dot(g_rgb, c) + (1-a) h
+  d = (1-a) d
+boundary fragment present only on positive side:
+  d = a [dot(g_rgb, c)-h] + (1-a) d
+boundary fragment present only on negative side:
+  d = d + a [h-dot(g_rgb, c)]
+  h = a dot(g_rgb, c) + (1-a) h
+</pre></div>
+</div>
+<p>The boundary fragment uses perspective-correct attributes on the actual edge,
+not an interior sample. These updates evaluate the whole incident-face bundle,
+including nonlinear alpha interactions, without subtracting two large final
+colors. Each of the two neighboring pixels uses its own incoming loss gradient
+and its own non-bundle fragments; their jumps are averaged. Horizontal pixel
+pairs scatter only X motion, vertical pairs only Y motion, with screen-linear
+edge endpoint weights. Z already affects projection upstream and smooth
+interpolation here; the boundary term adds no derivative of sorting.</p>
+<p>Implementation:</p>
+<ol class="arabic simple">
+<li><p>Build GPU keys for undirected indexed edges, including batch identity, and
+radix-sort their incident faces. Invalid/rejected geometry is ignored.</p></li>
+<li><p>Compact surviving groups on GPU. Two incident faces on opposite projected
+sides form a continuous tessellation edge and are suppressed. Shared folded
+edges are retained as one bundle. An edge whose two material endpoints are
+nonpositive is rejected before appearance evaluation.</p></li>
+<li><p>A bounded persistent warp pool traverses the active groups. Each warp samples
+horizontal/vertical grid crossings along an edge; zero sampled appearance
+alpha also exits before a query.</p></li>
+<li><p>For each crossing, merge the incident faces with each neighbor’s saved tile
+list in <strong>the same triangle order</strong>, replay the scalar compositing jump, and
+atomically add the boundary force to the two endpoint X/Y gradients.</p></li>
+</ol>
+<p>There is no host readback of the active count, no dense fragment tape, and no
+additional inference work. Current queries replay shading at each boundary
+pair; queries that touch the same pixel are not yet coalesced. This bounds
+implementation complexity but leaves a performance opportunity in dense
+triangle soup or deep overlap. Indexed topology avoids treating ordinary
+triangulation as a large set of independent boundaries.</p>
+<p>The estimator suppresses continuous shared tessellation edges by convention;
+it does not differentiate artificial seams caused by changing mean-depth rank
+across neighboring faces. Topology changes, rank swaps, per-pixel depth
+intersections, and image-border clipping remain outside its scope. Duplicate
+vertices are independent; representing a jointly moving shared edge requires
+shared indices. Pixel-aligned crossings select the neighboring pair according to the same
+canonical top-left ownership as forward; edge endpoints use half-open
+grid-line intervals. The operator does not promise exact derivatives of
+arbitrary spatial reconstruction filters or texture discontinuities.</p>
+</section>
+<section id="perspective-correct-interpolation">
+<h3>5. Perspective-correct interpolation<a class="headerlink" href="#perspective-correct-interpolation" title="Link to this heading">#</a></h3>
+<p>Screen-space barycentrics <code class="docutils literal notranslate"><span class="pre">s_i</span></code> are converted using vertex depth:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>q_i = s_i / z_i
+b_i = q_i / sum_j(q_j)
+</pre></div>
+</div>
+<p>The <code class="docutils literal notranslate"><span class="pre">b_i</span></code> weights interpolate UVs, reference UVs, and material opacity. The
+backward pass differentiates through this conversion, including depth <code class="docutils literal notranslate"><span class="pre">z</span></code>.</p>
+</section>
+<section id="front-to-back-compositing">
+<h3>6. Front-to-back compositing<a class="headerlink" href="#front-to-back-compositing" title="Link to this heading">#</a></h3>
+<p>For fragment <code class="docutils literal notranslate"><span class="pre">k</span></code>, first compute clamped interpolated material opacity <code class="docutils literal notranslate"><span class="pre">m_k</span></code>.
+The direct-texture path uses activated sampled texture alpha for <code class="docutils literal notranslate"><span class="pre">p_k</span></code> (or one
+for RGB textures), while the MLP path uses its activated alpha output:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>m_k = clamp(sum_i(b_i * vertex_opacity_i), 0, 1)
+a_k = min(m_k * p_k, 0.999)
+</pre></div>
+</div>
+<p>Let <code class="docutils literal notranslate"><span class="pre">c_k</span></code> be fragment RGB and <code class="docutils literal notranslate"><span class="pre">T_k</span></code> be transmittance before the fragment:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>C_(k+1) = C_k + T_k * a_k * c_k
+T_(k+1) = T_k * (1 - a_k)
+</pre></div>
+</div>
+<p>After all fragments, the background contributes <code class="docutils literal notranslate"><span class="pre">T_final</span> <span class="pre">*</span> <span class="pre">background</span></code>, and
+the returned alpha is <code class="docutils literal notranslate"><span class="pre">1</span> <span class="pre">-</span> <span class="pre">T_final</span></code>. With a zero/default background, returned
+RGB is premultiplied by accumulated alpha. With an explicit background,
+returned RGB is the fully composited color. This is the same output convention
+used by gsplat’s front-to-back renderer.</p>
+<p>The fragment-alpha cap is fixed internally at 0.999 and is not a public setting. In inference, an optional
+<code class="docutils literal notranslate"><span class="pre">transmittance_epsilon</span></code> can terminate traversal once the remaining
+transmittance is negligible. Early termination is rejected when gradients are
+enabled because it is a discrete approximation.</p>
+</section>
+</section>
+<section id="backward-pipeline">
+<h2>Backward pipeline<a class="headerlink" href="#backward-pipeline" title="Link to this heading">#</a></h2>
+<p>For backward, forward saves a per-pixel transmittance mantissa and integer
+power-of-two exponent, tile offsets, and sorted face identifiers; it does not
+save a fragment buffer. The extra transmittance state costs eight bytes per
+pixel, is used only when gradients are needed, and does not change the forward
+color or alpha calculation. Inference does not allocate or update this state. The backward traverses each tile list in
+reverse and recomputes hard coverage, barycentrics, texture samples, and the tiny
+MLP.</p>
+<p>Given transmittance after a fragment, the earlier value is recovered as:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>T_before = T_after / (1 - a)
+</pre></div>
+</div>
+<p>The fixed 0.999 fragment cap keeps the denominator nonzero. Saving only final
+alpha is insufficient: three opaque layers can round <code class="docutils literal notranslate"><span class="pre">1</span> <span class="pre">-</span> <span class="pre">T</span></code> to exactly one,
+erasing <code class="docutils literal notranslate"><span class="pre">T</span></code> and its reconstructed RGB gradients. Even saving an ordinary
+float32 <code class="docutils literal notranslate"><span class="pre">T</span></code> is insufficient for deep overlap because the product can underflow.
+The saved product is therefore rescaled by exact powers of two during forward
+and reverse traversal; backward reconstructs the prefix transmittance from
+that state, not from <code class="docutils literal notranslate"><span class="pre">1</span> <span class="pre">-</span> <span class="pre">output_alpha</span></code>. No per-fragment logarithms or fragment
+buffers are required.</p>
+<p>The material-opacity clamp includes its endpoints in the differentiable range,
+matching the explicit reference convention above. In particular, learnable
+opacity initialized at exactly one can decrease. The exact fragment-alpha cap
+also retains the incoming gradient; values above the cap have zero alpha
+derivative. At zero fragment alpha, ReLU’s zero derivative still applies.</p>
+<p>The CUDA backward returns gradients for:</p>
+<ul class="simple">
+<li><p>projected vertex <code class="docutils literal notranslate"><span class="pre">x</span></code>, <code class="docutils literal notranslate"><span class="pre">y</span></code>, and <code class="docutils literal notranslate"><span class="pre">z</span></code>;</p></li>
+<li><p>current UV and reference UV;</p></li>
+<li><p>both feature textures or the RGB/RGBA texture;</p></li>
+<li><p>per-vertex material opacity;</p></li>
+<li><p>background RGB; and</p></li>
+<li><p>every tiny-MLP weight and bias.</p></li>
+</ul>
+<p>Tiny-MLP parameter gradients first accumulate in shared memory per tile and
+are flushed once per parameter to global memory. This substantially reduces
+global atomic traffic. Parameter-gradient accumulation is still the dominant
+cost of MLP backward; inference does not pay this cost.</p>
+<section id="deliberately-discrete-terms">
+<h3>Deliberately discrete terms<a class="headerlink" href="#deliberately-discrete-terms" title="Link to this heading">#</a></h3>
+<p>The following choices do not receive gradients:</p>
+<ul class="simple">
+<li><p>face indices and topology;</p></li>
+<li><p>triangle-to-tile membership;</p></li>
+<li><p>triangle rejection and degeneracy tests;</p></li>
+<li><p>center-depth ordering and equal-depth tie order;</p></li>
+<li><p>the sign selected for triangle winding;</p></li>
+<li><p>exact hard coverage and top-left edge ownership (the boundary term
+differentiates a filtered surrogate instead); and</p></li>
+<li><p>inference-only early termination.</p></li>
+</ul>
+<p>Smooth gradients differentiate shading and compositing while visibility order
+and candidate membership are fixed. The boundary estimator adds
+coverage-motion terms while preserving that same order.</p>
+</section>
+</section>
+<section id="performance-model">
+<h2>Performance model<a class="headerlink" href="#performance-model" title="Link to this heading">#</a></h2>
+<p>Wall-clock time is governed more by candidate and accepted fragment counts
+than by triangle count alone. Useful counters are:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>tile_intersections = sum(number of tiles touched by each triangle bound)
+candidate_tests = sum_over_tiles(tile_face_count * pixels_in_tile)
+accepted_fragments = candidates accepted by hard top-left coverage
+</pre></div>
+</div>
+<p>The benchmark script reports <code class="docutils literal notranslate"><span class="pre">candidate_tests</span> <span class="pre">/</span> <span class="pre">output_pixels</span></code>. Accepted
+fragments are the subset that incur barycentric interpolation, texture loads,
+MLP evaluation, and compositing.</p>
+<p>Use:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>test/transparent_render_benchmark.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--resolution<span class="w"> </span><span class="m">128</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--feature-channels-per-texture<span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--layers<span class="w"> </span><span class="m">4</span>
+</pre></div>
+</div>
+<p>The reference benchmark scene is a 128x128 pixel-aligned vertex grid with
+16,384 vertices and 32,258 one-pixel triangles, two four-channel feature
+textures, and width-8 RGBA shading. It is intentionally
+triangle-dense and exposes tile-list overhead.</p>
+<p>One RTX 3090 measurement with PyTorch 2.12/CUDA 12.6, 20 warm-up iterations,
+and 100 measured iterations was:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Phase</p></th>
+<th class="head text-right"><p>Time</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>RGB/RGBA forward, including bin/sort</p></td>
+<td class="text-right"><p>0.17 to 0.18 ms</p></td>
+</tr>
+<tr class="row-odd"><td><p>four-layer width-8 RGBA MLP forward, including bin/sort</p></td>
+<td class="text-right"><p>about 0.25 ms</p></td>
+</tr>
+<tr class="row-even"><td><p>five-layer width-8 RGBA MLP forward, including bin/sort</p></td>
+<td class="text-right"><p>about 0.24 ms</p></td>
+</tr>
+<tr class="row-odd"><td><p>RGB/RGBA backward with saved bins</p></td>
+<td class="text-right"><p>0.16 to 0.17 ms</p></td>
+</tr>
+<tr class="row-even"><td><p>four-layer width-8 RGBA MLP backward with saved bins</p></td>
+<td class="text-right"><p>1.76 ms</p></td>
+</tr>
+<tr class="row-odd"><td><p>five-layer width-8 RGBA MLP backward with saved bins</p></td>
+<td class="text-right"><p>2.00 ms</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>These are implementation sanity numbers, <strong>not headset projections</strong>. The MLP
+backward is expensive because every accepted fragment contributes gradients to
+the same small parameter set and therefore requires atomic accumulation. A
+headset renderer only needs the forward path.</p>
+<p>The exact hard-bounds candidate counts for possible tile sizes on that same
+scene are:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head text-right"><p>Tile size</p></th>
+<th class="head text-right"><p>Candidate tests per pixel</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td class="text-right"><p>16</p></td>
+<td class="text-right"><p>561.13</p></td>
+</tr>
+<tr class="row-odd"><td class="text-right"><p>8</p></td>
+<td class="text-right"><p>157.53</p></td>
+</tr>
+<tr class="row-even"><td class="text-right"><p>4</p></td>
+<td class="text-right"><p>48.76</p></td>
+</tr>
+<tr class="row-odd"><td class="text-right"><p>2</p></td>
+<td class="text-right"><p>17.63</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Tile size 2 minimizes primitive tests but also reduces occupancy and increases
+bin-list overhead. The current kernel retains tile size 4 based on the earlier
+timing sweep; the timing sweep should be repeated before changing it because
+candidate count alone is not sufficient. Exact times vary with clocks, driver,
+PyTorch allocator state, and feature-cache behavior; candidate counts and MAC
+counts are more portable.</p>
+<section id="reasoning-about-lower-tier-and-headset-gpus">
+<h3>Reasoning about lower-tier and headset GPUs<a class="headerlink" href="#reasoning-about-lower-tier-and-headset-gpus" title="Link to this heading">#</a></h3>
+<p>The CUDA kernel is a training/reference implementation, not a Quest binary.
+For a Vulkan/mobile implementation, preserve the algorithmic structure but
+remeasure tile size and data layout:</p>
+<ul class="simple">
+<li><p>reuse a GPU radix-sort and tile-range construction path, such as the one
+already used for sorted Gaussian primitives;</p></li>
+<li><p>pack width-8 activations and weights into two <code class="docutils literal notranslate"><span class="pre">vec4</span></code> groups;</p></li>
+<li><p>evaluate the 224-MAC four-layer network in mediump/FP16 when quality permits;</p></li>
+<li><p>store features in a texture format that provides bilinear filtering and
+cache locality;</p></li>
+<li><p>specialize the direct-texture and MLP fragment evaluators so unused work
+disappears; and</p></li>
+<li><p>expose candidate tests, accepted fragments, texture reads, and MLP MACs in
+device profiling rather than extrapolating from desktop TFLOPS.</p></li>
+</ul>
+<p>With a pixel-aligned grid, preserving approximately the same number of tiny
+triangles per pixel makes candidate and shading work grow roughly linearly
+with output pixel count. A move from 128x128 to 1024x1024 has 64 times as many
+pixels; the 3090 timing cannot simply be multiplied and transferred to a
+mobile GPU, but it makes clear that full-resolution per-pixel topology needs
+aggressive culling, coarser geometry, lower rendering resolution, or all
+three. The intended close-view correction should exploit its narrow view
+range rather than paying for general novel-view geometry.</p>
+</section>
+</section>
+<section id="limitations-and-failure-modes">
+<h2>Limitations and failure modes<a class="headerlink" href="#limitations-and-failure-modes" title="Link to this heading">#</a></h2>
+<section id="center-sorting-is-an-approximation">
+<h3>Center sorting is an approximation<a class="headerlink" href="#center-sorting-is-an-approximation" title="Link to this heading">#</a></h3>
+<p>One scalar depth orders an entire triangle. Large triangles that cross in
+depth, intersect, or have strong depth variation can require a different order
+at different pixels. Center sorting cannot represent that. The approximation
+is best for small triangles, modest displacement, and the very-close-view
+regime. Subdivision is the simplest mitigation.</p>
+</section>
+<section id="there-is-no-clipping-stage">
+<h3>There is no clipping stage<a class="headerlink" href="#there-is-no-clipping-stage" title="Link to this heading">#</a></h3>
+<p>Vertices must already have positive depth. Faces crossing the near plane are
+rejected rather than clipped. Upstream projection/meshing should clip or avoid
+those faces.</p>
+</section>
+<section id="explicit-feather-geometry-can-reveal-too-many-layers">
+<h3>Explicit feather geometry can reveal too many layers<a class="headerlink" href="#explicit-feather-geometry-can-reveal-too-many-layers" title="Link to this heading">#</a></h3>
+<p>Every overlapping triangle in an authored feather strip contributes alpha. If
+many nearly coincident strips overlap, they can become too opaque and
+expensive. Topology and opacity regularization should avoid duplicate surfaces
+except where they are semantically intended.</p>
+</section>
+<section id="topology-gradients-are-out-of-scope">
+<h3>Topology gradients are out of scope<a class="headerlink" href="#topology-gradients-are-out-of-scope" title="Link to this heading">#</a></h3>
+<p>The renderer differentiates vertex positions and attributes for fixed faces.
+It cannot differentiate an edge split, merge, face insertion, face deletion,
+or foreground/background connectivity decision. A transformer that predicts
+topology needs a separate discrete or relaxed representation strategy before
+calling this renderer.</p>
+</section>
+<section id="determinism-and-floating-point-atomics">
+<h3>Determinism and floating-point atomics<a class="headerlink" href="#determinism-and-floating-point-atomics" title="Link to this heading">#</a></h3>
+<p>Face ordering is stable, but backward texture, vertex, and parameter gradients
+use floating-point atomics. Their last few bits can vary with GPU scheduling.
+Tests use tight numerical tolerances against the pure-PyTorch reference rather
+than bitwise equality.</p>
+</section>
+</section>
+<section id="alternatives-considered">
+<h2>Alternatives considered<a class="headerlink" href="#alternatives-considered" title="Link to this heading">#</a></h2>
+<section id="keep-the-normal-drtk-stages-separate">
+<h3>Keep the normal DRTK stages separate<a class="headerlink" href="#keep-the-normal-drtk-stages-separate" title="Link to this heading">#</a></h3>
+<p>This would require either a fixed number of fragments per pixel or a large
+materialized fragment list between stages. Both defeat the main memory and
+compositing requirements.</p>
+</section>
+<section id="expose-a-fully-general-fragment-callback">
+<h3>Expose a fully general fragment callback<a class="headerlink" href="#expose-a-fully-general-fragment-callback" title="Link to this heading">#</a></h3>
+<p>A dynamic callback would prevent compile-time specialization, complicate
+autograd, and make mobile deployment unpredictable. The direct texture and
+dual-feature width-8 MLP paths cover the current use cases while keeping exact
+operation counts.</p>
+</section>
+<section id="keep-the-mlp-rgb-only">
+<h3>Keep the MLP RGB-only<a class="headerlink" href="#keep-the-mlp-rgb-only" title="Link to this heading">#</a></h3>
+<p>An RGB-only head would make all appearance-dependent transparency flow through
+the separate vertex-opacity field. That is simpler, but it prevents sampled
+features from expressing local translucency at fragment resolution. The
+implemented four-channel head uses the configurable RGB/alpha activations
+described above, while clamped interpolated vertex opacity remains an independent multiplicative
+control. A zero-opacity outer strip therefore remains guaranteed transparent.</p>
+</section>
+<section id="model-a-thin-volumetric-shell">
+<h3>Model a thin volumetric shell<a class="headerlink" href="#model-a-thin-volumetric-shell" title="Link to this heading">#</a></h3>
+<p>Ray marching a shell adds multiple samples and a thickness parameter without
+solving the upstream topology decision. For tiny viewpoint corrections, a
+transformer-controlled mesh plus explicitly authored opacity feathering is the
+smaller and more controllable model.</p>
+</section>
+</section>
+<section id="verification-strategy">
+<h2>Verification strategy<a class="headerlink" href="#verification-strategy" title="Link to this heading">#</a></h2>
+<p>The implementation has two independent correctness layers:</p>
+<ol class="arabic simple">
+<li><p>pure-PyTorch reference functions, suitable for CPU tests and <code class="docutils literal notranslate"><span class="pre">gradcheck</span></code> on
+small scenes; and</p></li>
+<li><p>fused CUDA operators with native C++ autograd compared against those
+references.</p></li>
+</ol>
+<p>Tests cover stable depth compositing, both windings, top-left ownership of
+shared edges, premultiplied output, background compositing, opacity clamps,
+interior geometry gradients, texture gradcheck, four- and five-layer RGBA
+MLPs, rejection of non-width-8 parameter shapes, and CUDA parity for outputs
+and all returned gradients. Regression cases include two/three/six/32 opaque
+layers, float32 transmittance underflow, both MLP depths and texture variants,
+material opacity at and outside clamp endpoints, and alpha exactly at the
+fragment cap. Transparent boundary tests additionally check independent
+area-integrated derivatives, neighbor-specific occlusion, mean-depth order and
+tie order, tile crossings, shared-edge cancellation, folded and nonmanifold
+bundles, zero-alpha traces with positive interior alpha, both MLP depths and
+variants, batch separation, and empty/rejected geometry. The unchanged forward
+outputs and non-geometry gradients are checked explicitly.</p>
+<p>All transparent-render tests live alongside the existing DRTK GPU tests in
+<code class="docutils literal notranslate"><span class="pre">fbcode/frl/codec_avatar/tre/projects/drtk_tests_gpu/src/transparent_render_tests.py</span></code>.
+The single <code class="docutils literal notranslate"><span class="pre">transparent_render_tests</span></code> target uses the package’s
+<code class="docutils literal notranslate"><span class="pre">python_unittest_remote_gpu</span></code> configuration (<code class="docutils literal notranslate"><span class="pre">gpu-remote-execution</span></code>,
+<code class="docutils literal notranslate"><span class="pre">xrcia_gpu_tests</span></code>, <code class="docutils literal notranslate"><span class="pre">par_style=&quot;xar&quot;</span></code>). It runs both the CPU reference checks and
+CUDA parity/regression checks. Missing CUDA fails the GPU tests; there is no
+conditional skip or environment override.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>buck<span class="w"> </span><span class="nb">test</span><span class="w"> </span>@fbcode/mode/opt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>fbcode//frl/codec_avatar/tre/projects/drtk_tests_gpu:transparent_render_tests<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-c<span class="w"> </span>test.threads<span class="o">=</span><span class="m">1</span>
+</pre></div>
+</div>
+</section>
+<section id="change-inventory">
+<h2>Change inventory<a class="headerlink" href="#change-inventory" title="Link to this heading">#</a></h2>
+<p>The implementation is intentionally split by responsibility:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">drtk/transparent_render.py</span></code>: public functional API, reference
+implementations, and lightweight input normalization;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">drtk/transparent_render_ext.pyi</span></code>: declarations for the two public native
+operators;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">src/transparent_render/transparent_render_module.cpp</span></code>: Torch operator
+schemas, CUDA/CPU/autocast dispatch, C++ autograd nodes, saved state, and
+backward routing;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">src/transparent_render/transparent_render_kernel.h</span></code>: C++ declarations;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">src/transparent_render/transparent_render_kernel.cu</span></code>: binning, stable sort,
+fragment evaluation, reverse compositing, and all CUDA gradients;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">test/transparent_render_benchmark.py</span></code>: reproducible workload and timings;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">fbcode/frl/codec_avatar/tre/projects/drtk_tests_gpu/src/transparent_render_tests.py</span></code>:
+CPU reference semantics plus CUDA
+fused/reference output and gradient parity;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">test/transparent_render_demo.py</span></code>: runnable 1024 x 1024 three-layer compositing
+example that optimizes foreground vertex geometry and opacity while keeping
+UVs and textures fixed;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">docs/source/tutorials/DRTK_Tutorial_transparent_render.rst</span></code>: demo walkthrough
+and asset-regeneration instructions;</p></li>
+<li><p>Buck/ARVR target definitions: internal CUDA builds; and</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">github_setup.py</span></code> and <code class="docutils literal notranslate"><span class="pre">dgx_setup.py</span></code>: standalone extension builds.</p></li>
+</ul>
+<p>This inventory is also a review checklist: a future change to appearance inputs,
+MLP shape, compositing semantics, or saved autograd state normally requires
+coordinated updates in the Python API, native schema/type stub, C++ autograd,
+CUDA validation, reference oracle, parity tests, benchmark, and this design
+note.</p>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#purpose-and-scope">Purpose and scope</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-three-appearance-entry-points">The three appearance entry points</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#direct-sampled-texture-variant">Direct sampled-texture variant</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#single-and-dual-feature-tiny-mlp-variants">Single- and dual-feature tiny-MLP variants</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#minimal-four-layer-setup">Minimal four-layer setup</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk-operator-and-autograd-integration">DRTK operator and autograd integration</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#coordinate-depth-and-texture-conventions">Coordinate, depth, and texture conventions</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#forward-pipeline">Forward pipeline</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#screen-space-bounds">1. Screen-space bounds</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#stable-tile-depth-sort">2. Stable tile/depth sort</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#one-4x4-cuda-block-per-tile">3. One 4x4 CUDA block per tile</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#hard-drtk-coverage-feathering-and-transparent-edge-gradients">4. Hard DRTK coverage, feathering, and transparent edge gradients</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#perspective-correct-interpolation">5. Perspective-correct interpolation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#front-to-back-compositing">6. Front-to-back compositing</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#backward-pipeline">Backward pipeline</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#deliberately-discrete-terms">Deliberately discrete terms</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#performance-model">Performance model</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#reasoning-about-lower-tier-and-headset-gpus">Reasoning about lower-tier and headset GPUs</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#limitations-and-failure-modes">Limitations and failure modes</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#center-sorting-is-an-approximation">Center sorting is an approximation</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#there-is-no-clipping-stage">There is no clipping stage</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#explicit-feather-geometry-can-reveal-too-many-layers">Explicit feather geometry can reveal too many layers</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#topology-gradients-are-out-of-scope">Topology gradients are out of scope</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#determinism-and-floating-point-atomics">Determinism and floating-point atomics</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#alternatives-considered">Alternatives considered</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#keep-the-normal-drtk-stages-separate">Keep the normal DRTK stages separate</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#expose-a-fully-general-fragment-callback">Expose a fully general fragment callback</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#keep-the-mlp-rgb-only">Keep the MLP RGB-only</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#model-a-thin-volumetric-shell">Model a thin volumetric shell</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#verification-strategy">Verification strategy</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#change-inventory">Change inventory</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=a95f357e85573c9b56d5"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=a95f357e85573c9b56d5"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026 Meta Platforms, Inc.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+    <div class="footer-items__center">
+      
+        <div class="footer-item"><div class="footer-item">
+    <p class="copyright">
+        Legal
+        <br>
+    </p>
+</div>
+<div class="footer-item">
+    <p class="copyright">
+        <a class="external_link"
+           href="https://opensource.facebook.com/legal/privacy/"
+           target="_blank"
+           rel="noreferrer noopener">
+            Privacy
+        </a>
+        <br>
+    </p>
+</div>
+<div class="footer-item">
+    <p class="copyright">
+        <a class="external_link"
+           href="https://opensource.facebook.com/legal/terms/"
+           target="_blank"
+           rel="noreferrer noopener">
+            Terms
+        </a>
+        <br>
+    </p>
+</div></div>
+      
+    </div>
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.19.0.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

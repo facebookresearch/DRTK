@@ -342,6 +342,8 @@
 <li class="toctree-l1"><a class="reference internal" href="transform.html">drtk.transform</a></li>
 <li class="toctree-l1"><a class="reference internal" href="rasterize.html">drtk.rasterize</a></li>
 <li class="toctree-l1"><a class="reference internal" href="render.html">drtk.render</a></li>
+<li class="toctree-l1"><a class="reference internal" href="transparent_render.html">drtk.transparent_render</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pixel_grid_mesh.html">Pixel-grid meshes with stochastic topology gradients</a></li>
 <li class="toctree-l1"><a class="reference internal" href="interpolate.html">drtk.interpolate</a></li>
 <li class="toctree-l1"><a class="reference internal" href="filter2d.html">drtk.filter2d</a></li>
 <li class="toctree-l1"><a class="reference internal" href="edge_grad_estimator.html">drtk.edge_grad_estimator</a></li>
@@ -419,10 +421,10 @@
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table">
 <tbody>
 <tr class="row-odd"><td><p><a class="reference internal" href="#drtk.utils.projection.project_points" title="drtk.utils.projection.project_points"><code class="xref py py-obj docutils literal notranslate"><span class="pre">project_points</span></code></a></p></td>
-<td><p>Project 3D world-space vertices to pixel-space, optionally applying a distortion model with provided coefficients.</p></td>
+<td><p>Project world-space vertices to DRTK pixel coordinates.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#drtk.utils.projection.project_points_grad" title="drtk.utils.projection.project_points_grad"><code class="xref py py-obj docutils literal notranslate"><span class="pre">project_points_grad</span></code></a></p></td>
-<td><p>Computes the gradient of projected (pixel-space) vertex positions with respect to the 3D world-space vertex positions given the gradient of the 3D world-space vertex positions.</p></td>
+<td><p>Apply the pinhole projection Jacobian to world-space vertex deltas.</p></td>
 </tr>
 </tbody>
 </table>
@@ -430,43 +432,64 @@
 <dl class="py function">
 <dt class="sig sig-object py" id="drtk.utils.projection.project_points">
 <span class="sig-prename descclassname"><span class="pre">drtk.utils.projection.</span></span><span class="sig-name descname"><span class="pre">project_points</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">campos</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">camrot</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">focal</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">princpt</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">distortion_mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">distortion_coeff</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fov</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lut_vector_field</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lut_spacing</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/drtk/utils/projection.html#project_points"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#drtk.utils.projection.project_points" title="Link to this definition">#</a></dt>
-<dd><p>Project 3D world-space vertices to pixel-space, optionally applying a
-distortion model with provided coefficients.</p>
-<p>Returns v_pix, v_cam, both N x V x 3 since we preserve the camera-space
-Z-coordinate for v_pix.</p>
-<p>v:                  N x V x 3
-camrot:             N x 3 x 3
-campos:             N x 3
-focal:              N x 2 x 2
-princpt:            N x 2
-distortion_coeff:   N x 4
-fov:                N x 1</p>
+<dd><p>Project world-space vertices to DRTK pixel coordinates.</p>
+<p>The world-to-camera convention is <code class="docutils literal notranslate"><span class="pre">v_cam</span> <span class="pre">=</span> <span class="pre">camrot</span> <span class="pre">&#64;</span> <span class="pre">(v</span> <span class="pre">-</span> <span class="pre">campos)</span></code>.
+<code class="docutils literal notranslate"><span class="pre">v_pix</span></code> stores pixel <code class="docutils literal notranslate"><span class="pre">x,</span> <span class="pre">y</span></code> followed by camera-space <code class="docutils literal notranslate"><span class="pre">z</span></code> so it can be
+passed directly to <a class="reference internal" href="rasterize.html#drtk.rasterize" title="drtk.rasterize"><code class="xref py py-func docutils literal notranslate"><span class="pre">drtk.rasterize()</span></code></a>. Vertices with <code class="docutils literal notranslate"><span class="pre">z</span> <span class="pre">&lt;=</span> <span class="pre">0</span></code> are
+behind the camera and are rejected by rasterization.</p>
+<p><code class="docutils literal notranslate"><span class="pre">distortion_mode</span></code> may be <code class="docutils literal notranslate"><span class="pre">None</span></code>/<code class="docutils literal notranslate"><span class="pre">&quot;pinhole&quot;</span></code>,
+<code class="docutils literal notranslate"><span class="pre">&quot;radial-tangential&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;fisheye&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;fisheye62&quot;</span></code>, or
+<code class="docutils literal notranslate"><span class="pre">&quot;fisheye62_lut&quot;</span></code>. A per-batch list of modes is supported for pinhole,
+radial-tangential, and fisheye batches; Fisheye62 modes are currently
+supported only when <code class="docutils literal notranslate"><span class="pre">distortion_mode</span></code> is a single string. For Fisheye62
+with <code class="docutils literal notranslate"><span class="pre">fov</span></code>, vertices outside the valid radius get <code class="docutils literal notranslate"><span class="pre">z</span> <span class="pre">=</span> <span class="pre">-1</span></code> so any
+triangle touching them is culled by the rasterizer.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>v</strong> – World-space vertices with shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">V,</span> <span class="pre">3)</span></code>.</p></li>
+<li><p><strong>campos</strong> – Camera positions with shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">3)</span></code>.</p></li>
+<li><p><strong>camrot</strong> – World-to-camera rotation matrices with shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">3,</span> <span class="pre">3)</span></code>.</p></li>
+<li><p><strong>focal</strong> – Camera intrinsic matrices with shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">2,</span> <span class="pre">2)</span></code>.</p></li>
+<li><p><strong>princpt</strong> – Principal points in pixels with shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">2)</span></code>.</p></li>
+<li><p><strong>distortion_mode</strong> – Optional distortion mode string or per-batch list of
+mode strings.</p></li>
+<li><p><strong>distortion_coeff</strong> – Distortion coefficients. Shape depends on
+<code class="docutils literal notranslate"><span class="pre">distortion_mode</span></code>.</p></li>
+<li><p><strong>fov</strong> – Optional maximum normalized radius with shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">1)</span></code>.</p></li>
+<li><p><strong>lut_vector_field</strong> – Optional Fisheye62 LUT offset field with shape
+<code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">2,</span> <span class="pre">H_lut,</span> <span class="pre">W_lut)</span></code>.</p></li>
+<li><p><strong>lut_spacing</strong> – Optional Fisheye62 LUT spacing with shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">2)</span></code>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">(v_pix,</span> <span class="pre">v_cam)</span></code>. Both tensors have shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">V,</span> <span class="pre">3)</span></code>. <code class="docutils literal notranslate"><span class="pre">v_pix</span></code>
+stores <code class="docutils literal notranslate"><span class="pre">(x_pixels,</span> <span class="pre">y_pixels,</span> <span class="pre">z_camera)</span></code>.</p>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="drtk.utils.projection.project_points_grad">
 <span class="sig-prename descclassname"><span class="pre">drtk.utils.projection.</span></span><span class="sig-name descname"><span class="pre">project_points_grad</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v_grad</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">v</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">campos</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">camrot</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">focal</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">distortion_mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">distortion_coeff</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/drtk/utils/projection.html#project_points_grad"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#drtk.utils.projection.project_points_grad" title="Link to this definition">#</a></dt>
-<dd><p>Computes the gradient of projected (pixel-space) vertex positions with
-respect to the 3D world-space vertex positions given the gradient of the 3D
-world-space vertex positions.</p>
-<p>project_points_grad(dv, v) = d project_points(v) / dv * dv</p>
+<dd><p>Apply the pinhole projection Jacobian to world-space vertex deltas.</p>
+<p>This computes <code class="docutils literal notranslate"><span class="pre">d</span> <span class="pre">project_points(v)</span> <span class="pre">/</span> <span class="pre">d</span> <span class="pre">v</span> <span class="pre">&#64;</span> <span class="pre">v_grad</span></code> for the undistorted
+pinhole projection path. Distortion gradients are not implemented here; pass
+<code class="docutils literal notranslate"><span class="pre">distortion_mode=None</span></code>.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>v_grad</strong> – Gradient of 3D world-space vertices. Shape: N x V x 3</p></li>
-<li><p><strong>v</strong> – 3D world-space vertices. Shape: N x V x 3</p></li>
-<li><p><strong>camrot</strong> – Camera rotation. Shape:  N x 3 x 3</p></li>
-<li><p><strong>camrot</strong> – Camera position. Shape:  N x 3</p></li>
-<li><p><strong>focal</strong> – Focal length. Shape: N x 2 x 2</p></li>
-<li><p><strong>distortion_mode</strong> – Distortion currently not implemented and must be None.</p></li>
-<li><p><strong>distortion_coeff</strong> – Distortion currently not implemented and must be None.</p></li>
+<li><p><strong>v_grad</strong> – World-space vertex perturbations with shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">V,</span> <span class="pre">3)</span></code>.</p></li>
+<li><p><strong>v</strong> – World-space vertices with shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">V,</span> <span class="pre">3)</span></code>.</p></li>
+<li><p><strong>campos</strong> – Camera positions with shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">3)</span></code>.</p></li>
+<li><p><strong>camrot</strong> – World-to-camera rotation matrices with shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">3,</span> <span class="pre">3)</span></code>.</p></li>
+<li><p><strong>focal</strong> – Camera intrinsic matrices with shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">2,</span> <span class="pre">2)</span></code>.</p></li>
+<li><p><strong>distortion_mode</strong> – Distortion is not implemented and must be <code class="docutils literal notranslate"><span class="pre">None</span></code>.</p></li>
+<li><p><strong>distortion_coeff</strong> – Distortion is not implemented and must be <code class="docutils literal notranslate"><span class="pre">None</span></code>.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>N x V x 2</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>Gradient of 2D pixel-space vertices</p>
+<dd class="field-even"><p>Pixel-space perturbations with shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">V,</span> <span class="pre">2)</span></code>.</p>
 </dd>
 </dl>
 </dd></dl>

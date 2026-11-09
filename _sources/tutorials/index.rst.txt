@@ -12,6 +12,7 @@ Tutorials
    DRTK_Tutorial_1_hello_triangle
    DRTK_Tutorial_2_optimizing_geometry
    DRTK_Tutorial_3_geometry_intersection
+   DRTK_Tutorial_transparent_render
 
 .. toctree::
    :maxdepth: 4
@@ -49,6 +50,13 @@ Tutorials
         In this tutorial, we demonstrate geometry effectively optimization when intersections are present.
 
         .. image:: ../_static/tutorial_3_animation.gif
+          :width: 400
+
+    .. grid-item-card:: :doc:`DRTK_Tutorial_transparent_render`
+
+        Optimize projected mesh geometry and opacity through depth-sorted transparent rendering.
+
+        .. image:: ../_static/transparent_render_demo_result.png
           :width: 400
 
 .. grid::

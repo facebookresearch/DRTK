@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 
 
@@ -26,18 +25,18 @@
   </noscript>
   
   <!-- Loaded before other Sphinx assets -->
-  <link href="../../../_static/styles/theme.css?digest=a95f357e85573c9b56d5" rel="stylesheet" />
-<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=a95f357e85573c9b56d5" rel="stylesheet" />
+  <link href="../../../_static/styles/theme.css?digest=75c7c72ae941e8b558d8" rel="stylesheet" />
+<link href="../../../_static/styles/pydata-sphinx-theme.css?digest=75c7c72ae941e8b558d8" rel="stylesheet" />
 
     <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
     <link rel="stylesheet" type="text/css" href="../../../_static/sphinx-design.min.css?v=95c83b7e" />
     <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=723fa940" />
   
   <!-- So that users can add custom icons -->
-  <script defer src="../../../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
+  <script defer src="../../../_static/scripts/fontawesome.js?digest=75c7c72ae941e8b558d8"></script>
   <!-- Pre-loaded scripts that we'll load fully later -->
-  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=a95f357e85573c9b56d5" />
-<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=a95f357e85573c9b56d5" />
+  <link rel="preload" as="script" href="../../../_static/scripts/bootstrap.js?digest=75c7c72ae941e8b558d8" />
+<link rel="preload" as="script" href="../../../_static/scripts/pydata-sphinx-theme.js?digest=75c7c72ae941e8b558d8" />
 
     <script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
     <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
@@ -49,6 +48,7 @@
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="color-scheme" content="light dark"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.1.0" />
   
@@ -95,7 +95,7 @@
   
     <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
 <div class="bd-header__inner bd-page-width">
-  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+  <button type="button" class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation" aria-expanded="false" aria-controls="pst-primary-sidebar-modal">
     <span class="fa-solid fa-bars"></span>
   </button>
   
@@ -167,7 +167,7 @@
         <div class="navbar-item navbar-persistent--container">
           
 
-<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+<button type="button" class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
  <i class="fa-solid fa-magnifying-glass"></i>
  <span class="search-button__default-text">Search</span>
  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
@@ -178,15 +178,15 @@
         <div class="navbar-item">
 
 <div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
-  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
-    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
-    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
-    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  <button type="button" class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto" title="System Settings"></i>
   </button>
   <ul class="dropdown-menu dropdown-menu-end">
-    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
-    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
-    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+    <li><button type="button" class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg me-1"></i>System Settings</button></li>
+    <li><button type="button" class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg me-1"></i>Light</button></li>
+    <li><button type="button" class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg me-1"></i>Dark</button></li>
   </ul>
 </div></div>
       
@@ -212,7 +212,7 @@
   
     <div class="navbar-persistent--mobile">
 
-<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+<button type="button" class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
  <i class="fa-solid fa-magnifying-glass"></i>
  <span class="search-button__default-text">Search</span>
  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
@@ -233,7 +233,7 @@
       
         
       
-      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <dialog id="pst-primary-sidebar-modal" tabindex="-1"></dialog>
       <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar hide-on-wide">
         
 
@@ -289,15 +289,15 @@
           <div class="navbar-item">
 
 <div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
-  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
-    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
-    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
-    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  <button type="button" class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto" title="System Settings"></i>
   </button>
   <ul class="dropdown-menu dropdown-menu-end">
-    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
-    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
-    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+    <li><button type="button" class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg me-1"></i>System Settings</button></li>
+    <li><button type="button" class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg me-1"></i>Light</button></li>
+    <li><button type="button" class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg me-1"></i>Dark</button></li>
   </ul>
 </div></div>
         
@@ -352,7 +352,7 @@
     
     <li class="breadcrumb-item breadcrumb-home">
       <a href="../../../index.html" class="nav-link" aria-label="Home">
-        <i class="fa-solid fa-home"></i>
+        <i class="fa-solid fa-house"></i>
       </a>
     </li>
     
@@ -397,6 +397,56 @@
 
 <span class="n">_FISHEYE62_MODES</span><span class="p">:</span> <span class="n">Set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;fisheye62&quot;</span><span class="p">,</span> <span class="s2">&quot;fisheye62_lut&quot;</span><span class="p">}</span>
 
+<span class="n">_ROCM</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">th</span><span class="o">.</span><span class="n">version</span><span class="o">.</span><span class="n">hip</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+<span class="n">_ROCM_FORM_DTYPES</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">th</span><span class="o">.</span><span class="n">float16</span><span class="p">,</span>
+    <span class="n">th</span><span class="o">.</span><span class="n">bfloat16</span><span class="p">,</span>
+    <span class="n">th</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span>
+    <span class="n">th</span><span class="o">.</span><span class="n">float64</span><span class="p">,</span>
+<span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_apply_matrix</span><span class="p">(</span><span class="n">m</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Apply each batch item&#39;s matrix to each of its points: ``(m[:, None] @ x[..., None])[..., 0]``.</span>
+
+<span class="sd">    On ROCm, PyTorch runs that per-point product as a batched GEMM with one 3x3 (or 2x2) GEMM per</span>
+<span class="sd">    point, which made the projection most of the GPU time of a DRTK fitting loop on MI300X. There</span>
+<span class="sd">    ``_apply_matrix_rocm`` replaces it for the inputs ``_rocm_form_applies`` accepts. CPU, CUDA and</span>
+<span class="sd">    TorchScript keep the matmul form, bit for bit.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># TorchScript compiles only the matmul form, so scripted graphs are the same on every device.</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">th</span><span class="o">.</span><span class="n">jit</span><span class="o">.</span><span class="n">is_scripting</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">_ROCM</span> <span class="ow">and</span> <span class="n">x</span><span class="o">.</span><span class="n">is_cuda</span> <span class="ow">and</span> <span class="n">_rocm_form_applies</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">_apply_matrix_rocm</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">m</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">@</span> <span class="n">x</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">])[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_rocm_form_applies</span><span class="p">(</span><span class="n">m</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Whether the broadcast form can stand in for the matmul: the matmul accepts ``m`` and ``x``,</span>
+<span class="sd">    and the broadcast form computes the same products in float32 or float64, without TF32 or</span>
+<span class="sd">    autocast lowering their precision (under autocast it returns float32, or float64 for float64</span>
+<span class="sd">    inputs). Every other input goes to the matmul, so it behaves exactly as before.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">m</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">&lt;</span> <span class="mi">2</span> <span class="ow">or</span> <span class="n">x</span><span class="o">.</span><span class="n">dim</span><span class="p">()</span> <span class="o">&lt;</span> <span class="mi">1</span> <span class="ow">or</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="n">m</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">if</span> <span class="n">m</span><span class="o">.</span><span class="n">dtype</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">_ROCM_FORM_DTYPES</span> <span class="ow">or</span> <span class="n">x</span><span class="o">.</span><span class="n">dtype</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">_ROCM_FORM_DTYPES</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="c1"># Products in float16 or bfloat16 would round before the sum (and float16 ones could overflow).</span>
+    <span class="k">if</span> <span class="n">th</span><span class="o">.</span><span class="n">promote_types</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="n">x</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="n">th</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">float64</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">if</span> <span class="n">m</span><span class="o">.</span><span class="n">dtype</span> <span class="o">==</span> <span class="n">x</span><span class="o">.</span><span class="n">dtype</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">True</span>
+    <span class="c1"># Autocast casts both operands of the matmul to one dtype, but never float64 ones.</span>
+    <span class="k">return</span> <span class="n">th</span><span class="o">.</span><span class="n">is_autocast_enabled</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">device</span><span class="o">.</span><span class="n">type</span><span class="p">)</span> <span class="ow">and</span> <span class="n">th</span><span class="o">.</span><span class="n">float64</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span>
+        <span class="n">m</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span>
+        <span class="n">x</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_apply_matrix_rocm</span><span class="p">(</span><span class="n">m</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;``_apply_matrix`` as a broadcast multiply and sum, with no GEMM: TF32 and autocast do not</span>
+<span class="sd">    lower its precision.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="p">:]</span> <span class="o">*</span> <span class="n">m</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">])</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_any_mode_is_fisheye62</span><span class="p">(</span>
     <span class="n">distortion_mode</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="nb">str</span><span class="p">]],</span>
@@ -411,19 +461,22 @@
 <span class="k">def</span><span class="w"> </span><span class="nf">project_pinhole</span><span class="p">(</span>
     <span class="n">v_cam</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">focal</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">princpt</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Project camera-space points to pixel-space points with camera</span>
-<span class="sd">    intrinsics.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Project camera-space points with an undistorted pinhole camera.</span>
 
-<span class="sd">    v_cam:      N x V x 3</span>
-<span class="sd">    focal:      N x 2 x 2</span>
-<span class="sd">    princpt:    N x 2</span>
+<span class="sd">    Args:</span>
+<span class="sd">        v_cam: Camera-space points with shape ``(N, V, 3)``.</span>
+<span class="sd">        focal: Camera intrinsic matrices with shape ``(N, 2, 2)``.</span>
+<span class="sd">        princpt: Principal points in pixels with shape ``(N, 2)``.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Pixel coordinates with shape ``(N, V, 2)``.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">z</span> <span class="o">=</span> <span class="n">v_cam</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">2</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span>
     <span class="n">z</span> <span class="o">=</span> <span class="n">th</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">z</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">z</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="nb">max</span><span class="o">=-</span><span class="mf">1e-8</span><span class="p">),</span> <span class="n">z</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="nb">min</span><span class="o">=</span><span class="mf">1e-8</span><span class="p">))</span>
 
     <span class="n">v_proj</span> <span class="o">=</span> <span class="n">v_cam</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">2</span><span class="p">]</span> <span class="o">/</span> <span class="n">z</span>
-    <span class="n">v_pix</span> <span class="o">=</span> <span class="p">(</span><span class="n">focal</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">@</span> <span class="n">v_proj</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">])[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">princpt</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
+    <span class="n">v_pix</span> <span class="o">=</span> <span class="n">_apply_matrix</span><span class="p">(</span><span class="n">focal</span><span class="p">,</span> <span class="n">v_proj</span><span class="p">)</span> <span class="o">+</span> <span class="n">princpt</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
 
     <span class="k">return</span> <span class="n">v_pix</span>
 
@@ -435,14 +488,22 @@
     <span class="n">D</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
     <span class="n">fov</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Project camera-space points to distorted pixel-space using the radial</span>
-<span class="sd">    and tangential model (4 parameters).</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Project camera-space points with an OpenCV radial-tangential model.</span>
 
-<span class="sd">    v_cam:      N x V x 3</span>
-<span class="sd">    focal:      N x 2 x 2</span>
-<span class="sd">    princpt:    N x 2</span>
-<span class="sd">    D:          N x 4</span>
-<span class="sd">    fov:        N x 1</span>
+<span class="sd">    ``D`` may contain OpenCV&#39;s 4-, 5-, or 8-parameter radial/tangential</span>
+<span class="sd">    coefficients. The normalized radius is clamped to ``fov`` before applying</span>
+<span class="sd">    distortion; when ``fov`` is omitted it is estimated from ``D``.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        v_cam: Camera-space points with shape ``(N, V, 3)``.</span>
+<span class="sd">        focal: Camera intrinsic matrices with shape ``(N, 2, 2)``.</span>
+<span class="sd">        princpt: Principal points in pixels with shape ``(N, 2)``.</span>
+<span class="sd">        D: Distortion coefficients with shape ``(N, 4)``, ``(N, 5)``, or</span>
+<span class="sd">            ``(N, 8)``.</span>
+<span class="sd">        fov: Optional maximum normalized radius with shape ``(N, 1)``.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Distorted pixel coordinates with shape ``(N, V, 2)``.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="c1"># See https://docs.opencv.org/2.4/doc/tutorials/calib3d/camera_calibration/camera_calibration.html</span>
@@ -497,7 +558,7 @@
         <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span>
     <span class="p">)</span>
 
-    <span class="n">v_pix_dist</span> <span class="o">=</span> <span class="p">(</span><span class="n">focal</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">@</span> <span class="n">v_proj_dist</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">])[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">princpt</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
+    <span class="n">v_pix_dist</span> <span class="o">=</span> <span class="n">_apply_matrix</span><span class="p">(</span><span class="n">focal</span><span class="p">,</span> <span class="n">v_proj_dist</span><span class="p">)</span> <span class="o">+</span> <span class="n">princpt</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
 
     <span class="k">return</span> <span class="n">v_pix_dist</span>
 
@@ -509,14 +570,18 @@
     <span class="n">D</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
     <span class="n">fov</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Project camera-space points to distort pixel-space points using the</span>
-<span class="sd">    fisheye distortion model.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Project camera-space points with OpenCV&#39;s fisheye model.</span>
 
-<span class="sd">    v_cam:      N x V x 3</span>
-<span class="sd">    focal:      N x 2 x 2</span>
-<span class="sd">    princpt:    N x 2</span>
-<span class="sd">    D:          N x 4</span>
-<span class="sd">    fov:        N x 1</span>
+<span class="sd">    Args:</span>
+<span class="sd">        v_cam: Camera-space points with shape ``(N, V, 3)``.</span>
+<span class="sd">        focal: Camera intrinsic matrices with shape ``(N, 2, 2)``.</span>
+<span class="sd">        princpt: Principal points in pixels with shape ``(N, 2)``.</span>
+<span class="sd">        D: Fisheye distortion coefficients with shape ``(N, 4)``.</span>
+<span class="sd">        fov: Optional maximum normalized radius with shape ``(N, 1)``. When</span>
+<span class="sd">            omitted, it is estimated from ``D``.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Distorted pixel coordinates with shape ``(N, V, 2)``.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="c1"># See https://github.com/opencv/opencv/blob/master/modules/calib3d/src/fisheye.cpp</span>
@@ -541,7 +606,7 @@
     <span class="p">)</span>
     <span class="n">r</span> <span class="o">=</span> <span class="n">th</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">r</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">r</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="nb">max</span><span class="o">=-</span><span class="mf">1e-8</span><span class="p">),</span> <span class="n">r</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="nb">min</span><span class="o">=</span><span class="mf">1e-8</span><span class="p">))</span>
     <span class="n">v_proj_dist</span> <span class="o">=</span> <span class="n">v_proj</span> <span class="o">*</span> <span class="p">(</span><span class="n">theta_d</span> <span class="o">/</span> <span class="n">r</span><span class="p">)[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>
-    <span class="n">v_pix_dist</span> <span class="o">=</span> <span class="p">(</span><span class="n">focal</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">@</span> <span class="n">v_proj_dist</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">])[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">princpt</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
+    <span class="n">v_pix_dist</span> <span class="o">=</span> <span class="n">_apply_matrix</span><span class="p">(</span><span class="n">focal</span><span class="p">,</span> <span class="n">v_proj_dist</span><span class="p">)</span> <span class="o">+</span> <span class="n">princpt</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
 
     <span class="k">return</span> <span class="n">v_pix_dist</span>
 
@@ -555,17 +620,26 @@
     <span class="n">lut_vector_field</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">lut_spacing</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Project camera-space points to distort pixel-space points using the</span>
-<span class="sd">    Fisheye62 distortion model. See the perception camera model implementation</span>
-<span class="sd">    where this was copied from here: https://fburl.com/code/oqpu8xdm</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Project camera-space points with the Fisheye62 model.</span>
 
-<span class="sd">    v_cam:              N x V x 3</span>
-<span class="sd">    focal:              N x 2 x 2</span>
-<span class="sd">    princpt:            N x 2</span>
-<span class="sd">    D:                  N x 8</span>
-<span class="sd">    fov:                N x 1</span>
-<span class="sd">    lut_vector_field:   N x 2 x H_lut x W_lut</span>
-<span class="sd">    lut_spacing:        N x 2</span>
+<span class="sd">    Fisheye62 uses six radial coefficients followed by two tangential</span>
+<span class="sd">    coefficients. If ``lut_vector_field`` is provided, a pixel-space correction</span>
+<span class="sd">    is sampled from the lookup table and added to the projected coordinates.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        v_cam: Camera-space points with shape ``(N, V, 3)``.</span>
+<span class="sd">        focal: Camera intrinsic matrices with shape ``(N, 2, 2)``.</span>
+<span class="sd">        princpt: Principal points in pixels with shape ``(N, 2)``.</span>
+<span class="sd">        D: Fisheye62 coefficients ``(k0, k1, k2, k3, k4, k5, p0, p1)`` with</span>
+<span class="sd">            shape ``(N, 8)``.</span>
+<span class="sd">        fov: Optional maximum normalized radius with shape ``(N, 1)``.</span>
+<span class="sd">        lut_vector_field: Optional pixel offset table with shape</span>
+<span class="sd">            ``(N, 2, H_lut, W_lut)``.</span>
+<span class="sd">        lut_spacing: Pixel spacing of the lookup table with shape ``(N, 2)``.</span>
+<span class="sd">            Required when ``lut_vector_field`` is provided.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Distorted pixel coordinates with shape ``(N, V, 2)``.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">assert</span> <span class="n">D</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">8</span><span class="p">,</span> <span class="p">(</span>
         <span class="sa">f</span><span class="s2">&quot;Fisheye62 model requires 8 distortion parameters: </span><span class="si">{</span><span class="n">D</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span>
@@ -626,7 +700,7 @@
 
     <span class="n">v_proj_dist</span> <span class="o">=</span> <span class="n">v_proj_dist</span> <span class="o">+</span> <span class="n">pTangential</span>
 
-    <span class="n">v_pix_dist</span> <span class="o">=</span> <span class="p">(</span><span class="n">focal</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">@</span> <span class="n">v_proj_dist</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">])[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">princpt</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
+    <span class="n">v_pix_dist</span> <span class="o">=</span> <span class="n">_apply_matrix</span><span class="p">(</span><span class="n">focal</span><span class="p">,</span> <span class="n">v_proj_dist</span><span class="p">)</span> <span class="o">+</span> <span class="n">princpt</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
 
     <span class="k">if</span> <span class="n">lut_vector_field</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">assert</span> <span class="n">lut_spacing</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">,</span> <span class="p">(</span>
@@ -664,10 +738,19 @@
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">estimate_rt_fov</span><span class="p">(</span><span class="n">D</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Estimate the maximum field of view based on the assumption that the 5th order</span>
-<span class="sd">    polynomial for fish-eye effect is non-decreasing.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Estimate a radial-tangential distortion field-of-view bound.</span>
 
-<span class="sd">    D:  N x 4</span>
+<span class="sd">    The returned value is the smallest positive radius where the radial</span>
+<span class="sd">    polynomial can stop being monotonic. If no such root exists, the bound is</span>
+<span class="sd">    infinity. This helper uses NumPy root finding and is not differentiable with</span>
+<span class="sd">    respect to ``D``.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        D: Radial-tangential coefficients with shape ``(N, 4)`` or larger. Only</span>
+<span class="sd">            the first two radial coefficients are read.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Maximum normalized radius with shape ``(N, 1)``.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">if</span> <span class="n">th</span><span class="o">.</span><span class="n">is_tensor</span><span class="p">(</span><span class="n">D</span><span class="p">):</span>
@@ -678,6 +761,7 @@
     <span class="n">ones</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">coefs</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">])</span>
     <span class="n">zeros</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">coefs</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">])</span>
     <span class="n">coefs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span>
+        <span class="c1"># pyrefly: ignore [bad-argument-type]</span>
         <span class="p">[</span>
             <span class="mi">5</span> <span class="o">*</span> <span class="n">coefs</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">],</span>
             <span class="n">zeros</span><span class="p">,</span>
@@ -700,6 +784,7 @@
     <span class="n">fov</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">fov</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>
 
     <span class="k">if</span> <span class="n">th</span><span class="o">.</span><span class="n">is_tensor</span><span class="p">(</span><span class="n">D</span><span class="p">):</span>
+        <span class="c1"># pyrefly: ignore [no-matching-overload]</span>
         <span class="n">fov</span> <span class="o">=</span> <span class="n">th</span><span class="o">.</span><span class="n">from_numpy</span><span class="p">(</span><span class="n">fov</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">D</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">fov</span>
@@ -728,16 +813,26 @@
     <span class="n">fov</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">tan</span><span class="p">(</span><span class="n">fov</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">)[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>
 
     <span class="k">if</span> <span class="n">th</span><span class="o">.</span><span class="n">is_tensor</span><span class="p">(</span><span class="n">D</span><span class="p">):</span>
+        <span class="c1"># pyrefly: ignore [no-matching-overload]</span>
         <span class="n">fov</span> <span class="o">=</span> <span class="n">th</span><span class="o">.</span><span class="n">from_numpy</span><span class="p">(</span><span class="n">fov</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">D</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">fov</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">estimate_fisheye_fov</span><span class="p">(</span><span class="n">D</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Estimate the maximum field of view based on the assumption that the 9th order</span>
-<span class="sd">    polynomial is non-decreasing.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Estimate an OpenCV fisheye field-of-view bound.</span>
 
-<span class="sd">    D:  N x 4</span>
+<span class="sd">    The returned value is ``tan(theta)`` at the first positive point where the</span>
+<span class="sd">    fisheye polynomial can stop being monotonic, capped at ``pi / 2``. This</span>
+<span class="sd">    helper uses NumPy root finding and is not differentiable with respect to</span>
+<span class="sd">    ``D``.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        D: Fisheye coefficients with shape ``(N, 4)`` or larger. Only the first</span>
+<span class="sd">            four radial coefficients are read.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Maximum normalized radius with shape ``(N, 1)``.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">if</span> <span class="n">th</span><span class="o">.</span><span class="n">is_tensor</span><span class="p">(</span><span class="n">D</span><span class="p">):</span>
@@ -748,6 +843,7 @@
     <span class="n">ones</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">coefs</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">])</span>
     <span class="n">zeros</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">coefs</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">])</span>
     <span class="n">coefs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span>
+        <span class="c1"># pyrefly: ignore [bad-argument-type]</span>
         <span class="p">[</span>
             <span class="mi">9</span> <span class="o">*</span> <span class="n">coefs</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">],</span>
             <span class="n">zeros</span><span class="p">,</span>
@@ -766,8 +862,7 @@
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">estimate_fisheye62_fov</span><span class="p">(</span><span class="n">D</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Estimate the maximum field of view based on the assumption that the 13th</span>
-<span class="sd">    order fisheye62 polynomial (k0..k5) is non-decreasing.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Estimate a Fisheye62 field-of-view bound.</span>
 
 <span class="sd">    `estimate_fisheye_fov` truncates at k0..k3 (9th order), which misses the</span>
 <span class="sd">    first root in `[0, pi/2]` for calibrations whose `k4*theta^11 + k5*theta^13`</span>
@@ -775,7 +870,15 @@
 <span class="sd">    fisheye62 distortion model (8 coefficients: k0..k5, p0, p1) should prefer</span>
 <span class="sd">    this function.</span>
 
-<span class="sd">    D:  N x &gt;= 6 (only the first six entries are read)</span>
+<span class="sd">    This helper uses NumPy root finding and is not differentiable with respect</span>
+<span class="sd">    to ``D``.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        D: Fisheye62 coefficients with shape ``(N, 6)`` or larger. Only the</span>
+<span class="sd">            first six radial coefficients are read.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Maximum normalized radius with shape ``(N, 1)``.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">if</span> <span class="n">th</span><span class="o">.</span><span class="n">is_tensor</span><span class="p">(</span><span class="n">D</span><span class="p">):</span>
@@ -790,6 +893,7 @@
     <span class="n">ones</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">coefs</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">])</span>
     <span class="n">zeros</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">coefs</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">])</span>
     <span class="n">coefs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span>
+        <span class="c1"># pyrefly: ignore [bad-argument-type]</span>
         <span class="p">[</span>
             <span class="mi">13</span> <span class="o">*</span> <span class="n">coefs</span><span class="p">[:,</span> <span class="mi">5</span><span class="p">],</span>
             <span class="n">zeros</span><span class="p">,</span>
@@ -826,25 +930,45 @@
     <span class="n">lut_vector_field</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">lut_spacing</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Project 3D world-space vertices to pixel-space, optionally applying a</span>
-<span class="sd">    distortion model with provided coefficients.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Project world-space vertices to DRTK pixel coordinates.</span>
 
-<span class="sd">    Returns v_pix, v_cam, both N x V x 3 since we preserve the camera-space</span>
-<span class="sd">    Z-coordinate for v_pix.</span>
+<span class="sd">    The world-to-camera convention is ``v_cam = camrot @ (v - campos)``.</span>
+<span class="sd">    ``v_pix`` stores pixel ``x, y`` followed by camera-space ``z`` so it can be</span>
+<span class="sd">    passed directly to :func:`drtk.rasterize`. Vertices with ``z &lt;= 0`` are</span>
+<span class="sd">    behind the camera and are rejected by rasterization.</span>
 
-<span class="sd">    v:                  N x V x 3</span>
-<span class="sd">    camrot:             N x 3 x 3</span>
-<span class="sd">    campos:             N x 3</span>
-<span class="sd">    focal:              N x 2 x 2</span>
-<span class="sd">    princpt:            N x 2</span>
-<span class="sd">    distortion_coeff:   N x 4</span>
-<span class="sd">    fov:                N x 1</span>
+<span class="sd">    ``distortion_mode`` may be ``None``/``&quot;pinhole&quot;``,</span>
+<span class="sd">    ``&quot;radial-tangential&quot;``, ``&quot;fisheye&quot;``, ``&quot;fisheye62&quot;``, or</span>
+<span class="sd">    ``&quot;fisheye62_lut&quot;``. A per-batch list of modes is supported for pinhole,</span>
+<span class="sd">    radial-tangential, and fisheye batches; Fisheye62 modes are currently</span>
+<span class="sd">    supported only when ``distortion_mode`` is a single string. For Fisheye62</span>
+<span class="sd">    with ``fov``, vertices outside the valid radius get ``z = -1`` so any</span>
+<span class="sd">    triangle touching them is culled by the rasterizer.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        v: World-space vertices with shape ``(N, V, 3)``.</span>
+<span class="sd">        campos: Camera positions with shape ``(N, 3)``.</span>
+<span class="sd">        camrot: World-to-camera rotation matrices with shape ``(N, 3, 3)``.</span>
+<span class="sd">        focal: Camera intrinsic matrices with shape ``(N, 2, 2)``.</span>
+<span class="sd">        princpt: Principal points in pixels with shape ``(N, 2)``.</span>
+<span class="sd">        distortion_mode: Optional distortion mode string or per-batch list of</span>
+<span class="sd">            mode strings.</span>
+<span class="sd">        distortion_coeff: Distortion coefficients. Shape depends on</span>
+<span class="sd">            ``distortion_mode``.</span>
+<span class="sd">        fov: Optional maximum normalized radius with shape ``(N, 1)``.</span>
+<span class="sd">        lut_vector_field: Optional Fisheye62 LUT offset field with shape</span>
+<span class="sd">            ``(N, 2, H_lut, W_lut)``.</span>
+<span class="sd">        lut_spacing: Optional Fisheye62 LUT spacing with shape ``(N, 2)``.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        ``(v_pix, v_cam)``. Both tensors have shape ``(N, V, 3)``. ``v_pix``</span>
+<span class="sd">        stores ``(x_pixels, y_pixels, z_camera)``.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">if</span> <span class="n">distortion_mode</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">assert</span> <span class="n">distortion_coeff</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">,</span> <span class="s2">&quot;Missing distortion coefficients.&quot;</span>
 
-    <span class="n">v_cam</span> <span class="o">=</span> <span class="p">(</span><span class="n">camrot</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">@</span> <span class="p">(</span><span class="n">v</span> <span class="o">-</span> <span class="n">campos</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">])[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">])[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">v_cam</span> <span class="o">=</span> <span class="n">_apply_matrix</span><span class="p">(</span><span class="n">camrot</span><span class="p">,</span> <span class="n">v</span> <span class="o">-</span> <span class="n">campos</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">])</span>
 
     <span class="c1"># Fall back to single distortion mode if all the distortion modes are the same.</span>
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">distortion_mode</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)):</span>
@@ -970,31 +1094,31 @@
     <span class="n">distortion_mode</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Union</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">distortion_coeff</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Computes the gradient of projected (pixel-space) vertex positions with</span>
-<span class="sd">    respect to the 3D world-space vertex positions given the gradient of the 3D</span>
-<span class="sd">    world-space vertex positions.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Apply the pinhole projection Jacobian to world-space vertex deltas.</span>
 
-<span class="sd">    project_points_grad(dv, v) = d project_points(v) / dv * dv</span>
+<span class="sd">    This computes ``d project_points(v) / d v @ v_grad`` for the undistorted</span>
+<span class="sd">    pinhole projection path. Distortion gradients are not implemented here; pass</span>
+<span class="sd">    ``distortion_mode=None``.</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">        v_grad: Gradient of 3D world-space vertices. Shape: N x V x 3</span>
-<span class="sd">        v: 3D world-space vertices. Shape: N x V x 3</span>
-<span class="sd">        camrot: Camera rotation. Shape:  N x 3 x 3</span>
-<span class="sd">        camrot: Camera position. Shape:  N x 3</span>
-<span class="sd">        focal: Focal length. Shape: N x 2 x 2</span>
-<span class="sd">        distortion_mode: Distortion currently not implemented and must be None.</span>
-<span class="sd">        distortion_coeff: Distortion currently not implemented and must be None.</span>
+<span class="sd">        v_grad: World-space vertex perturbations with shape ``(N, V, 3)``.</span>
+<span class="sd">        v: World-space vertices with shape ``(N, V, 3)``.</span>
+<span class="sd">        campos: Camera positions with shape ``(N, 3)``.</span>
+<span class="sd">        camrot: World-to-camera rotation matrices with shape ``(N, 3, 3)``.</span>
+<span class="sd">        focal: Camera intrinsic matrices with shape ``(N, 2, 2)``.</span>
+<span class="sd">        distortion_mode: Distortion is not implemented and must be ``None``.</span>
+<span class="sd">        distortion_coeff: Distortion is not implemented and must be ``None``.</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">         Gradient of 2D pixel-space vertices: N x V x 2</span>
+<span class="sd">        Pixel-space perturbations with shape ``(N, V, 2)``.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">if</span> <span class="n">distortion_mode</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">assert</span> <span class="n">distortion_coeff</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">,</span> <span class="s2">&quot;Missing distortion coefficients.&quot;</span>
 
     <span class="c1"># d v_cam = d (Rv + T) = Rdv</span>
-    <span class="n">v_cam_grad</span> <span class="o">=</span> <span class="p">(</span><span class="n">camrot</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">@</span> <span class="n">v_grad</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">])[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
-    <span class="n">v_cam</span> <span class="o">=</span> <span class="p">(</span><span class="n">camrot</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">@</span> <span class="p">(</span><span class="n">v</span> <span class="o">-</span> <span class="n">campos</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">])[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">])[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+    <span class="n">v_cam_grad</span> <span class="o">=</span> <span class="n">_apply_matrix</span><span class="p">(</span><span class="n">camrot</span><span class="p">,</span> <span class="n">v_grad</span><span class="p">)</span>
+    <span class="n">v_cam</span> <span class="o">=</span> <span class="n">_apply_matrix</span><span class="p">(</span><span class="n">camrot</span><span class="p">,</span> <span class="n">v</span> <span class="o">-</span> <span class="n">campos</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">])</span>
 
     <span class="k">if</span> <span class="n">distortion_mode</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">z</span> <span class="o">=</span> <span class="n">v_cam</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">2</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span>
@@ -1006,7 +1130,7 @@
         <span class="n">v_proj_grad</span> <span class="o">=</span> <span class="p">(</span><span class="n">v_cam_grad</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">2</span><span class="p">]</span> <span class="o">*</span> <span class="n">z</span> <span class="o">-</span> <span class="n">v_cam</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">0</span><span class="p">:</span><span class="mi">2</span><span class="p">]</span> <span class="o">*</span> <span class="n">z_grad</span><span class="p">)</span> <span class="o">/</span> <span class="n">z</span><span class="o">**</span><span class="mf">2.0</span>
 
         <span class="c1"># d v_pix = d (Kv + cp) = Kdv</span>
-        <span class="n">v_pix_grad</span> <span class="o">=</span> <span class="p">(</span><span class="n">focal</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">@</span> <span class="n">v_proj_grad</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">])[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+        <span class="n">v_pix_grad</span> <span class="o">=</span> <span class="n">_apply_matrix</span><span class="p">(</span><span class="n">focal</span><span class="p">,</span> <span class="n">v_proj_grad</span><span class="p">)</span>
 
     <span class="k">elif</span> <span class="n">distortion_mode</span> <span class="o">==</span> <span class="s2">&quot;radial-tangential&quot;</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">NotImplementedError</span>
@@ -1042,8 +1166,8 @@
   </div>
   
   <!-- Scripts loaded after <body> so the DOM is not blocked -->
-  <script defer src="../../../_static/scripts/bootstrap.js?digest=a95f357e85573c9b56d5"></script>
-<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=a95f357e85573c9b56d5"></script>
+  <script defer src="../../../_static/scripts/bootstrap.js?digest=75c7c72ae941e8b558d8"></script>
+<script defer src="../../../_static/scripts/pydata-sphinx-theme.js?digest=75c7c72ae941e8b558d8"></script>
 
   <footer class="bd-footer">
 <div class="bd-footer__inner bd-page-width">
@@ -1063,8 +1187,7 @@
         <div class="footer-item">
 
   <p class="sphinx-version">
-    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
-    <br/>
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.2.0.
   </p>
 </div>
       
@@ -1110,7 +1233,7 @@
         <div class="footer-item">
 <p class="theme-version">
   <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
-  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.19.0.
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.24.0.
 </p></div>
       
     </div>

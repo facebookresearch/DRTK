@@ -338,6 +338,8 @@
 <li class="toctree-l1"><a class="reference internal" href="transform.html">drtk.transform</a></li>
 <li class="toctree-l1"><a class="reference internal" href="rasterize.html">drtk.rasterize</a></li>
 <li class="toctree-l1"><a class="reference internal" href="render.html">drtk.render</a></li>
+<li class="toctree-l1"><a class="reference internal" href="transparent_render.html">drtk.transparent_render</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pixel_grid_mesh.html">Pixel-grid meshes with stochastic topology gradients</a></li>
 <li class="toctree-l1"><a class="reference internal" href="interpolate.html">drtk.interpolate</a></li>
 <li class="toctree-l1"><a class="reference internal" href="filter2d.html">drtk.filter2d</a></li>
 <li class="toctree-l1"><a class="reference internal" href="edge_grad_estimator.html">drtk.edge_grad_estimator</a></li>
@@ -410,11 +412,13 @@
   <section id="drtk-api">
 <h1>DRTK API<a class="headerlink" href="#drtk-api" title="Link to this heading">#</a></h1>
 <p>DRTK is a PyTorch library that provides functionality for differentiable rasterization.</p>
-<p>The package consists of five main modules:</p>
+<p>The package includes the following modules:</p>
 <ul class="simple">
 <li><p><a class="reference internal" href="transform.html"><span class="doc">drtk.transform</span></a></p></li>
 <li><p><a class="reference internal" href="rasterize.html"><span class="doc">drtk.rasterize</span></a></p></li>
 <li><p><a class="reference internal" href="render.html"><span class="doc">drtk.render</span></a></p></li>
+<li><p><a class="reference internal" href="transparent_render.html"><span class="doc">drtk.transparent_render</span></a></p></li>
+<li><p><a class="reference internal" href="pixel_grid_mesh.html"><span class="doc">Pixel-grid meshes with stochastic topology gradients</span></a></p></li>
 <li><p><a class="reference internal" href="interpolate.html"><span class="doc">drtk.interpolate</span></a></p></li>
 <li><p><a class="reference internal" href="filter2d.html"><span class="doc">drtk.filter2d</span></a></p></li>
 <li><p><a class="reference internal" href="edge_grad_estimator.html"><span class="doc">drtk.edge_grad_estimator</span></a></p></li>
@@ -435,6 +439,38 @@
 <li class="toctree-l1"><a class="reference internal" href="render.html">drtk.render</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="render.html#drtk.render"><code class="docutils literal notranslate"><span class="pre">render()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="render.html#drtk.render_ref"><code class="docutils literal notranslate"><span class="pre">render_ref()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="transparent_render.html">drtk.transparent_render</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="transparent_render.html#transparent-edge-gradients">Transparent edge gradients</a></li>
+<li class="toctree-l2"><a class="reference internal" href="transparent_render.html#appearance-activations">Appearance activations</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="transparent_render.html#drtk.render_transparent"><code class="docutils literal notranslate"><span class="pre">render_transparent()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="transparent_render.html#drtk.render_transparent_mlp"><code class="docutils literal notranslate"><span class="pre">render_transparent_mlp()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="transparent_render.html#drtk.render_transparent_mlp_two_textures"><code class="docutils literal notranslate"><span class="pre">render_transparent_mlp_two_textures()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="transparent_render.html#drtk.render_transparent_ref"><code class="docutils literal notranslate"><span class="pre">render_transparent_ref()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="transparent_render.html#drtk.render_transparent_mlp_ref"><code class="docutils literal notranslate"><span class="pre">render_transparent_mlp_ref()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="transparent_render.html#drtk.render_transparent_mlp_two_textures_ref"><code class="docutils literal notranslate"><span class="pre">render_transparent_mlp_two_textures_ref()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="pixel_grid_mesh.html">Pixel-grid meshes with stochastic topology gradients</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="pixel_grid_mesh.html#accepted-representation-and-api">Accepted representation and API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pixel_grid_mesh.html#pixel-and-camera-convention">Pixel and camera convention</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pixel_grid_mesh.html#cuts-and-corner-sharing">Cuts and corner sharing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pixel_grid_mesh.html#closed-form-displaced-corners-and-diagonals">Closed-form displaced corners and diagonals</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pixel_grid_mesh.html#optional-boundary-feathering">Optional boundary feathering</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pixel_grid_mesh.html#stochastic-topology-objective">Stochastic topology objective</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pixel_grid_mesh.html#native-implementation-and-limitations">Native implementation and limitations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pixel_grid_mesh.html#tests">Tests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pixel_grid_mesh.html#python-api">Python API</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="pixel_grid_mesh.html#drtk.pixel_grid_mesh"><code class="docutils literal notranslate"><span class="pre">pixel_grid_mesh()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="pixel_grid_mesh.html#drtk.pixel_grid_mesh_ref"><code class="docutils literal notranslate"><span class="pre">pixel_grid_mesh_ref()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="pixel_grid_mesh.html#drtk.bernoulli_topology_samples"><code class="docutils literal notranslate"><span class="pre">bernoulli_topology_samples()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="pixel_grid_mesh.html#drtk.bernoulli_render_loss"><code class="docutils literal notranslate"><span class="pre">bernoulli_render_loss()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="pixel_grid_mesh.html#references">References</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="interpolate.html">drtk.interpolate</a><ul>
