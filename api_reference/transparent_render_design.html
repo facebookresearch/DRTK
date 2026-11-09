@@ -509,7 +509,7 @@ has these exact shapes:</p>
     <span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="s2">&quot;cuda&quot;</span><span class="p">)),</span>
 <span class="p">]</span>
 
-<span class="n">color</span><span class="p">,</span> <span class="n">alpha</span> <span class="o">=</span> <span class="n">drtk</span><span class="o">.</span><span class="n">render_transparent_mlp_two_textures</span><span class="p">(</span>
+<span class="n">color</span><span class="p">,</span> <span class="n">alpha</span><span class="p">,</span> <span class="n">depth</span> <span class="o">=</span> <span class="n">drtk</span><span class="o">.</span><span class="n">render_transparent_mlp_two_textures</span><span class="p">(</span>
     <span class="n">projected_vertices</span><span class="p">,</span>
     <span class="n">triangle_indices</span><span class="p">,</span>
     <span class="n">displaced_uv</span><span class="p">,</span>
@@ -727,7 +727,7 @@ T_(k+1) = T_k * (1 - a_k)
 </pre></div>
 </div>
 <p>After all fragments, the background contributes <code class="docutils literal notranslate"><span class="pre">T_final</span> <span class="pre">*</span> <span class="pre">background</span></code>, and
-the returned alpha is <code class="docutils literal notranslate"><span class="pre">1</span> <span class="pre">-</span> <span class="pre">T_final</span></code>. With a zero/default background, returned
+the returned foreground alpha is accumulated directly as <code class="docutils literal notranslate"><span class="pre">sum_k(T_k</span> <span class="pre">*</span> <span class="pre">a_k)</span></code>. This equals <code class="docutils literal notranslate"><span class="pre">1</span> <span class="pre">-</span> <span class="pre">T_final</span></code> mathematically while avoiding subtraction cancellation at small opacity. With a zero/default background, returned
 RGB is premultiplied by accumulated alpha. With an explicit background,
 returned RGB is the fully composited color. This is the same output convention
 used by gsplat’s front-to-back renderer.</p>
@@ -736,6 +736,37 @@ used by gsplat’s front-to-back renderer.</p>
 transmittance is negligible. Early termination is rejected when gradients are
 enabled because it is a discrete approximation.</p>
 </section>
+</section>
+<section id="depth-output">
+<h2>Depth output<a class="headerlink" href="#depth-output" title="Link to this heading">#</a></h2>
+<p>All native and reference APIs return <code class="docutils literal notranslate"><span class="pre">(rgb,</span> <span class="pre">alpha,</span> <span class="pre">depth)</span></code>. Fragment depth is
+perspective-correct interpolated camera Z. Four modes share the RGB traversal
+order, with no per-pixel depth sorting:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">expected</span></code>: <code class="docutils literal notranslate"><span class="pre">sum(T</span> <span class="pre">*</span> <span class="pre">alpha</span> <span class="pre">*</span> <span class="pre">Z)</span> <span class="pre">+</span> <span class="pre">T_final</span> <span class="pre">*</span> <span class="pre">background_depth</span></code> (default).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">accumulated</span></code>: foreground <code class="docutils literal notranslate"><span class="pre">sum(T</span> <span class="pre">*</span> <span class="pre">alpha</span> <span class="pre">*</span> <span class="pre">Z)</span></code> without a background term.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">foreground_mean</span></code>: foreground sum divided by its accumulated opacity, only
+when opacity exceeds <code class="docutils literal notranslate"><span class="pre">depth_alpha_threshold</span></code>; otherwise background depth.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">median</span></code>: the first fragment where cumulative opacity reaches 0.5, or
+background depth if no foreground fragment crosses it.</p></li>
+</ul>
+<p>Background depth is a finite positive camera-space value, default 1000.
+Expected depth treats the background as an opaque final layer. Foreground
+alpha remains the alpha output; it is not replaced by one. The mean validity
+threshold defaults to 1e-6. Invalid pixels never divide by small opacity and
+have zero depth derivative. Background and validity settings are constants.</p>
+<p>Depth accumulation is fused into the existing fragment loop. Median backward
+uses the face selected in forward, avoiding changes at an exact threshold due
+to recomputing floating-point transmittance in reverse. Smooth derivatives
+include the depth attribute itself and its perspective interpolation. Expected,
+accumulated, and valid mean depth also differentiate compositing weights.
+Median selection and mean validity remain discrete.</p>
+<p>Depth boundary queries replay the two hypothetical sides in forward order and
+compare the requested final depth values, preserving the renderer’s rank and
+shared-edge bundling. This supports nonlinear mean and median outputs without
+materializing fragment lists. These depth-specific queries run only where the
+upstream depth gradient is nonzero. The existing color/alpha boundary term is
+retained.</p>
 </section>
 <section id="backward-pipeline">
 <h2>Backward pipeline<a class="headerlink" href="#backward-pipeline" title="Link to this heading">#</a></h2>
@@ -1089,6 +1120,7 @@ note.</p>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#front-to-back-compositing">6. Front-to-back compositing</a></li>
 </ul>
 </li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#depth-output">Depth output</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#backward-pipeline">Backward pipeline</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#deliberately-discrete-terms">Deliberately discrete terms</a></li>
 </ul>

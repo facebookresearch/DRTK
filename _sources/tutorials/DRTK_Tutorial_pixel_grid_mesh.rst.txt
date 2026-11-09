@@ -93,6 +93,9 @@ where :math:`C` is premultiplied color and :math:`A` is accumulated alpha.
 The target mesh only generates these supervision images. Its vertex positions,
 alive labels, and join labels are not losses supplied to the optimizer.
 The dark background in the figures is added for display after rendering.
+The renderer also returns depth; this example discards it and keeps the
+RGB/alpha objective shown above. See :doc:`../api_reference/transparent_render`
+for the expected, accumulated, foreground-mean, and median depth modes.
 
 .. literalinclude:: ../_static/pixel_grid_mesh_demo.py
    :language: python

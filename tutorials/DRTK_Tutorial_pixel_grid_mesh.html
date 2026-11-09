@@ -510,7 +510,10 @@ and a fixed RGB texture with <code class="docutils literal notranslate"><span cl
 <p>where <span class="math notranslate nohighlight">\(C\)</span> is premultiplied color and <span class="math notranslate nohighlight">\(A\)</span> is accumulated alpha.
 The target mesh only generates these supervision images. Its vertex positions,
 alive labels, and join labels are not losses supplied to the optimizer.
-The dark background in the figures is added for display after rendering.</p>
+The dark background in the figures is added for display after rendering.
+The renderer also returns depth; this example discards it and keeps the
+RGB/alpha objective shown above. See <a class="reference internal" href="../api_reference/transparent_render.html"><span class="doc">drtk.transparent_render</span></a>
+for the expected, accumulated, foreground-mean, and median depth modes.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span>    <span class="k">def</span><span class="w"> </span><span class="nf">loss</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bits</span><span class="p">,</span> <span class="n">coefficients</span><span class="p">,</span> <span class="n">view_index</span><span class="p">):</span>
         <span class="n">rgb</span><span class="p">,</span> <span class="n">alpha</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">render</span><span class="p">(</span><span class="n">bits</span><span class="p">,</span> <span class="n">coefficients</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">views</span><span class="p">[</span><span class="n">view_index</span><span class="p">])</span>
         <span class="n">target_rgb</span><span class="p">,</span> <span class="n">target_alpha</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">targets</span><span class="p">[</span><span class="n">view_index</span><span class="p">]</span>

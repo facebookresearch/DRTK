@@ -406,6 +406,7 @@
 <span class="sd">including the lower bound on final fragment alpha.</span>
 <span class="sd">&quot;&quot;&quot;</span>
 
+<span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">cast</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Tuple</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">th</span>
@@ -442,6 +443,9 @@
         <span class="nb">int</span><span class="p">,</span>
         <span class="nb">int</span><span class="p">,</span>
         <span class="nb">bool</span><span class="p">,</span>
+        <span class="nb">int</span><span class="p">,</span>
+        <span class="nb">float</span><span class="p">,</span>
+        <span class="nb">float</span><span class="p">,</span>
     <span class="p">],</span>
     <span class="n">List</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
 <span class="p">]</span>
@@ -454,6 +458,58 @@
     <span class="n">_RenderWithMlp</span><span class="p">,</span>
     <span class="nb">getattr</span><span class="p">(</span><span class="n">th</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">transparent_render_ext</span><span class="p">,</span> <span class="s2">&quot;render_with_mlp&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
 <span class="p">)</span>
+
+
+<span class="n">_DEPTH_MODES</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;expected&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="s2">&quot;accumulated&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="s2">&quot;foreground_mean&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+    <span class="s2">&quot;median&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span>
+<span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_validate_depth_options</span><span class="p">(</span>
+    <span class="n">depth_mode</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">background_depth</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">depth_alpha_threshold</span><span class="p">:</span> <span class="nb">float</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">depth_mode</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">_DEPTH_MODES</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;transparent render: unknown depth_mode </span><span class="si">{</span><span class="n">depth_mode</span><span class="si">!r}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="p">(</span>
+        <span class="ow">not</span> <span class="n">math</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">background_depth</span><span class="p">)</span>
+        <span class="ow">or</span> <span class="ow">not</span> <span class="mf">0.0</span> <span class="o">&lt;</span> <span class="n">background_depth</span> <span class="o">&lt;=</span> <span class="mf">3.4028234663852886e38</span>
+    <span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;transparent render: background_depth must be positive and finite in float32&quot;</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="p">(</span>
+        <span class="ow">not</span> <span class="n">math</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">depth_alpha_threshold</span><span class="p">)</span>
+        <span class="ow">or</span> <span class="ow">not</span> <span class="mf">1.1754943508222875e-38</span> <span class="o">&lt;=</span> <span class="n">depth_alpha_threshold</span> <span class="o">&lt;</span> <span class="mf">1.0</span>
+    <span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;transparent render: depth_alpha_threshold must be positive and less than one in float32&quot;</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">_DEPTH_MODES</span><span class="p">[</span><span class="n">depth_mode</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_reference_depth</span><span class="p">(</span>
+    <span class="n">weighted</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">alpha</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">transmittance</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">median</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">depth_mode</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">background_depth</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">depth_alpha_threshold</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">depth_mode</span> <span class="o">==</span> <span class="s2">&quot;expected&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">weighted</span> <span class="o">+</span> <span class="n">transmittance</span> <span class="o">*</span> <span class="n">background_depth</span>
+    <span class="k">if</span> <span class="n">depth_mode</span> <span class="o">==</span> <span class="s2">&quot;accumulated&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">weighted</span>
+    <span class="k">if</span> <span class="n">depth_mode</span> <span class="o">==</span> <span class="s2">&quot;median&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">median</span>
+    <span class="n">valid</span> <span class="o">=</span> <span class="n">alpha</span> <span class="o">&gt;</span> <span class="n">depth_alpha_threshold</span>
+    <span class="n">denominator</span> <span class="o">=</span> <span class="n">th</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">valid</span><span class="p">,</span> <span class="n">alpha</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">alpha</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">th</span><span class="o">.</span><span class="n">where</span><span class="p">(</span>
+        <span class="n">valid</span><span class="p">,</span> <span class="n">weighted</span> <span class="o">/</span> <span class="n">denominator</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">full_like</span><span class="p">(</span><span class="n">weighted</span><span class="p">,</span> <span class="n">background_depth</span><span class="p">)</span>
+    <span class="p">)</span>
 
 
 <span class="n">_MLP_WIDTH</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">8</span>
@@ -933,7 +989,11 @@
     <span class="n">padding_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;border&quot;</span><span class="p">,</span>
     <span class="n">rgb_activation</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;relu&quot;</span><span class="p">,</span>
     <span class="n">alpha_activation</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;relu_density&quot;</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">depth_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;expected&quot;</span><span class="p">,</span>
+    <span class="n">background_depth</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1000.0</span><span class="p">,</span>
+    <span class="n">depth_alpha_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0e-6</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Pure-PyTorch correctness reference for :func:`render_transparent`.</span>
 
 <span class="sd">    See the main function for the argument and return-value contract.</span>
@@ -942,6 +1002,7 @@
 <span class="sd">    CUDA entry point&#39;s silhouette-gradient estimator or early termination.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
+    <span class="n">_validate_depth_options</span><span class="p">(</span><span class="n">depth_mode</span><span class="p">,</span> <span class="n">background_depth</span><span class="p">,</span> <span class="n">depth_alpha_threshold</span><span class="p">)</span>
     <span class="n">_validate_common</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">vi</span><span class="p">,</span> <span class="n">height</span><span class="p">,</span> <span class="n">width</span><span class="p">)</span>
     <span class="n">_validate_sampling_options</span><span class="p">(</span><span class="n">mode</span><span class="p">,</span> <span class="n">padding_mode</span><span class="p">)</span>
     <span class="n">_validate_texture_activation_options</span><span class="p">(</span><span class="n">rgb_activation</span><span class="p">,</span> <span class="n">alpha_activation</span><span class="p">)</span>
@@ -959,6 +1020,7 @@
     <span class="n">grid</span> <span class="o">=</span> <span class="n">_pixel_grid</span><span class="p">(</span><span class="n">height</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
     <span class="n">colors</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="n">alphas</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">depths</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
 
     <span class="k">for</span> <span class="n">batch_index</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">batch_size</span><span class="p">):</span>
         <span class="n">faces</span> <span class="o">=</span> <span class="n">_faces_for_batch</span><span class="p">(</span><span class="n">vi</span><span class="p">,</span> <span class="n">batch_index</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">)</span>
@@ -977,6 +1039,10 @@
 
         <span class="n">transmittance</span> <span class="o">=</span> <span class="n">v</span><span class="o">.</span><span class="n">new_ones</span><span class="p">((</span><span class="n">height</span><span class="p">,</span> <span class="n">width</span><span class="p">))</span>
         <span class="n">color</span> <span class="o">=</span> <span class="n">v</span><span class="o">.</span><span class="n">new_zeros</span><span class="p">((</span><span class="mi">3</span><span class="p">,</span> <span class="n">height</span><span class="p">,</span> <span class="n">width</span><span class="p">))</span>
+        <span class="n">accumulated_alpha</span> <span class="o">=</span> <span class="n">v</span><span class="o">.</span><span class="n">new_zeros</span><span class="p">((</span><span class="n">height</span><span class="p">,</span> <span class="n">width</span><span class="p">))</span>
+        <span class="n">weighted_depth</span> <span class="o">=</span> <span class="n">v</span><span class="o">.</span><span class="n">new_zeros</span><span class="p">((</span><span class="n">height</span><span class="p">,</span> <span class="n">width</span><span class="p">))</span>
+        <span class="n">median_depth</span> <span class="o">=</span> <span class="n">v</span><span class="o">.</span><span class="n">new_full</span><span class="p">((</span><span class="n">height</span><span class="p">,</span> <span class="n">width</span><span class="p">),</span> <span class="n">background_depth</span><span class="p">)</span>
+        <span class="n">median_selected</span> <span class="o">=</span> <span class="n">th</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">height</span><span class="p">,</span> <span class="n">width</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="n">v</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">th</span><span class="o">.</span><span class="n">bool</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">rank</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">faces</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
             <span class="n">face_index</span> <span class="o">=</span> <span class="n">order</span><span class="p">[</span><span class="n">rank</span><span class="p">]</span>
             <span class="n">face</span> <span class="o">=</span> <span class="n">faces</span><span class="p">[</span><span class="n">face_index</span><span class="p">]</span>
@@ -1003,14 +1069,33 @@
             <span class="p">)</span>
             <span class="n">visibility</span> <span class="o">=</span> <span class="n">transmittance</span> <span class="o">*</span> <span class="n">fragment_alpha</span>
             <span class="n">color</span> <span class="o">=</span> <span class="n">color</span> <span class="o">+</span> <span class="n">fragment_rgb</span> <span class="o">*</span> <span class="n">visibility</span><span class="p">[</span><span class="kc">None</span><span class="p">]</span>
+            <span class="n">fragment_depth</span> <span class="o">=</span> <span class="p">(</span><span class="n">bary</span> <span class="o">*</span> <span class="n">triangle</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">])</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+            <span class="n">accumulated_alpha</span> <span class="o">=</span> <span class="n">accumulated_alpha</span> <span class="o">+</span> <span class="n">visibility</span>
+            <span class="k">if</span> <span class="n">depth_mode</span> <span class="o">==</span> <span class="s2">&quot;median&quot;</span><span class="p">:</span>
+                <span class="n">selected</span> <span class="o">=</span> <span class="o">~</span><span class="n">median_selected</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">accumulated_alpha</span> <span class="o">&gt;=</span> <span class="mf">0.5</span><span class="p">)</span>
+                <span class="n">median_depth</span> <span class="o">=</span> <span class="n">th</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">selected</span><span class="p">,</span> <span class="n">fragment_depth</span><span class="p">,</span> <span class="n">median_depth</span><span class="p">)</span>
+                <span class="n">median_selected</span> <span class="o">=</span> <span class="n">median_selected</span> <span class="o">|</span> <span class="n">selected</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">weighted_depth</span> <span class="o">=</span> <span class="n">weighted_depth</span> <span class="o">+</span> <span class="n">visibility</span> <span class="o">*</span> <span class="n">fragment_depth</span>
             <span class="n">transmittance</span> <span class="o">=</span> <span class="n">transmittance</span> <span class="o">*</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="n">fragment_alpha</span><span class="p">)</span>
 
         <span class="n">background_batch</span> <span class="o">=</span> <span class="n">_background_for_batch</span><span class="p">(</span><span class="n">background</span><span class="p">,</span> <span class="n">batch_index</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
         <span class="n">color</span> <span class="o">=</span> <span class="n">color</span> <span class="o">+</span> <span class="n">background_batch</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">transmittance</span><span class="p">[</span><span class="kc">None</span><span class="p">]</span>
         <span class="n">colors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">color</span><span class="p">)</span>
-        <span class="n">alphas</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="mf">1.0</span> <span class="o">-</span> <span class="n">transmittance</span><span class="p">)[</span><span class="kc">None</span><span class="p">])</span>
+        <span class="n">alphas</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">accumulated_alpha</span><span class="p">[</span><span class="kc">None</span><span class="p">])</span>
+        <span class="n">depths</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="n">_reference_depth</span><span class="p">(</span>
+                <span class="n">weighted_depth</span><span class="p">,</span>
+                <span class="n">accumulated_alpha</span><span class="p">,</span>
+                <span class="n">transmittance</span><span class="p">,</span>
+                <span class="n">median_depth</span><span class="p">,</span>
+                <span class="n">depth_mode</span><span class="p">,</span>
+                <span class="n">background_depth</span><span class="p">,</span>
+                <span class="n">depth_alpha_threshold</span><span class="p">,</span>
+            <span class="p">)[</span><span class="kc">None</span><span class="p">]</span>
+        <span class="p">)</span>
 
-    <span class="k">return</span> <span class="n">th</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span><span class="n">colors</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span> <span class="n">th</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span><span class="n">alphas</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span></div>
+    <span class="k">return</span> <span class="n">th</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span><span class="n">colors</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span> <span class="n">th</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span><span class="n">alphas</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span> <span class="n">th</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span><span class="n">depths</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span></div>
 
 
 
@@ -1032,7 +1117,11 @@
     <span class="n">padding_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;border&quot;</span><span class="p">,</span>
     <span class="n">rgb_activation</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;shifted_relu&quot;</span><span class="p">,</span>
     <span class="n">alpha_activation</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;shifted_relu_density&quot;</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">depth_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;expected&quot;</span><span class="p">,</span>
+    <span class="n">background_depth</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1000.0</span><span class="p">,</span>
+    <span class="n">depth_alpha_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0e-6</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Pure-PyTorch correctness reference for :func:`render_transparent_mlp`.</span>
 
 <span class="sd">    See the main function for the argument and return-value contract.</span>
@@ -1060,6 +1149,9 @@
         <span class="n">padding_mode</span><span class="p">,</span>
         <span class="n">rgb_activation</span><span class="p">,</span>
         <span class="n">alpha_activation</span><span class="p">,</span>
+        <span class="n">depth_mode</span><span class="o">=</span><span class="n">depth_mode</span><span class="p">,</span>
+        <span class="n">background_depth</span><span class="o">=</span><span class="n">background_depth</span><span class="p">,</span>
+        <span class="n">depth_alpha_threshold</span><span class="o">=</span><span class="n">depth_alpha_threshold</span><span class="p">,</span>
     <span class="p">)</span></div>
 
 
@@ -1084,7 +1176,11 @@
     <span class="n">padding_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;border&quot;</span><span class="p">,</span>
     <span class="n">rgb_activation</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;shifted_relu&quot;</span><span class="p">,</span>
     <span class="n">alpha_activation</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;shifted_relu_density&quot;</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">depth_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;expected&quot;</span><span class="p">,</span>
+    <span class="n">background_depth</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1000.0</span><span class="p">,</span>
+    <span class="n">depth_alpha_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0e-6</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Pure-PyTorch correctness reference for :func:`render_transparent_mlp_two_textures`.</span>
 
 <span class="sd">    See the main function for the argument and return-value contract.</span>
@@ -1111,6 +1207,9 @@
         <span class="n">padding_mode</span><span class="p">,</span>
         <span class="n">rgb_activation</span><span class="p">,</span>
         <span class="n">alpha_activation</span><span class="p">,</span>
+        <span class="n">depth_mode</span><span class="o">=</span><span class="n">depth_mode</span><span class="p">,</span>
+        <span class="n">background_depth</span><span class="o">=</span><span class="n">background_depth</span><span class="p">,</span>
+        <span class="n">depth_alpha_threshold</span><span class="o">=</span><span class="n">depth_alpha_threshold</span><span class="p">,</span>
     <span class="p">)</span></div>
 
 
@@ -1133,9 +1232,14 @@
     <span class="n">padding_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;border&quot;</span><span class="p">,</span>
     <span class="n">rgb_activation</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;shifted_relu&quot;</span><span class="p">,</span>
     <span class="n">alpha_activation</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;shifted_relu_density&quot;</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">depth_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;expected&quot;</span><span class="p">,</span>
+    <span class="n">background_depth</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1000.0</span><span class="p">,</span>
+    <span class="n">depth_alpha_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0e-6</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Shared implementation for the one- and two-texture reference APIs.&quot;&quot;&quot;</span>
 
+    <span class="n">_validate_depth_options</span><span class="p">(</span><span class="n">depth_mode</span><span class="p">,</span> <span class="n">background_depth</span><span class="p">,</span> <span class="n">depth_alpha_threshold</span><span class="p">)</span>
     <span class="n">_validate_common</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">vi</span><span class="p">,</span> <span class="n">height</span><span class="p">,</span> <span class="n">width</span><span class="p">)</span>
     <span class="n">_validate_sampling_options</span><span class="p">(</span><span class="n">mode</span><span class="p">,</span> <span class="n">padding_mode</span><span class="p">)</span>
     <span class="n">_validate_mlp_activation_options</span><span class="p">(</span><span class="n">rgb_activation</span><span class="p">,</span> <span class="n">alpha_activation</span><span class="p">)</span>
@@ -1148,6 +1252,7 @@
     <span class="n">grid</span> <span class="o">=</span> <span class="n">_pixel_grid</span><span class="p">(</span><span class="n">height</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
     <span class="n">colors</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="n">alphas</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">depths</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
 
     <span class="k">for</span> <span class="n">batch_index</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">batch_size</span><span class="p">):</span>
         <span class="n">faces</span> <span class="o">=</span> <span class="n">_faces_for_batch</span><span class="p">(</span><span class="n">vi</span><span class="p">,</span> <span class="n">batch_index</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">)</span>
@@ -1172,6 +1277,10 @@
 
         <span class="n">transmittance</span> <span class="o">=</span> <span class="n">v</span><span class="o">.</span><span class="n">new_ones</span><span class="p">((</span><span class="n">height</span><span class="p">,</span> <span class="n">width</span><span class="p">))</span>
         <span class="n">color</span> <span class="o">=</span> <span class="n">v</span><span class="o">.</span><span class="n">new_zeros</span><span class="p">((</span><span class="mi">3</span><span class="p">,</span> <span class="n">height</span><span class="p">,</span> <span class="n">width</span><span class="p">))</span>
+        <span class="n">accumulated_alpha</span> <span class="o">=</span> <span class="n">v</span><span class="o">.</span><span class="n">new_zeros</span><span class="p">((</span><span class="n">height</span><span class="p">,</span> <span class="n">width</span><span class="p">))</span>
+        <span class="n">weighted_depth</span> <span class="o">=</span> <span class="n">v</span><span class="o">.</span><span class="n">new_zeros</span><span class="p">((</span><span class="n">height</span><span class="p">,</span> <span class="n">width</span><span class="p">))</span>
+        <span class="n">median_depth</span> <span class="o">=</span> <span class="n">v</span><span class="o">.</span><span class="n">new_full</span><span class="p">((</span><span class="n">height</span><span class="p">,</span> <span class="n">width</span><span class="p">),</span> <span class="n">background_depth</span><span class="p">)</span>
+        <span class="n">median_selected</span> <span class="o">=</span> <span class="n">th</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">height</span><span class="p">,</span> <span class="n">width</span><span class="p">),</span> <span class="n">device</span><span class="o">=</span><span class="n">v</span><span class="o">.</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">th</span><span class="o">.</span><span class="n">bool</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">rank</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">faces</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
             <span class="n">face_index</span> <span class="o">=</span> <span class="n">order</span><span class="p">[</span><span class="n">rank</span><span class="p">]</span>
             <span class="n">face</span> <span class="o">=</span> <span class="n">faces</span><span class="p">[</span><span class="n">face_index</span><span class="p">]</span>
@@ -1214,14 +1323,33 @@
             <span class="p">)</span>
             <span class="n">visibility</span> <span class="o">=</span> <span class="n">transmittance</span> <span class="o">*</span> <span class="n">fragment_alpha</span>
             <span class="n">color</span> <span class="o">=</span> <span class="n">color</span> <span class="o">+</span> <span class="n">fragment_rgba</span><span class="p">[:</span><span class="mi">3</span><span class="p">]</span> <span class="o">*</span> <span class="n">visibility</span><span class="p">[</span><span class="kc">None</span><span class="p">]</span>
+            <span class="n">fragment_depth</span> <span class="o">=</span> <span class="p">(</span><span class="n">bary</span> <span class="o">*</span> <span class="n">triangle</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">])</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+            <span class="n">accumulated_alpha</span> <span class="o">=</span> <span class="n">accumulated_alpha</span> <span class="o">+</span> <span class="n">visibility</span>
+            <span class="k">if</span> <span class="n">depth_mode</span> <span class="o">==</span> <span class="s2">&quot;median&quot;</span><span class="p">:</span>
+                <span class="n">selected</span> <span class="o">=</span> <span class="o">~</span><span class="n">median_selected</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">accumulated_alpha</span> <span class="o">&gt;=</span> <span class="mf">0.5</span><span class="p">)</span>
+                <span class="n">median_depth</span> <span class="o">=</span> <span class="n">th</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">selected</span><span class="p">,</span> <span class="n">fragment_depth</span><span class="p">,</span> <span class="n">median_depth</span><span class="p">)</span>
+                <span class="n">median_selected</span> <span class="o">=</span> <span class="n">median_selected</span> <span class="o">|</span> <span class="n">selected</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">weighted_depth</span> <span class="o">=</span> <span class="n">weighted_depth</span> <span class="o">+</span> <span class="n">visibility</span> <span class="o">*</span> <span class="n">fragment_depth</span>
             <span class="n">transmittance</span> <span class="o">=</span> <span class="n">transmittance</span> <span class="o">*</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="n">fragment_alpha</span><span class="p">)</span>
 
         <span class="n">background_batch</span> <span class="o">=</span> <span class="n">_background_for_batch</span><span class="p">(</span><span class="n">background</span><span class="p">,</span> <span class="n">batch_index</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
         <span class="n">color</span> <span class="o">=</span> <span class="n">color</span> <span class="o">+</span> <span class="n">background_batch</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">transmittance</span><span class="p">[</span><span class="kc">None</span><span class="p">]</span>
         <span class="n">colors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">color</span><span class="p">)</span>
-        <span class="n">alphas</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="mf">1.0</span> <span class="o">-</span> <span class="n">transmittance</span><span class="p">)[</span><span class="kc">None</span><span class="p">])</span>
+        <span class="n">alphas</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">accumulated_alpha</span><span class="p">[</span><span class="kc">None</span><span class="p">])</span>
+        <span class="n">depths</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="n">_reference_depth</span><span class="p">(</span>
+                <span class="n">weighted_depth</span><span class="p">,</span>
+                <span class="n">accumulated_alpha</span><span class="p">,</span>
+                <span class="n">transmittance</span><span class="p">,</span>
+                <span class="n">median_depth</span><span class="p">,</span>
+                <span class="n">depth_mode</span><span class="p">,</span>
+                <span class="n">background_depth</span><span class="p">,</span>
+                <span class="n">depth_alpha_threshold</span><span class="p">,</span>
+            <span class="p">)[</span><span class="kc">None</span><span class="p">]</span>
+        <span class="p">)</span>
 
-    <span class="k">return</span> <span class="n">th</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span><span class="n">colors</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span> <span class="n">th</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span><span class="n">alphas</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">th</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span><span class="n">colors</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span> <span class="n">th</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span><span class="n">alphas</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span> <span class="n">th</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span><span class="n">depths</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_expand_cuda_faces</span><span class="p">(</span><span class="n">vi</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
@@ -1324,7 +1452,11 @@
     <span class="n">rgb_activation</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;relu&quot;</span><span class="p">,</span>
     <span class="n">alpha_activation</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;relu_density&quot;</span><span class="p">,</span>
     <span class="n">edge_gradients</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">depth_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;expected&quot;</span><span class="p">,</span>
+    <span class="n">background_depth</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1000.0</span><span class="p">,</span>
+    <span class="n">depth_alpha_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0e-6</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Render depth-sorted transparent textured triangles.</span>
 
 <span class="sd">    CUDA inference uses a fused 4x4-tiled renderer. Triangle/tile pairs are</span>
@@ -1383,11 +1515,45 @@
 <span class="sd">            suppressed; folded shared boundaries are composited as a bundle.</span>
 <span class="sd">            The reference functions retain smooth/interior gradients only.</span>
 
+<span class="sd">        depth_mode: ``&quot;expected&quot;`` (default) composites camera-space Z with</span>
+<span class="sd">            an opaque background at ``background_depth``. ``&quot;accumulated&quot;``</span>
+<span class="sd">            returns only the foreground sum of ``transmittance * alpha * Z``.</span>
+<span class="sd">            ``&quot;foreground_mean&quot;`` divides that sum by foreground alpha only</span>
+<span class="sd">            above ``depth_alpha_threshold``; other pixels return background</span>
+<span class="sd">            depth with zero smooth depth gradient. ``&quot;median&quot;`` selects the first</span>
+<span class="sd">            fragment whose cumulative foreground alpha reaches 0.5, or the</span>
+<span class="sd">            background if no fragment does. All modes use the same stable</span>
+<span class="sd">            mean-triangle-depth order as RGB, without per-pixel sorting.</span>
+<span class="sd">        background_depth: Positive finite background camera Z, in the same</span>
+<span class="sd">            units as ``v[..., 2]``. Defaults to 1000. Set it to an appropriate</span>
+<span class="sd">            far depth for the scene; it is independent of RGB ``background``.</span>
+<span class="sd">            Infinity is not supported. A distant background increases the</span>
+<span class="sd">            depth-loss signal for opacity and silhouette changes.</span>
+<span class="sd">        depth_alpha_threshold: Minimum foreground alpha for a valid mean</span>
+<span class="sd">            depth. Defaults to 1e-6. The division is not evaluated through</span>
+<span class="sd">            small or zero alpha; invalid pixels have zero smooth depth gradient.</span>
+<span class="sd">            This threshold only affects ``&quot;foreground_mean&quot;``.</span>
+
 <span class="sd">    Returns:</span>
-<span class="sd">        Premultiplied RGB and accumulated alpha with shapes ``[N, 3, H, W]``</span>
-<span class="sd">        and ``[N, 1, H, W]``. With a background, RGB is fully composited.</span>
+<span class="sd">        A tuple ``(rgb, alpha, depth)`` with shapes ``[N, 3, H, W]``,</span>
+<span class="sd">        ``[N, 1, H, W]``, and ``[N, 1, H, W]``. RGB is premultiplied unless</span>
+<span class="sd">        a background is supplied. Alpha always describes foreground opacity,</span>
+<span class="sd">        even when depth includes an opaque background. Fragment depth is</span>
+<span class="sd">        perspective-correct interpolated camera Z, not ray distance or the</span>
+<span class="sd">        triangle-center depth used for sorting.</span>
+
+<span class="sd">        Expected, accumulated, and valid foreground-mean depth differentiate</span>
+<span class="sd">        geometry and opacity. Median differentiates the selected fragment&#39;s</span>
+<span class="sd">        depth, with no smooth opacity gradient through its discrete selection.</span>
+<span class="sd">        Ordering and the foreground-mean validity test are also discrete.</span>
+<span class="sd">        Native boundary gradients include the chosen depth output when</span>
+<span class="sd">        ``edge_gradients=True``; reference implementations retain only smooth</span>
+<span class="sd">        derivatives with coverage fixed.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
+    <span class="n">depth_mode_enum</span> <span class="o">=</span> <span class="n">_validate_depth_options</span><span class="p">(</span>
+        <span class="n">depth_mode</span><span class="p">,</span> <span class="n">background_depth</span><span class="p">,</span> <span class="n">depth_alpha_threshold</span>
+    <span class="p">)</span>
     <span class="n">_validate_common</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">vi</span><span class="p">,</span> <span class="n">height</span><span class="p">,</span> <span class="n">width</span><span class="p">)</span>
     <span class="n">mode_enum</span><span class="p">,</span> <span class="n">padding_mode_enum</span> <span class="o">=</span> <span class="n">_validate_sampling_options</span><span class="p">(</span><span class="n">mode</span><span class="p">,</span> <span class="n">padding_mode</span><span class="p">)</span>
     <span class="n">rgb_activation_enum</span><span class="p">,</span> <span class="n">alpha_activation_enum</span> <span class="o">=</span> <span class="n">_validate_texture_activation_options</span><span class="p">(</span>
@@ -1417,8 +1583,11 @@
         <span class="n">rgb_activation_enum</span><span class="p">,</span>
         <span class="n">alpha_activation_enum</span><span class="p">,</span>
         <span class="n">edge_gradients</span><span class="p">,</span>
+        <span class="n">depth_mode_enum</span><span class="p">,</span>
+        <span class="n">background_depth</span><span class="p">,</span>
+        <span class="n">depth_alpha_threshold</span><span class="p">,</span>
     <span class="p">)</span>
-    <span class="k">return</span> <span class="n">outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">outputs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span></div>
+    <span class="k">return</span> <span class="n">outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">outputs</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">outputs</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span></div>
 
 
 
@@ -1443,7 +1612,11 @@
     <span class="n">rgb_activation</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;shifted_relu&quot;</span><span class="p">,</span>
     <span class="n">alpha_activation</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;shifted_relu_density&quot;</span><span class="p">,</span>
     <span class="n">edge_gradients</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">depth_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;expected&quot;</span><span class="p">,</span>
+    <span class="n">background_depth</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1000.0</span><span class="p">,</span>
+    <span class="n">depth_alpha_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0e-6</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Render transparent triangles from one neural feature texture.</span>
 
 <span class="sd">    The fused CUDA kernel samples ``texture`` at each covered fragment&#39;s</span>
@@ -1515,10 +1688,40 @@
 <span class="sd">            suppressed; folded shared boundaries are composited as a bundle.</span>
 <span class="sd">            The reference functions retain smooth/interior gradients only.</span>
 
+<span class="sd">        depth_mode: ``&quot;expected&quot;`` (default) composites camera-space Z with</span>
+<span class="sd">            an opaque background at ``background_depth``. ``&quot;accumulated&quot;``</span>
+<span class="sd">            returns only the foreground sum of ``transmittance * alpha * Z``.</span>
+<span class="sd">            ``&quot;foreground_mean&quot;`` divides that sum by foreground alpha only</span>
+<span class="sd">            above ``depth_alpha_threshold``; other pixels return background</span>
+<span class="sd">            depth with zero smooth depth gradient. ``&quot;median&quot;`` selects the first</span>
+<span class="sd">            fragment whose cumulative foreground alpha reaches 0.5, or the</span>
+<span class="sd">            background if no fragment does. All modes use the same stable</span>
+<span class="sd">            mean-triangle-depth order as RGB, without per-pixel sorting.</span>
+<span class="sd">        background_depth: Positive finite background camera Z, in the same</span>
+<span class="sd">            units as ``v[..., 2]``. Defaults to 1000. Set it to an appropriate</span>
+<span class="sd">            far depth for the scene; it is independent of RGB ``background``.</span>
+<span class="sd">            Infinity is not supported. A distant background increases the</span>
+<span class="sd">            depth-loss signal for opacity and silhouette changes.</span>
+<span class="sd">        depth_alpha_threshold: Minimum foreground alpha for a valid mean</span>
+<span class="sd">            depth. Defaults to 1e-6. The division is not evaluated through</span>
+<span class="sd">            small or zero alpha; invalid pixels have zero smooth depth gradient.</span>
+<span class="sd">            This threshold only affects ``&quot;foreground_mean&quot;``.</span>
+
 <span class="sd">    Returns:</span>
-<span class="sd">        Premultiplied RGB and accumulated alpha with shapes ``[N, 3, H, W]``</span>
-<span class="sd">        and ``[N, 1, H, W]``. If ``background`` is supplied, RGB contains the</span>
-<span class="sd">        fully composited color instead.</span>
+<span class="sd">        A tuple ``(rgb, alpha, depth)`` with shapes ``[N, 3, H, W]``,</span>
+<span class="sd">        ``[N, 1, H, W]``, and ``[N, 1, H, W]``. RGB is premultiplied unless</span>
+<span class="sd">        a background is supplied. Alpha always describes foreground opacity,</span>
+<span class="sd">        even when depth includes an opaque background. Fragment depth is</span>
+<span class="sd">        perspective-correct interpolated camera Z, not ray distance or the</span>
+<span class="sd">        triangle-center depth used for sorting.</span>
+
+<span class="sd">        Expected, accumulated, and valid foreground-mean depth differentiate</span>
+<span class="sd">        geometry and opacity. Median differentiates the selected fragment&#39;s</span>
+<span class="sd">        depth, with no smooth opacity gradient through its discrete selection.</span>
+<span class="sd">        Ordering and the foreground-mean validity test are also discrete.</span>
+<span class="sd">        Native boundary gradients include the chosen depth output when</span>
+<span class="sd">        ``edge_gradients=True``; reference implementations retain only smooth</span>
+<span class="sd">        derivatives with coverage fixed.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">empty_texture</span> <span class="o">=</span> <span class="n">texture</span><span class="o">.</span><span class="n">new_empty</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
@@ -1542,6 +1745,9 @@
         <span class="n">rgb_activation</span><span class="p">,</span>
         <span class="n">alpha_activation</span><span class="p">,</span>
         <span class="n">edge_gradients</span><span class="p">,</span>
+        <span class="n">depth_mode</span><span class="o">=</span><span class="n">depth_mode</span><span class="p">,</span>
+        <span class="n">background_depth</span><span class="o">=</span><span class="n">background_depth</span><span class="p">,</span>
+        <span class="n">depth_alpha_threshold</span><span class="o">=</span><span class="n">depth_alpha_threshold</span><span class="p">,</span>
     <span class="p">)</span></div>
 
 
@@ -1569,7 +1775,11 @@
     <span class="n">rgb_activation</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;shifted_relu&quot;</span><span class="p">,</span>
     <span class="n">alpha_activation</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;shifted_relu_density&quot;</span><span class="p">,</span>
     <span class="n">edge_gradients</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">depth_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;expected&quot;</span><span class="p">,</span>
+    <span class="n">background_depth</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1000.0</span><span class="p">,</span>
+    <span class="n">depth_alpha_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0e-6</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Render transparent triangles from two neural feature textures.</span>
 
 <span class="sd">    The fused CUDA kernel samples ``texture0`` at each covered fragment&#39;s</span>
@@ -1651,10 +1861,40 @@
 <span class="sd">            suppressed; folded shared boundaries are composited as a bundle.</span>
 <span class="sd">            The reference functions retain smooth/interior gradients only.</span>
 
+<span class="sd">        depth_mode: ``&quot;expected&quot;`` (default) composites camera-space Z with</span>
+<span class="sd">            an opaque background at ``background_depth``. ``&quot;accumulated&quot;``</span>
+<span class="sd">            returns only the foreground sum of ``transmittance * alpha * Z``.</span>
+<span class="sd">            ``&quot;foreground_mean&quot;`` divides that sum by foreground alpha only</span>
+<span class="sd">            above ``depth_alpha_threshold``; other pixels return background</span>
+<span class="sd">            depth with zero smooth depth gradient. ``&quot;median&quot;`` selects the first</span>
+<span class="sd">            fragment whose cumulative foreground alpha reaches 0.5, or the</span>
+<span class="sd">            background if no fragment does. All modes use the same stable</span>
+<span class="sd">            mean-triangle-depth order as RGB, without per-pixel sorting.</span>
+<span class="sd">        background_depth: Positive finite background camera Z, in the same</span>
+<span class="sd">            units as ``v[..., 2]``. Defaults to 1000. Set it to an appropriate</span>
+<span class="sd">            far depth for the scene; it is independent of RGB ``background``.</span>
+<span class="sd">            Infinity is not supported. A distant background increases the</span>
+<span class="sd">            depth-loss signal for opacity and silhouette changes.</span>
+<span class="sd">        depth_alpha_threshold: Minimum foreground alpha for a valid mean</span>
+<span class="sd">            depth. Defaults to 1e-6. The division is not evaluated through</span>
+<span class="sd">            small or zero alpha; invalid pixels have zero smooth depth gradient.</span>
+<span class="sd">            This threshold only affects ``&quot;foreground_mean&quot;``.</span>
+
 <span class="sd">    Returns:</span>
-<span class="sd">        Premultiplied RGB and accumulated alpha with shapes ``[N, 3, H, W]``</span>
-<span class="sd">        and ``[N, 1, H, W]``. If ``background`` is supplied, RGB contains the</span>
-<span class="sd">        fully composited color instead.</span>
+<span class="sd">        A tuple ``(rgb, alpha, depth)`` with shapes ``[N, 3, H, W]``,</span>
+<span class="sd">        ``[N, 1, H, W]``, and ``[N, 1, H, W]``. RGB is premultiplied unless</span>
+<span class="sd">        a background is supplied. Alpha always describes foreground opacity,</span>
+<span class="sd">        even when depth includes an opaque background. Fragment depth is</span>
+<span class="sd">        perspective-correct interpolated camera Z, not ray distance or the</span>
+<span class="sd">        triangle-center depth used for sorting.</span>
+
+<span class="sd">        Expected, accumulated, and valid foreground-mean depth differentiate</span>
+<span class="sd">        geometry and opacity. Median differentiates the selected fragment&#39;s</span>
+<span class="sd">        depth, with no smooth opacity gradient through its discrete selection.</span>
+<span class="sd">        Ordering and the foreground-mean validity test are also discrete.</span>
+<span class="sd">        Native boundary gradients include the chosen depth output when</span>
+<span class="sd">        ``edge_gradients=True``; reference implementations retain only smooth</span>
+<span class="sd">        derivatives with coverage fixed.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">return</span> <span class="n">_render_transparent_mlp_impl</span><span class="p">(</span>
@@ -1677,6 +1917,9 @@
         <span class="n">rgb_activation</span><span class="p">,</span>
         <span class="n">alpha_activation</span><span class="p">,</span>
         <span class="n">edge_gradients</span><span class="p">,</span>
+        <span class="n">depth_mode</span><span class="o">=</span><span class="n">depth_mode</span><span class="p">,</span>
+        <span class="n">background_depth</span><span class="o">=</span><span class="n">background_depth</span><span class="p">,</span>
+        <span class="n">depth_alpha_threshold</span><span class="o">=</span><span class="n">depth_alpha_threshold</span><span class="p">,</span>
     <span class="p">)</span></div>
 
 
@@ -1702,9 +1945,16 @@
     <span class="n">rgb_activation</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;shifted_relu&quot;</span><span class="p">,</span>
     <span class="n">alpha_activation</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;shifted_relu_density&quot;</span><span class="p">,</span>
     <span class="n">edge_gradients</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">depth_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;expected&quot;</span><span class="p">,</span>
+    <span class="n">background_depth</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1000.0</span><span class="p">,</span>
+    <span class="n">depth_alpha_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0e-6</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Shared implementation for the one- and two-texture CUDA APIs.&quot;&quot;&quot;</span>
 
+    <span class="n">depth_mode_enum</span> <span class="o">=</span> <span class="n">_validate_depth_options</span><span class="p">(</span>
+        <span class="n">depth_mode</span><span class="p">,</span> <span class="n">background_depth</span><span class="p">,</span> <span class="n">depth_alpha_threshold</span>
+    <span class="p">)</span>
     <span class="n">_validate_common</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">vi</span><span class="p">,</span> <span class="n">height</span><span class="p">,</span> <span class="n">width</span><span class="p">)</span>
     <span class="n">_validate_mlp</span><span class="p">(</span><span class="n">texture0</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">texture1</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">weights</span><span class="p">,</span> <span class="n">biases</span><span class="p">)</span>
     <span class="n">mode_enum</span><span class="p">,</span> <span class="n">padding_mode_enum</span> <span class="o">=</span> <span class="n">_validate_sampling_options</span><span class="p">(</span><span class="n">mode</span><span class="p">,</span> <span class="n">padding_mode</span><span class="p">)</span>
@@ -1743,8 +1993,11 @@
         <span class="n">rgb_activation_enum</span><span class="p">,</span>
         <span class="n">alpha_activation_enum</span><span class="p">,</span>
         <span class="n">edge_gradients</span><span class="p">,</span>
+        <span class="n">depth_mode_enum</span><span class="p">,</span>
+        <span class="n">background_depth</span><span class="p">,</span>
+        <span class="n">depth_alpha_threshold</span><span class="p">,</span>
     <span class="p">)</span>
-    <span class="k">return</span> <span class="n">outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">outputs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">outputs</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">outputs</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
 </pre></div>
 
                 </article>

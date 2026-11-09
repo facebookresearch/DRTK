@@ -418,8 +418,10 @@
 pixel. Every covered fragment may contribute to the image, and its contribution
 depends on both its appearance and the transmittance left by fragments in front
 of it. <a class="reference internal" href="../api_reference/transparent_render.html#drtk.render_transparent" title="drtk.render_transparent"><code class="xref py py-func docutils literal notranslate"><span class="pre">drtk.render_transparent()</span></code></a> evaluates fragments in depth order
-and returns composited color and alpha while retaining gradients to mesh and
-appearance inputs.</p>
+and returns composited color, foreground alpha, and depth while retaining
+gradients to mesh and appearance inputs. This example uses color and alpha;
+see <a class="reference internal" href="../api_reference/transparent_render.html"><span class="doc">the API reference</span></a> for the
+selectable depth modes.</p>
 <p>This example fits two overlapping semitransparent mesh layers above a fixed
 opaque rear mesh. Each of the three layers is a 4 x 4 patch with sixteen
 vertices and eighteen triangles. Their topology, boundary vertices, depth, UV
@@ -471,7 +473,8 @@ in rendering or optimization.</span><a class="headerlink" href="#id2" title="Lin
 it, while transparent patch regions that extend beyond the rear mesh reveal it.
 Different orange, blue, purple, and yellow mixtures make the depth-sorted
 contributions of both transparent layers directly legible. The renderer itself
-returns the premultiplied color and accumulated alpha shown below.</p>
+returns the premultiplied color and accumulated alpha shown below, together
+with the selected depth output.</p>
 <figure class="align-default" id="id3">
 <a class="reference internal image-reference" href="../_images/transparent_render_demo_alpha.png"><img alt="Initial, target, and optimized accumulated-alpha images" src="../_images/transparent_render_demo_alpha.png" style="width: 100%;" />
 </a>

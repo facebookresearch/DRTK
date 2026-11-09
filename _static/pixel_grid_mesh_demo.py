@@ -134,7 +134,7 @@ class Scene:
     def render(self, bits, coefficients, view, resolution=None, framing=1.0):
         size = resolution or self.resolution
         v, uv, _, vi, opacity, _, _ = self.mesh(bits, coefficients)
-        rgb, alpha = render_transparent(
+        rgb, alpha, _ = render_transparent(
             self.project(v, view, size, framing),
             vi,
             uv,

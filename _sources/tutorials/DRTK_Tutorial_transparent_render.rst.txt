@@ -5,8 +5,10 @@ Transparent surfaces require more than selecting the nearest triangle at each
 pixel. Every covered fragment may contribute to the image, and its contribution
 depends on both its appearance and the transmittance left by fragments in front
 of it. :func:`drtk.render_transparent` evaluates fragments in depth order
-and returns composited color and alpha while retaining gradients to mesh and
-appearance inputs.
+and returns composited color, foreground alpha, and depth while retaining
+gradients to mesh and appearance inputs. This example uses color and alpha;
+see :doc:`the API reference <../api_reference/transparent_render>` for the
+selectable depth modes.
 
 This example fits two overlapping semitransparent mesh layers above a fixed
 opaque rear mesh. Each of the three layers is a 4 x 4 patch with sixteen
@@ -62,7 +64,8 @@ The checkerboard is composited after rendering as
 it, while transparent patch regions that extend beyond the rear mesh reveal it.
 Different orange, blue, purple, and yellow mixtures make the depth-sorted
 contributions of both transparent layers directly legible. The renderer itself
-returns the premultiplied color and accumulated alpha shown below.
+returns the premultiplied color and accumulated alpha shown below, together
+with the selected depth output.
 
 .. figure:: ../_static/transparent_render_demo_alpha.png
    :width: 100%

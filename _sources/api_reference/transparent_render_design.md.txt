@@ -144,7 +144,7 @@ biases = [
     torch.nn.Parameter(torch.zeros(4, device="cuda")),
 ]
 
-color, alpha = drtk.render_transparent_mlp_two_textures(
+color, alpha, depth = drtk.render_transparent_mlp_two_textures(
     projected_vertices,
     triangle_indices,
     displaced_uv,
@@ -385,7 +385,7 @@ T_(k+1) = T_k * (1 - a_k)
 ```
 
 After all fragments, the background contributes `T_final * background`, and
-the returned alpha is `1 - T_final`. With a zero/default background, returned
+the returned foreground alpha is accumulated directly as `sum_k(T_k * a_k)`. This equals `1 - T_final` mathematically while avoiding subtraction cancellation at small opacity. With a zero/default background, returned
 RGB is premultiplied by accumulated alpha. With an explicit background,
 returned RGB is the fully composited color. This is the same output convention
 used by gsplat's front-to-back renderer.
@@ -394,6 +394,39 @@ The fragment-alpha cap is fixed internally at 0.999 and is not a public setting.
 `transmittance_epsilon` can terminate traversal once the remaining
 transmittance is negligible. Early termination is rejected when gradients are
 enabled because it is a discrete approximation.
+
+## Depth output
+
+All native and reference APIs return `(rgb, alpha, depth)`. Fragment depth is
+perspective-correct interpolated camera Z. Four modes share the RGB traversal
+order, with no per-pixel depth sorting:
+
+- `expected`: `sum(T * alpha * Z) + T_final * background_depth` (default).
+- `accumulated`: foreground `sum(T * alpha * Z)` without a background term.
+- `foreground_mean`: foreground sum divided by its accumulated opacity, only
+  when opacity exceeds `depth_alpha_threshold`; otherwise background depth.
+- `median`: the first fragment where cumulative opacity reaches 0.5, or
+  background depth if no foreground fragment crosses it.
+
+Background depth is a finite positive camera-space value, default 1000.
+Expected depth treats the background as an opaque final layer. Foreground
+alpha remains the alpha output; it is not replaced by one. The mean validity
+threshold defaults to 1e-6. Invalid pixels never divide by small opacity and
+have zero depth derivative. Background and validity settings are constants.
+
+Depth accumulation is fused into the existing fragment loop. Median backward
+uses the face selected in forward, avoiding changes at an exact threshold due
+to recomputing floating-point transmittance in reverse. Smooth derivatives
+include the depth attribute itself and its perspective interpolation. Expected,
+accumulated, and valid mean depth also differentiate compositing weights.
+Median selection and mean validity remain discrete.
+
+Depth boundary queries replay the two hypothetical sides in forward order and
+compare the requested final depth values, preserving the renderer's rank and
+shared-edge bundling. This supports nonlinear mean and median outputs without
+materializing fragment lists. These depth-specific queries run only where the
+upstream depth gradient is nonzero. The existing color/alpha boundary term is
+retained.
 
 ## Backward pipeline
 
