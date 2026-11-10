@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # Licensed under the MIT license in the root LICENSE file.
-"""Fit an occluding polygon using a sampled-feature loss and record the fit."""
+"""Fit a folded surface's appearance from three partially occluded views."""
 
 import argparse
+import copy
 import json
 import subprocess
 from pathlib import Path
@@ -14,241 +15,359 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import torch as th
+import torch.nn.functional as F
 from drtk.source_features import sample_feature_stencil, source_feature_stencil
 from drtk.transparent_render import render_transparent
 
 
-def as_image(tensor):
-    return tensor[0].detach().float().permute(1, 2, 0).cpu().numpy()
+def to_image(tensor):
+    return tensor.detach().permute(1, 2, 0).clamp(0, 1).cpu().numpy()
+
+
+def to_bytes(tensor):
+    return (tensor.detach().clamp(0, 1) * 255).byte().permute(0, 2, 3, 1).cpu().numpy()
 
 
 class Scene:
     def __init__(self, size, device):
         self.size = size
-        angles = th.arange(20, device=device) * (2 * th.pi / 20)
-        self.directions = th.stack((th.cos(angles), th.sin(angles)), -1)
-        target_radii = (
-            size * 0.27 * (1 + 0.18 * th.cos(3 * angles) - 0.10 * th.sin(2 * angles))
+        self.texture_width, self.texture_height = 128, 64
+        nu, nv = 80, 24
+        yy, xx = th.meshgrid(
+            th.linspace(0, 1, nv + 1, device=device),
+            th.linspace(0, 1, nu + 1, device=device),
+            indexing="ij",
         )
-        target_center = th.tensor([0.54, 0.48], device=device) * size - 0.5
-        self.target = target_center + self.directions * target_radii[:, None]
-        self.initial_center = th.tensor([0.43, 0.56], device=device) * size - 0.5
-        self.initial_radii = th.full((20,), 0.22 * size, device=device)
-        self.initial = (
-            self.initial_center + self.directions * self.initial_radii[:, None]
-        )
-        self.rear = th.tensor(
+        corners = th.tensor(
             [
-                [-0.5, -0.5, 2],
-                [size - 0.5, -0.5, 2],
-                [size - 0.5, size - 0.5, 2],
-                [-0.5, size - 0.5, 2],
+                [-1.1, 0.4],
+                [-0.55, 0.05],
+                [0.6, 0.50],
+                [-0.10, -0.20],
+                [0.9, -0.38],
+                [1.15, 0.15],
             ],
             device=device,
         )
-        self.faces = th.tensor(
-            [[0, 1, 2], [0, 2, 3]] + [[4, 5 + i, 5 + (i + 1) % 20] for i in range(20)],
-            dtype=th.int32,
-            device=device,
+        position = xx * 5
+        segment = position.long().clamp_max(4)
+        fraction = position - segment
+        xz = (
+            corners[segment] * (1 - fraction[..., None])
+            + corners[segment + 1] * fraction[..., None]
         )
-        pixels = th.arange(size, device=device)
-        yy, xx = th.meshgrid(pixels, pixels, indexing="ij")
-        x, y = (xx + 0.5) / size, (yy + 0.5) / size
-        second = y > x
-        self.query_faces = second.int().reshape(1, -1)
+        self.world = th.stack((xz[..., 0], (yy - 0.5) * 1.65, xz[..., 1]), -1).reshape(
+            -1, 3
+        )
+        self.uv = th.stack((xx, yy), -1).reshape(1, -1, 2)
+        faces = []
+        for y in range(nv):
+            for x in range(nu):
+                a = y * (nu + 1) + x
+                b, d = a + 1, a + nu + 1
+                c = d + 1
+                faces.extend(((a, b, c), (a, c, d)))
+        self.faces = th.tensor(faces, device=device, dtype=th.int32)
+        v, u = th.meshgrid(
+            (th.arange(self.texture_height, device=device) + 0.5) / self.texture_height,
+            (th.arange(self.texture_width, device=device) + 0.5) / self.texture_width,
+            indexing="ij",
+        )
+        self.coordinates = th.stack((u, v), -1).reshape(-1, 2)
+        texture = th.stack(
+            (
+                0.48 + 0.29 * th.sin(2 * th.pi * u + 0.6),
+                0.48 + 0.27 * th.sin(2 * th.pi * u + 2.7),
+                0.48 + 0.25 * th.sin(2 * th.pi * u + 4.8),
+            ),
+            0,
+        )
+        checker = ((u * 16).long() + (v * 10).long()) % 2
+        self.texture = (
+            texture + (0.16 * checker - 0.08)[None] + 0.08 * th.sin(v * 2 * th.pi)[None]
+        ).clamp(0, 1)[None]
+        gx, gy = u * nu, v * nv
+        ix, iy = gx.long(), gy.long()
+        du, dv = gx - ix, gy - iy
+        second = dv > du
+        self.query_faces = ((iy * nu + ix) * 2 + second.int()).reshape(1, -1).int()
         self.query_barycentrics = th.stack(
             (
-                th.where(second, 1 - y, 1 - x),
-                th.where(second, x, x - y),
-                th.where(second, y - x, y),
+                th.where(second, 1 - dv, 1 - du),
+                th.where(second, du, du - dv),
+                th.where(second, dv - du, dv),
             ),
             -1,
         ).reshape(1, -1, 3)
-        checker = ((xx // (size // 8) + yy // (size // 8)) % 2).float()
-        pattern = th.stack(
-            (0.70 + 0.20 * checker, 0.36 + 0.18 * checker, 0.12 + 0.10 * checker),
-            0,
-        )[None]
-        blue = th.tensor([0.08, 0.48, 0.76], device=device)
-        self.texture = th.cat(
-            (pattern, blue[None, :, None, None].expand_as(pattern)), 3
-        )
-        self.uv = (self.vertices(self.target)[..., :2] + 0.5) / size
-        self.uv[:, :4, 0] *= 0.5
-        self.uv[:, 4:, 0] = 0.75
+        self.source_angles = [-65, 0, 65]
+        self.vertices = self.project(self.source_angles)
+        self.held_vertices = self.project([35])
         with th.no_grad():
-            self.source = self.render(self.target)
-            self.desired, self.target_confidence = self.sample(self.target)
+            self.images = self.render(self.vertices, self.texture)
+            indices, weights, query_uv, _ = source_feature_stencil(
+                self.vertices,
+                self.faces,
+                self.query_faces.expand(3, -1),
+                self.query_barycentrics.expand(3, -1, -1),
+                size,
+                size,
+                return_queries=True,
+            )
+            self.samples, self.confidence = sample_feature_stencil(
+                self.images, indices, weights
+            )
+            self.plain = F.grid_sample(
+                self.images, query_uv[:, None], align_corners=False
+            ).squeeze(2)
+            self.in_image = (query_uv.abs() <= 1).all(-1)[:, None].float()
+            self.target = self.render(self.held_vertices, self.texture)[0]
 
-    def vertices(self, boundary):
-        front = th.cat((boundary.mean(0, keepdim=True), boundary), 0)
-        front = th.cat((front, th.ones_like(front[:, :1])), 1)
-        return th.cat((self.rear, front), 0)[None]
+    def project(self, angles):
+        views = []
+        for degrees in angles:
+            angle = np.deg2rad(degrees)
+            x = np.cos(angle) * self.world[:, 0] + np.sin(angle) * self.world[:, 2]
+            z = (
+                -np.sin(angle) * self.world[:, 0]
+                + np.cos(angle) * self.world[:, 2]
+                + 3.2
+            )
+            focal = self.size * (210 / 192)
+            views.append(
+                th.stack(
+                    (
+                        x / z * focal + (self.size - 1) / 2,
+                        self.world[:, 1] / z * focal + (self.size - 1) / 2,
+                        z,
+                    ),
+                    -1,
+                )
+            )
+        return th.stack(views)
 
-    def render(self, boundary):
+    def render(self, vertices, textures):
+        count = vertices.shape[0]
         return render_transparent(
-            self.vertices(boundary),
+            vertices,
             self.faces,
-            self.uv,
-            self.texture,
+            self.uv.expand(count, -1, -1),
+            textures.expand(count, -1, -1, -1),
             self.size,
             self.size,
+            background=vertices.new_tensor([0.94, 0.95, 0.97]),
             rgb_activation="identity",
             alpha_activation="clamp",
             edge_gradients=False,
         )[0]
 
-    def sample(self, boundary, edge_gradients=True):
-        indices, weights, _, _ = source_feature_stencil(
-            self.vertices(boundary),
-            self.faces,
-            self.query_faces,
-            self.query_barycentrics,
-            self.size,
-            self.size,
-            edge_gradients=edge_gradients,
-        )
-        return sample_feature_stencil(self.source, indices, weights)
 
-
-def fit(scene, steps, edge_gradients):
-    center = scene.initial_center.clone().requires_grad_()
-    radii = scene.initial_radii.clone().requires_grad_()
-    optimizer = th.optim.Adam([center, radii], lr=0.28 * scene.size / 128)
-    history, boundaries, images, errors = [], [], [], []
+def fit_appearance(scene, steps):
+    coordinates = scene.coordinates
+    frequency = coordinates.new_tensor([1, 2, 4, 8, 16]) * (2 * th.pi)
+    phase = (coordinates[:, :, None] * frequency).flatten(1)
+    inputs = th.cat((coordinates, phase.sin(), phase.cos()), 1)
+    th.manual_seed(5)
+    model = th.nn.Sequential(
+        th.nn.Linear(inputs.shape[1], 96),
+        th.nn.ReLU(),
+        th.nn.Linear(96, 96),
+        th.nn.ReLU(),
+        th.nn.Linear(96, 3),
+        th.nn.Sigmoid(),
+    ).to(coordinates.device)
+    models = [model, copy.deepcopy(model)]
+    optimizers = [th.optim.Adam(model.parameters(), lr=0.003) for model in models]
+    weights = [scene.in_image, scene.confidence]
+    observations = [scene.plain, scene.samples / scene.confidence.clamp_min(1e-6)]
+    history, renders, textures = [], [], []
     for step in range(steps + 1):
-        optimizer.zero_grad()
-        optimizer.param_groups[0]["lr"] = (
-            0.28
-            * scene.size
-            / 128
-            * (0.04 + 0.96 * (0.5 + 0.5 * np.cos(np.pi * step / steps)))
-        )
-        boundary = (
-            center + scene.directions * radii.clamp_min(0.01 * scene.size)[:, None]
-        )
-        sampled, confidence = scene.sample(boundary, edge_gradients=edge_gradients)
-        loss = (sampled - scene.desired).square().mean()
-        with th.no_grad():
-            history.append(
-                {
-                    "step": step,
-                    "feature_mse": float(loss),
-                    "visibility_disagreement": float(
-                        (confidence - scene.target_confidence).abs().mean()
-                    ),
-                }
+        values, losses = [], []
+        for model, optimizer, observed, weight in zip(
+            models, optimizers, observations, weights, strict=True
+        ):
+            optimizer.zero_grad()
+            prediction = model(inputs).T[None]
+            loss = ((prediction - observed).square() * weight).sum() / (
+                3 * weight.sum()
             )
-            if edge_gradients:
-                boundaries.append(boundary.cpu().numpy().copy())
-                images.append(as_image(scene.render(boundary)))
-                errors.append(
-                    (sampled - scene.desired)
-                    .abs()
-                    .mean(1)
-                    .reshape(scene.size, scene.size)
-                    .cpu()
-                    .numpy()
+            values.append(
+                prediction.detach().reshape(
+                    1, 3, scene.texture_height, scene.texture_width
                 )
-        if step == steps:
-            break
-        loss.backward()
-        optimizer.step()
-    return history, np.asarray(boundaries), np.asarray(images), np.asarray(errors)
+            )
+            losses.append(float(loss.detach()))
+            if step < steps:
+                loss.backward()
+                optimizer.step()
+        if step % 4 == 0 or step == steps:
+            with th.no_grad():
+                texture = th.cat(values)
+                rendered = scene.render(scene.held_vertices.expand(2, -1, -1), texture)
+                mse = (rendered - scene.target[None]).square().mean((1, 2, 3))
+                texture_mse = (texture - scene.texture).square().mean((1, 2, 3))
+                history.append(
+                    {
+                        "step": step,
+                        "training_loss": losses,
+                        "heldout_mse": mse.cpu().tolist(),
+                        "texture_mse": texture_mse.cpu().tolist(),
+                    }
+                )
+                renders.append(to_bytes(rendered))
+                textures.append(to_bytes(texture))
+    return history, np.asarray(renders), np.asarray(textures)
 
 
-def draw_outputs(output, scene, history, control, boundaries, images, errors, fps):
-    steps = len(history) - 1
-    initial_loss = history[0]["feature_mse"]
-    losses = np.array([item["feature_mse"] for item in history]) / initial_loss * 100
-    control_losses = (
-        np.array([item["feature_mse"] for item in control]) / initial_loss * 100
-    )
-    target = scene.target.cpu().numpy()
-    target_loop = np.concatenate((target, target[:1]))
-    fig = plt.figure(figsize=(16, 9), dpi=100, facecolor="#f5f7fb")
-    grid = fig.add_gridspec(
+def clean_image_axis(axis):
+    axis.set_xticks([])
+    axis.set_yticks([])
+    for spine in axis.spines.values():
+        spine.set_visible(False)
+
+
+def draw_sources(output, scene):
+    fig, axes = plt.subplots(
         2,
         3,
-        height_ratios=[3.2, 1],
-        left=0.035,
-        right=0.965,
-        bottom=0.09,
-        top=0.845,
-        hspace=0.35,
-        wspace=0.10,
+        figsize=(16, 8),
+        dpi=100,
+        gridspec_kw={"height_ratios": [2, 1]},
+        facecolor="#f5f7fb",
     )
-    axes = [fig.add_subplot(grid[0, i]) for i in range(3)]
-    chart = fig.add_subplot(grid[1, 1:])
-    status = fig.add_subplot(grid[1, 0])
-    status.axis("off")
-    for ax in axes:
-        ax.set_xticks([])
-        ax.set_yticks([])
-        for spine in ax.spines.values():
-            spine.set_visible(False)
-    axes[0].imshow(as_image(scene.source), interpolation="nearest")
-    axes[0].set_title("Target", fontsize=22, color="#17314b", pad=15, weight="bold")
-    axes[0].set_xlabel(
-        "Blue polygon in front of a textured plane", fontsize=12, labelpad=12
-    )
-    current = axes[1].imshow(images[0], interpolation="nearest")
-    axes[1].set_title(
-        "Current fit", fontsize=22, color="#17314b", pad=15, weight="bold"
-    )
-    axes[1].set_xlabel(
-        "White dots: fitted vertices · dashed: target", fontsize=12, labelpad=12
-    )
-    axes[1].plot(*target_loop.T, color="white", ls="--", lw=1.5, alpha=0.9)
-    (points,) = axes[1].plot(*boundaries[0].T, "o", color="white", ms=3.2)
-    error = axes[2].imshow(
-        errors[0],
-        cmap="inferno",
-        vmin=0,
-        vmax=float(errors.max()),
-        interpolation="nearest",
-    )
-    axes[2].set_title(
-        "Sampled-feature error", fontsize=22, color="#17314b", pad=15, weight="bold"
-    )
-    axes[2].set_xlabel("Dark: low error · bright: high error", fontsize=12, labelpad=12)
+    for index in range(3):
+        axes[0, index].imshow(to_image(scene.images[index]), interpolation="nearest")
+        axes[0, index].set_title(
+            f"Source camera {'ABC'[index]}", fontsize=22, color="#17314b", weight="bold"
+        )
+        axes[1, index].imshow(
+            scene.confidence[index, 0]
+            .reshape(scene.texture_height, scene.texture_width)
+            .cpu(),
+            cmap="gray",
+            vmin=0,
+            vmax=1,
+            interpolation="nearest",
+        )
+        axes[1, index].set_title(
+            "Visibility on the unfolded surface", fontsize=15, color="#52667a"
+        )
+        clean_image_axis(axes[0, index])
+        clean_image_axis(axes[1, index])
     fig.suptitle(
-        "Fitting geometry through source visibility",
+        "Different cameras see different folds",
         fontsize=28,
         color="#17314b",
         weight="bold",
-        y=0.965,
+        y=0.98,
     )
-    step_text = status.text(0, 0.67, "", fontsize=21, weight="bold", color="#17314b")
-    loss_text = status.text(0, 0.30, "", fontsize=15, color="#52667a")
-    (line,) = chart.plot(
-        [], [], color="#147f9e", lw=2.8, label="With boundary gradients"
+    fig.text(
+        0.5,
+        0.035,
+        "White: visible from this camera · Black: occluded",
+        ha="center",
+        fontsize=16,
+        color="#52667a",
     )
-    (control_line,) = chart.plot(
-        [], [], color="#ca653e", lw=2, ls="--", label="Smooth gradients only"
+    fig.subplots_adjust(
+        left=0.025, right=0.975, top=0.88, bottom=0.10, hspace=0.24, wspace=0.08
+    )
+    fig.savefig(output / "source_features_sampling.png", dpi=100)
+    plt.close(fig)
+
+
+def make_fit_figure(scene, history, renders, textures):
+    fig = plt.figure(figsize=(16, 10), dpi=100, facecolor="#f5f7fb")
+    grid = fig.add_gridspec(
+        3,
+        3,
+        height_ratios=[2.8, 1.2, 1.05],
+        left=0.035,
+        right=0.965,
+        top=0.86,
+        bottom=0.08,
+        hspace=0.28,
+        wspace=0.09,
+    )
+    axes = [fig.add_subplot(grid[0, i]) for i in range(3)]
+    atlas_axes = [fig.add_subplot(grid[1, i]) for i in range(3)]
+    titles = ["Held-out target", "Ordinary projection", "Source visibility"]
+    image_handles, texture_handles = [], []
+    for index in range(3):
+        value = to_image(scene.target) if index == 0 else renders[0, index - 1]
+        atlas = to_image(scene.texture[0]) if index == 0 else textures[0, index - 1]
+        image_handles.append(axes[index].imshow(value, interpolation="nearest"))
+        texture_handles.append(atlas_axes[index].imshow(atlas, interpolation="nearest"))
+        axes[index].set_title(
+            titles[index], fontsize=22, color="#17314b", weight="bold", pad=15
+        )
+        atlas_axes[index].set_title(
+            "Surface texture" if index == 0 else "Fitted texture",
+            fontsize=15,
+            color="#52667a",
+        )
+        clean_image_axis(axes[index])
+        clean_image_axis(atlas_axes[index])
+    chart = fig.add_subplot(grid[2, 1:])
+    colors = ["#c66b39", "#127f9b"]
+    lines = [
+        chart.plot([], [], color=color, lw=2.5, label=title)[0]
+        for color, title in zip(colors, titles[1:], strict=True)
+    ]
+    scores = -10 * np.log10(
+        np.maximum(np.array([row["heldout_mse"] for row in history]), 1e-12)
     )
     chart.set(
-        xlim=(0, steps),
-        ylim=(-4, 108),
+        xlim=(0, history[-1]["step"]),
+        ylim=(np.floor(scores.min()) - 1, np.ceil(scores.max()) + 1),
         xlabel="Optimization step",
-        ylabel="Loss (% of initial)",
+        ylabel="Held-out PSNR (dB)",
     )
     chart.spines[["top", "right"]].set_visible(False)
     chart.grid(alpha=0.18)
-    chart.legend(frameon=False, loc="upper right", fontsize=11)
-    for text in [chart.xaxis.label, chart.yaxis.label]:
-        text.set_fontsize(12)
+    chart.legend(frameon=False, loc="lower right", fontsize=11)
+    status = fig.add_subplot(grid[2, 0])
+    status.axis("off")
+    step_text = status.text(0, 0.75, "", fontsize=21, color="#17314b", weight="bold")
+    score_text = [
+        status.text(0, y, "", fontsize=14, color=color)
+        for y, color in zip([0.40, 0.13], colors, strict=True)
+    ]
+    fig.suptitle(
+        "Learning appearance from occluded views",
+        fontsize=28,
+        color="#17314b",
+        weight="bold",
+        y=0.98,
+    )
+    fig.text(
+        0.5,
+        0.925,
+        "Fit a texture from three source images; evaluate it from a fourth camera.",
+        ha="center",
+        fontsize=16,
+        color="#52667a",
+    )
 
-    def update(step):
-        current.set_data(images[step])
-        points.set_data(*boundaries[step].T)
-        error.set_data(errors[step])
-        line.set_data(np.arange(step + 1), losses[: step + 1])
-        control_line.set_data(np.arange(step + 1), control_losses[: step + 1])
-        step_text.set_text(f"Iteration {step} / {steps}")
-        loss_text.set_text(f"Feature loss: {losses[step]:.1f}% of initial")
+    def update(index):
+        step = history[index]["step"]
+        for model in range(2):
+            image_handles[model + 1].set_data(renders[index, model])
+            texture_handles[model + 1].set_data(textures[index, model])
+            lines[model].set_data(
+                [row["step"] for row in history[: index + 1]],
+                scores[: index + 1, model],
+            )
+            score_text[model].set_text(
+                f"{titles[model + 1]}: {scores[index, model]:.1f} dB"
+            )
+        step_text.set_text(f"Step {step} / {history[-1]['step']}")
         fig.canvas.draw()
 
+    return fig, update
+
+
+def write_video(output, scene, history, renders, textures, fps):
+    fig, update = make_fit_figure(scene, history, renders, textures)
     command = [
         "ffmpeg",
         "-y",
@@ -259,7 +378,7 @@ def draw_outputs(output, scene, history, control, boundaries, images, errors, fp
         "-pix_fmt",
         "rgb24",
         "-s",
-        "1600x900",
+        "1600x1000",
         "-r",
         str(fps),
         "-i",
@@ -279,128 +398,59 @@ def draw_outputs(output, scene, history, control, boundaries, images, errors, fp
     ]
     process = subprocess.Popen(command, stdin=subprocess.PIPE)
     assert process.stdin is not None
-    for step in range(steps + 1):
-        update(step)
+    for index in range(len(history)):
+        update(index)
         pixels = np.asarray(fig.canvas.buffer_rgba())[:, :, :3].copy().tobytes()
-        repeats = fps * 2 if step in (0, steps) else 1
-        for _ in range(repeats):
+        repeat = 2 * fps if index in (0, len(history) - 1) else 1
+        for _ in range(repeat):
             process.stdin.write(pixels)
-        if step in (0, steps // 2, steps):
-            fig.savefig(output / f"source_features_step_{step:03d}.png", dpi=100)
+        if index in (0, len(history) // 2, len(history) - 1):
+            fig.savefig(
+                output / f"source_features_step_{history[index]['step']:03d}.png",
+                dpi=100,
+            )
     process.stdin.close()
     if process.wait() != 0:
         raise RuntimeError("video encoding failed")
-    plt.close(fig)
-    draw_comparison(output, scene, steps, boundaries, images, losses[-1])
-    draw_samples(output, scene)
-
-
-def draw_comparison(output, scene, steps, boundaries, images, final_loss_percent):
-    target = scene.target.cpu().numpy()
-    target_loop = np.concatenate((target, target[:1]))
-    fig, axes = plt.subplots(1, 3, figsize=(15, 5.8), dpi=110, facecolor="#f5f7fb")
-    for ax, title, data in zip(
-        axes,
-        ["Target", "Initial mesh", f"After {steps} steps"],
-        [as_image(scene.source), images[0], images[-1]],
-        strict=True,
-    ):
-        ax.imshow(data, interpolation="nearest")
-        ax.set_title(title, fontsize=23, color="#17314b", weight="bold", pad=16)
-        ax.set_xticks([])
-        ax.set_yticks([])
-        for spine in ax.spines.values():
-            spine.set_visible(False)
-    for ax, boundary in zip(axes[1:], [boundaries[0], boundaries[-1]], strict=True):
-        ax.plot(*target_loop.T, color="white", ls="--", lw=1.5)
-        ax.plot(*boundary.T, "o", color="white", ms=3.2)
-    fig.suptitle(
-        "Fitting an occluder from sampled features",
-        fontsize=28,
-        color="#17314b",
-        weight="bold",
-        y=0.98,
-    )
-    fig.text(
-        0.5,
-        0.045,
-        f"Feature loss falls by {100 - final_loss_percent:.1f}% · "
-        "White dots: fitted vertices · Dashed line: target",
-        ha="center",
-        fontsize=15,
-        color="#52667a",
-    )
-    fig.subplots_adjust(left=0.025, right=0.975, bottom=0.12, top=0.83, wspace=0.07)
-    fig.savefig(output / "source_features_demo_poster.png", dpi=110)
-    plt.close(fig)
-
-
-def draw_samples(output, scene):
-    fig, axes = plt.subplots(1, 3, figsize=(15, 5), dpi=110, facecolor="#f5f7fb")
-    for ax, title, data in zip(
-        axes,
-        ["Source image", "Samples on the rear plane", "Visibility confidence"],
-        [
-            as_image(scene.source),
-            as_image(scene.desired.reshape(1, 3, scene.size, scene.size)),
-            scene.target_confidence.reshape(scene.size, scene.size).cpu().numpy(),
-        ],
-        strict=True,
-    ):
-        ax.imshow(data, cmap="gray", vmin=0, vmax=1, interpolation="nearest")
-        ax.set_title(title, fontsize=20, color="#17314b", pad=15)
-        ax.set_axis_off()
-    fig.text(
-        0.5,
-        0.035,
-        "Queries behind the polygon have zero sampled features and zero confidence.",
-        ha="center",
-        fontsize=15,
-        color="#52667a",
-    )
-    fig.subplots_adjust(left=0.02, right=0.98, bottom=0.10, top=0.86, wspace=0.08)
-    fig.savefig(output / "source_features_sampling.png", dpi=110)
+    fig.savefig(output / "source_features_demo_poster.png", dpi=100)
     plt.close(fig)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=Path("source_features_demo"))
-    parser.add_argument("--steps", type=int, default=240)
-    parser.add_argument("--size", type=int, default=128)
-    parser.add_argument("--fps", type=int, default=24)
+    parser.add_argument("--steps", type=int, default=400)
+    parser.add_argument("--size", type=int, default=192)
+    parser.add_argument("--fps", type=int, default=12)
     parser.add_argument("--device", default="cuda")
     args = parser.parse_args()
     if args.steps < 1 or args.size < 16 or args.fps < 1:
         parser.error("steps and fps must be positive; size must be at least 16")
     args.output.mkdir(parents=True, exist_ok=True)
     scene = Scene(args.size, args.device)
-    history, boundaries, images, errors = fit(scene, args.steps, edge_gradients=True)
-    control, _, _, _ = fit(scene, args.steps, edge_gradients=False)
-    draw_outputs(
-        args.output, scene, history, control, boundaries, images, errors, args.fps
-    )
+    history, renders, textures = fit_appearance(scene, args.steps)
+    draw_sources(args.output, scene)
+    write_video(args.output, scene, history, renders, textures, args.fps)
     (args.output / "source_features_demo.json").write_text(
         json.dumps(
             {
-                "size": args.size,
+                "source_angles": scene.source_angles,
+                "heldout_angle": 35,
                 "steps": args.steps,
-                "edge_gradients": history,
-                "smooth_only": control,
+                "size": args.size,
+                "observed_surface_fraction": float(
+                    (scene.confidence.sum(0) > 0).float().mean()
+                ),
+                "history": history,
             },
             indent=2,
         )
         + "\n"
     )
     np.savez_compressed(
-        args.output / "source_features_fit.npz",
-        boundary=boundaries,
-        target=scene.target.cpu().numpy(),
-        feature_error=errors,
+        args.output / "source_features_fit.npz", renders=renders, textures=textures
     )
-    print(
-        f"Feature MSE: {history[0]['feature_mse']:.6f} -> {history[-1]['feature_mse']:.6f}"
-    )
+    print(json.dumps(history[-1], indent=2))
 
 
 if __name__ == "__main__":

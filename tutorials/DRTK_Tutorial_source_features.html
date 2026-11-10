@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Fitting geometry through source visibility &#8212; DRTK  documentation</title>
+    <title>Learning surface appearance from source views &#8212; DRTK  documentation</title>
   
   
   
@@ -353,7 +353,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Computing Gradients and Fitting</span></p>
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="DRTK_Tutorial_pixel_grid_mesh.html">Learning pixel-grid geometry and topology</a></li>
-<li class="toctree-l1 current active"><a class="current reference internal" href="#">Fitting geometry through source visibility</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Learning surface appearance from source views</a></li>
 <li class="toctree-l1"><a class="reference internal" href="DRTK_Tutorial_hand_fitting.html">Single image hand fitting</a></li>
 </ul>
 </div>
@@ -398,7 +398,7 @@
     
     <li class="breadcrumb-item"><a href="index.html" class="nav-link">Tutorials</a></li>
     
-    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Fitting geometry through source visibility</span></li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Learning surface appearance from source views</span></li>
   </ul>
 </nav>
 </div>
@@ -415,124 +415,141 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="fitting-geometry-through-source-visibility">
-<h1>Fitting geometry through source visibility<a class="headerlink" href="#fitting-geometry-through-source-visibility" title="Link to this heading">#</a></h1>
-<p>This tutorial fits the position and shape of a blue polygon in front of a
-textured plane. The polygon determines which image features can be sampled
-onto the plane. When its boundary is in the wrong place, some samples contain
-the polygon’s color and others discard visible texture. A loss on these
-samples can move the occluding geometry into place.</p>
+  <section id="learning-surface-appearance-from-source-views">
+<h1>Learning surface appearance from source views<a class="headerlink" href="#learning-surface-appearance-from-source-views" title="Link to this heading">#</a></h1>
+<p>Rendering takes features attached to a mesh and produces an image. To build
+those surface features from camera images, we need to determine which camera
+can see each point on the mesh. Projecting a point into an image gives a
+sampling location, but the pixel at that location may show another surface
+in front of it.</p>
+<p>This tutorial fits the appearance of a folded surface from three source
+images. Its folds hide different regions from each camera. Visibility-aware
+sampling selects observations of the receiving surface; ordinary projection
+also copies features from the folds in front of it. The fitted texture is
+then rendered from a fourth camera to reveal the difference.</p>
 <video controls playsinline preload="metadata" style="width:100%;height:auto"
   poster="../_static/source_features_demo_poster.png">
   <source src="../_static/source_features_demo.mp4" type="video/mp4">
   Your browser does not support HTML video.
-</video><p>The fit starts from a smaller, displaced polygon. White dots mark its boundary
-vertices; the dashed contour marks the target. The camera and error color
-scale stay fixed. The curve compares the fit with a run that disables boundary
-gradients, starting from the same mesh.</p>
-<section id="scene-and-supervision">
-<h2>Scene and supervision<a class="headerlink" href="#scene-and-supervision" title="Link to this heading">#</a></h2>
-<p>The scene contains two opaque surfaces: a polygon at camera depth 1 and a
-plane at depth 2. RGB channels serve as the feature image. The polygon’s
-center and twenty boundary radii are optimized; its depth and the camera
-are fixed. Radii at ordered angles keep the boundary connected during fitting.</p>
-<p>This synthetic example generates a source image and target sampled features
-from the target mesh. Those feature values supply supervision for the fit.
-The rendered comparison panels visualize the geometry; the optimization loss
-is computed from the samples on the rear plane.</p>
+</video><p>The top row shows the held-out view; the middle row unfolds the surface into
+its texture coordinates. Both fits use the same network, initialization, and
+optimizer. The curve measures PSNR in the held-out view throughout fitting.</p>
+<section id="source-images-and-surface-queries">
+<h2>Source images and surface queries<a class="headerlink" href="#source-images-and-surface-queries" title="Link to this heading">#</a></h2>
+<p>The example generates three RGB images of an opaque folded mesh. Its geometry
+and camera poses are supplied. RGB channels serve as image features, and a
+128 by 64 grid in texture space defines the points where features are sampled.
+Each point belongs to a particular face, with a position given by 3D
+barycentric coordinates.</p>
 <figure class="align-default" id="id1">
-<a class="reference internal image-reference" href="../_images/source_features_sampling.png"><img alt="Source RGB image, sampled rear-plane features with an occluded region, and binary visibility confidence." src="../_images/source_features_sampling.png" style="width: 100%;" />
+<a class="reference internal image-reference" href="../_images/source_features_sampling.png"><img alt="Three views of a folded surface and their visibility maps in surface texture coordinates." src="../_images/source_features_sampling.png" style="width: 100%;" />
 </a>
 <figcaption>
-<p><span class="caption-text">Samples behind the opaque polygon have zero features and zero confidence.
-Visible samples retain the plane’s texture.</span><a class="headerlink" href="#id1" title="Link to this image">#</a></p>
+<p><span class="caption-text">The bottom row unfolds the same surface into UV coordinates. White regions
+are visible from that camera; black regions are occluded. Together, these
+three views observe the whole surface.</span><a class="headerlink" href="#id1" title="Link to this image">#</a></p>
 </figcaption>
 </figure>
-</section>
-<section id="surface-queries">
-<h2>Surface queries<a class="headerlink" href="#surface-queries" title="Link to this heading">#</a></h2>
-<p>Choose a face and 3D barycentric coordinates for each point where features
-will be sampled. Here, a regular grid of points lies on the rear plane.
-Project the mesh vertices into the source camera to obtain pixel XY and
-positive camera Z.</p>
-<p>For a mesh built with <a class="reference internal" href="../api_reference/pixel_grid_mesh.html#drtk.pixel_grid_mesh" title="drtk.pixel_grid_mesh"><code class="xref py py-func docutils literal notranslate"><span class="pre">drtk.pixel_grid_mesh()</span></code></a>, <code class="docutils literal notranslate"><span class="pre">v</span></code> contains the displaced
-camera-space positions and <code class="docutils literal notranslate"><span class="pre">uv_anchor</span></code> gives the original texture coordinates:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">v</span><span class="p">,</span> <span class="n">uv_anchor</span><span class="p">,</span> <span class="n">uv_reprojected</span><span class="p">,</span> <span class="n">faces</span><span class="p">,</span> <span class="n">opacity</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">drtk</span><span class="o">.</span><span class="n">pixel_grid_mesh</span><span class="p">(</span>
-    <span class="n">depth</span><span class="p">,</span> <span class="n">displacement</span><span class="p">,</span> <span class="n">intrinsics</span><span class="p">,</span>
-    <span class="n">alive</span><span class="p">,</span> <span class="n">join_right</span><span class="p">,</span> <span class="n">join_down</span><span class="p">,</span>
-    <span class="n">feather_width</span><span class="o">=</span><span class="n">feather_width</span><span class="p">,</span>
-<span class="p">)</span>
-</pre></div>
-</div>
-<p>A query’s face identifies its local surface. This matters at cuts and shared
-crack tips, where coincident points may belong to different sides of the mesh.</p>
-</section>
-<section id="sampling">
-<h2>Sampling<a class="headerlink" href="#sampling" title="Link to this heading">#</a></h2>
-<p>Compute the sampling stencil from the projected geometry, then apply it to
-the feature image:</p>
+<p>A pixel near the front fold can have contributions from several overlapping
+triangles, but each receiving point has its own visibility. Points on a fold
+behind it must not acquire that front fold’s color. Shared mesh connectivity
+does not exempt a surface from self-occlusion.</p>
+<p>Project the vertices into each source camera, obtaining pixel XY and positive
+camera Z. Query face IDs and 3D barycentrics identify the same surface points
+across the cameras:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">indices</span><span class="p">,</span> <span class="n">weights</span><span class="p">,</span> <span class="n">source_uv</span><span class="p">,</span> <span class="n">source_z</span> <span class="o">=</span> <span class="n">drtk</span><span class="o">.</span><span class="n">source_feature_stencil</span><span class="p">(</span>
     <span class="n">v_source_pixels</span><span class="p">,</span> <span class="n">faces</span><span class="p">,</span> <span class="n">query_faces</span><span class="p">,</span> <span class="n">query_barycentrics</span><span class="p">,</span>
     <span class="n">feature_height</span><span class="p">,</span> <span class="n">feature_width</span><span class="p">,</span>
-    <span class="n">vertex_opacity</span><span class="o">=</span><span class="n">opacity</span><span class="p">,</span>
     <span class="n">return_queries</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
 <span class="p">)</span>
 <span class="n">sampled</span><span class="p">,</span> <span class="n">confidence</span> <span class="o">=</span> <span class="n">drtk</span><span class="o">.</span><span class="n">sample_feature_stencil</span><span class="p">(</span>
-    <span class="n">features</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="n">weights</span>
+    <span class="n">source_features</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="n">weights</span>
 <span class="p">)</span>
 </pre></div>
 </div>
-<p><code class="docutils literal notranslate"><span class="pre">sampled</span></code> has shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">C,</span> <span class="pre">Q)</span></code> and <code class="docutils literal notranslate"><span class="pre">confidence</span></code> has shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">1,</span> <span class="pre">Q)</span></code>.
-The weights combine bilinear interpolation with source transmittance. They
-also account for image boundaries and the receiving surface’s extent.
-Additional feature maps with the same batch and image dimensions can use
-<code class="docutils literal notranslate"><span class="pre">indices</span></code> and <code class="docutils literal notranslate"><span class="pre">weights</span></code> from this call.</p>
+<p>Here, the batch dimension contains the three cameras. <code class="docutils literal notranslate"><span class="pre">sampled</span></code> has shape
+<code class="docutils literal notranslate"><span class="pre">(3,</span> <span class="pre">C,</span> <span class="pre">Q)</span></code> and <code class="docutils literal notranslate"><span class="pre">confidence</span></code> has shape <code class="docutils literal notranslate"><span class="pre">(3,</span> <span class="pre">1,</span> <span class="pre">Q)</span></code>. Each bilinear tap is
+weighted by the transmittance of the geometry preceding its receiving face
+in the source view. The stencil also accounts for the local surface boundary
+and image bounds.</p>
+<p>The visibility maps in the figure are these confidence values, arranged in
+texture space. With opaque surfaces, points behind a fold have zero confidence;
+samples near a visibility boundary can have fractional confidence because
+their bilinear footprint straddles the edge.</p>
 </section>
-<section id="fitting-the-boundary">
-<h2>Fitting the boundary<a class="headerlink" href="#fitting-the-boundary" title="Link to this heading">#</a></h2>
-<p>For sampled features <span class="math notranslate nohighlight">\(S_q(\theta)\)</span> and target samples <span class="math notranslate nohighlight">\(S_q^*\)</span>,
-the example minimizes</p>
+<section id="fitting-appearance">
+<h2>Fitting appearance<a class="headerlink" href="#fitting-appearance" title="Link to this heading">#</a></h2>
+<p>The appearance model maps texture coordinates to RGB. It uses Fourier-encoded
+UV coordinates, two hidden layers of 96 units, and a sigmoid output. The
+model is optimized against the observations gathered from the source images.</p>
+<p>For camera <span class="math notranslate nohighlight">\(k\)</span> and surface point <span class="math notranslate nohighlight">\(q\)</span>, let <span class="math notranslate nohighlight">\(S_{kq}\)</span> be the
+unnormalized sampled features and <span class="math notranslate nohighlight">\(c_{kq}\)</span> their confidence. A normalized
+observation is</p>
 <div class="math notranslate nohighlight">
-\[L(\theta)=\frac{1}{CQ}\sum_{q=1}^{Q}
-\left\|S_q(\theta)-S_q^*\right\|_2^2,\]</div>
-<p>where <span class="math notranslate nohighlight">\(\theta\)</span> contains the polygon’s center and boundary radii.
-Recompute the stencil after every geometry update:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">optimizer</span><span class="o">.</span><span class="n">zero_grad</span><span class="p">()</span>
-<span class="n">v_source_pixels</span> <span class="o">=</span> <span class="n">make_vertices</span><span class="p">(</span><span class="n">center</span><span class="p">,</span> <span class="n">radii</span><span class="p">)</span>
-<span class="n">indices</span><span class="p">,</span> <span class="n">weights</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">drtk</span><span class="o">.</span><span class="n">source_feature_stencil</span><span class="p">(</span>
-    <span class="n">v_source_pixels</span><span class="p">,</span> <span class="n">faces</span><span class="p">,</span> <span class="n">query_faces</span><span class="p">,</span> <span class="n">query_barycentrics</span><span class="p">,</span> <span class="n">H</span><span class="p">,</span> <span class="n">W</span>
-<span class="p">)</span>
-<span class="n">sampled</span><span class="p">,</span> <span class="n">confidence</span> <span class="o">=</span> <span class="n">drtk</span><span class="o">.</span><span class="n">sample_feature_stencil</span><span class="p">(</span><span class="n">features</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="n">weights</span><span class="p">)</span>
-<span class="n">loss</span> <span class="o">=</span> <span class="p">(</span><span class="n">sampled</span> <span class="o">-</span> <span class="n">target_samples</span><span class="p">)</span><span class="o">.</span><span class="n">square</span><span class="p">()</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
-<span class="n">loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
-<span class="n">optimizer</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+\[O_{kq}=\frac{S_{kq}}{\max(c_{kq},\epsilon)}.\]</div>
+<p>With appearance field <span class="math notranslate nohighlight">\(F_\theta(u_q)\)</span> and <span class="math notranslate nohighlight">\(C\)</span> feature channels,
+the fitting objective is</p>
+<div class="math notranslate nohighlight">
+\[L(\theta)=
+\frac{\sum_{k,q} c_{kq}\left\|F_\theta(u_q)-O_{kq}\right\|_2^2}
+     {C\sum_{k,q}c_{kq}}.\]</div>
+<p>Zero-confidence observations contribute zero loss. Visible observations
+from different cameras constrain the same surface feature:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">observations</span> <span class="o">=</span> <span class="n">sampled</span> <span class="o">/</span> <span class="n">confidence</span><span class="o">.</span><span class="n">clamp_min</span><span class="p">(</span><span class="mf">1e-6</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">step</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_steps</span><span class="p">):</span>
+    <span class="n">optimizer</span><span class="o">.</span><span class="n">zero_grad</span><span class="p">()</span>
+    <span class="n">prediction</span> <span class="o">=</span> <span class="n">appearance_model</span><span class="p">(</span><span class="n">encoded_uv</span><span class="p">)</span><span class="o">.</span><span class="n">T</span><span class="p">[</span><span class="kc">None</span><span class="p">]</span>
+    <span class="n">loss</span> <span class="o">=</span> <span class="p">((</span><span class="n">prediction</span> <span class="o">-</span> <span class="n">observations</span><span class="p">)</span><span class="o">.</span><span class="n">square</span><span class="p">()</span> <span class="o">*</span> <span class="n">confidence</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+    <span class="n">loss</span> <span class="o">=</span> <span class="n">loss</span> <span class="o">/</span> <span class="p">(</span><span class="n">num_channels</span> <span class="o">*</span> <span class="n">confidence</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
+    <span class="n">loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
+    <span class="n">optimizer</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
 </pre></div>
 </div>
-<p>An opaque polygon’s visibility changes at its boundary. Smooth interpolation
-derivatives alone do not move this boundary, so the control run stays at its
-initial shape. DRTK’s boundary-motion estimator supplies the missing geometry
-gradient. It is enabled by default through <code class="docutils literal notranslate"><span class="pre">edge_gradients=True</span></code>.</p>
-<p>At 128 by 128 pixels, the example reduces sampled-feature MSE by about 97%
-over 240 Adam steps. A small residual remains near the rasterized boundary.
-The image does not constrain the polygon’s depth while its ordering is
-unchanged; this example therefore fits its projected shape.</p>
-<p>For topology optimization with <a class="reference internal" href="../api_reference/pixel_grid_mesh.html#drtk.bernoulli_render_loss" title="drtk.bernoulli_render_loss"><code class="xref py py-func docutils literal notranslate"><span class="pre">drtk.bernoulli_render_loss()</span></code></a>, construct
-the mesh and its stencil inside the loss callback so that each sampled
-topology has its own visibility.</p>
+<p>The geometry and cameras stay fixed during this fit, so the observations are
+computed once. The source views collectively cover every query. If some
+surface regions are unobserved, additional views or an appearance prior are
+needed to constrain them.</p>
+<p>The comparison fit uses ordinary bilinear image samples at the same projected
+locations and gives equal weight to all in-image observations. These samples
+can belong to another fold. Averaging them into a common surface feature
+creates the wrong colors and duplicated patterns visible in the video.</p>
 </section>
-<section id="combining-observations">
-<h2>Combining observations<a class="headerlink" href="#combining-observations" title="Link to this heading">#</a></h2>
-<p>For applications that update features already stored on a surface, confidence
-can blend the new observations with existing features:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">refined</span> <span class="o">=</span> <span class="n">sampled</span> <span class="o">+</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="n">confidence</span><span class="p">)</span> <span class="o">*</span> <span class="n">anchor_features</span>
+<section id="held-out-rendering">
+<h2>Held-out rendering<a class="headerlink" href="#held-out-rendering" title="Link to this heading">#</a></h2>
+<p>Evaluate the appearance model on the texture grid, attach the resulting
+texture to the mesh, and render it with <a class="reference internal" href="../api_reference/transparent_render.html#drtk.render_transparent" title="drtk.render_transparent"><code class="xref py py-func docutils literal notranslate"><span class="pre">drtk.render_transparent()</span></code></a>.
+This camera was excluded from the fitting objective. The known target texture
+and held-out image are used for evaluation only.</p>
+<p>With the default settings, after 400 steps the held-out image MSE is about
+0.00220 for ordinary projection and 0.000140 with source visibility, a roughly
+16-fold reduction. The corresponding PSNR values are about 26.6 and 38.5 dB.
+These measurements describe this synthetic example; the difference depends
+on the scene, camera coverage, and source features.</p>
+</section>
+<section id="gradients-and-changing-geometry">
+<h2>Gradients and changing geometry<a class="headerlink" href="#gradients-and-changing-geometry" title="Link to this heading">#</a></h2>
+<p>The same sampling calls support trainable geometry. Rebuild the stencil after
+changing vertices, topology, the camera, or material opacity. Gradients then
+propagate through query projection, bilinear sampling, and transmittance.
+Visibility boundaries use DRTK’s boundary-motion estimator, enabled by default.</p>
+<p>For a mesh built by <a class="reference internal" href="../api_reference/pixel_grid_mesh.html#drtk.pixel_grid_mesh" title="drtk.pixel_grid_mesh"><code class="xref py py-func docutils literal notranslate"><span class="pre">drtk.pixel_grid_mesh()</span></code></a>, project its camera-space
+positions into each source camera and attach the queries to its returned
+faces. When learning topology with <a class="reference internal" href="../api_reference/pixel_grid_mesh.html#drtk.bernoulli_render_loss" title="drtk.bernoulli_render_loss"><code class="xref py py-func docutils literal notranslate"><span class="pre">drtk.bernoulli_render_loss()</span></code></a>, construct
+the mesh and its stencil inside the loss callback so each sampled topology
+has its own visibility.</p>
+</section>
+<section id="using-sampled-features-in-a-model">
+<h2>Using sampled features in a model<a class="headerlink" href="#using-sampled-features-in-a-model" title="Link to this heading">#</a></h2>
+<p>Image features can have more than three channels. A refinement model can take
+the sampled features, confidence, and existing surface features as inputs.
+Confidence distinguishes an occluded observation from an observed feature
+whose value is zero.</p>
+<p>For a single source view, a simple update to existing surface features is</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">updated</span> <span class="o">=</span> <span class="n">sampled</span> <span class="o">+</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="n">confidence</span><span class="p">)</span> <span class="o">*</span> <span class="n">existing_features</span>
 </pre></div>
 </div>
-<p><code class="docutils literal notranslate"><span class="pre">sampled</span></code> already includes the visibility weights. Where confidence is zero,
-the result is entirely the anchor feature. A learned refinement model can
-instead take anchor features, sampled features, confidence, and geometric
-context as inputs. Confidence lets it distinguish a missing observation from
-an observed feature value of zero. The resulting features can be stored on
-the mesh for rendering from other viewpoints.</p>
+<p><code class="docutils literal notranslate"><span class="pre">sampled</span></code> already includes the visibility weights. The updated features can
+be stored with the mesh and rendered from other viewpoints.</p>
 </section>
 <section id="run-the-example">
 <h2>Run the example<a class="headerlink" href="#run-the-example" title="Link to this heading">#</a></h2>
@@ -541,9 +558,9 @@ It requires a CUDA-enabled DRTK installation, Matplotlib, and FFmpeg.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>source_features_demo.py<span class="w"> </span>--output<span class="w"> </span>./source_features_demo
 </pre></div>
 </div>
-<p>The output directory contains the comparison figures, an H.264 video,
-per-step measurements, and saved boundary coordinates. The video records
-actual optimizer states, with a pause at the beginning and end.
+<p>The output directory contains the video, source-view figure, comparison
+frames, per-step measurements, and saved texture estimates. The video shows
+actual optimization states, with pauses at the beginning and end.
 See <a class="reference internal" href="../api_reference/source_features.html"><span class="doc">drtk.source_features</span></a> for argument shapes, coordinate
 conventions, and gradient behavior.</p>
 </section>
@@ -572,11 +589,11 @@ conventions, and gradient behavior.</p>
   </div>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#scene-and-supervision">Scene and supervision</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#surface-queries">Surface queries</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#sampling">Sampling</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#fitting-the-boundary">Fitting the boundary</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#combining-observations">Combining observations</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#source-images-and-surface-queries">Source images and surface queries</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#fitting-appearance">Fitting appearance</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#held-out-rendering">Held-out rendering</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#gradients-and-changing-geometry">Gradients and changing geometry</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#using-sampled-features-in-a-model">Using sampled features in a model</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#run-the-example">Run the example</a></li>
 </ul>
   </nav></div>

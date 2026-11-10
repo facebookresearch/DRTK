@@ -446,7 +446,7 @@
 the source camera. The outputs are a feature vector and visibility confidence
 for each point. Gradients propagate to features, surface positions, and
 occluding geometry.</p>
-<p>See <a class="reference internal" href="../tutorials/DRTK_Tutorial_source_features.html"><span class="doc">Sampling features with source visibility</span></a> for an example.</p>
+<p>See <a class="reference internal" href="../tutorials/DRTK_Tutorial_source_features.html"><span class="doc">Learning surface appearance from source views</span></a> for an example.</p>
 <section id="sampling-features">
 <h2>Sampling features<a class="headerlink" href="#sampling-features" title="Link to this heading">#</a></h2>
 <p><a class="reference internal" href="#drtk.source_feature_stencil" title="drtk.source_feature_stencil"><code class="xref py py-func docutils literal notranslate"><span class="pre">source_feature_stencil()</span></code></a> computes the four source texels and weights
@@ -495,7 +495,9 @@ or a neural receptive field remain mixed.</p>
 <section id="gradients">
 <h2>Gradients<a class="headerlink" href="#gradients" title="Link to this heading">#</a></h2>
 <p>Smooth derivatives propagate through projection, bilinear interpolation,
-material opacity, and feature values. Coverage boundaries use DRTK’s edge
+material opacity, and feature values. Material opacity is clamped to
+<code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">1]</span></code> with the interior derivative at zero and one, and zero derivative
+outside that range. Coverage boundaries use DRTK’s edge
 estimator, enabled by <code class="docutils literal notranslate"><span class="pre">edge_gradients=True</span></code>. For upstream feature and
 confidence gradients <span class="math notranslate nohighlight">\(g_S,g_c\)</span>, its weight derivative is</p>
 <div class="math notranslate nohighlight">
@@ -619,7 +621,8 @@ unless requested. Unused queries have zero diagnostics.</p>
 </dl>
 <dl>
 <dt>Gradients:</dt><dd><p>Smooth gradients reach vertices, query barycentrics, and material
-opacity. Coverage boundaries use DRTK’s edge-motion estimator.
+opacity. The opacity clamp uses the interior derivative at zero and
+one. Coverage boundaries use DRTK’s edge-motion estimator.
 Ordinary tessellation edges and zero-opacity occluders have zero
 boundary jump. An additional <a class="reference internal" href="edge_grad_estimator.html#drtk.edge_grad_estimator" title="drtk.edge_grad_estimator"><code class="xref py py-func docutils literal notranslate"><span class="pre">edge_grad_estimator()</span></code></a> call would
 count this contribution twice.</p>

@@ -80,7 +80,9 @@ Gradients
 ---------
 
 Smooth derivatives propagate through projection, bilinear interpolation,
-material opacity, and feature values. Coverage boundaries use DRTK's edge
+material opacity, and feature values. Material opacity is clamped to
+``[0, 1]`` with the interior derivative at zero and one, and zero derivative
+outside that range. Coverage boundaries use DRTK's edge
 estimator, enabled by ``edge_gradients=True``. For upstream feature and
 confidence gradients :math:`g_S,g_c`, its weight derivative is
 

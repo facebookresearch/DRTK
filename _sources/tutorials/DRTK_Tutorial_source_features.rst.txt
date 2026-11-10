@@ -1,11 +1,17 @@
-Fitting geometry through source visibility
-==========================================
+Learning surface appearance from source views
+=============================================
 
-This tutorial fits the position and shape of a blue polygon in front of a
-textured plane. The polygon determines which image features can be sampled
-onto the plane. When its boundary is in the wrong place, some samples contain
-the polygon's color and others discard visible texture. A loss on these
-samples can move the occluding geometry into place.
+Rendering takes features attached to a mesh and produces an image. To build
+those surface features from camera images, we need to determine which camera
+can see each point on the mesh. Projecting a point into an image gives a
+sampling location, but the pixel at that location may show another surface
+in front of it.
+
+This tutorial fits the appearance of a folded surface from three source
+images. Its folds hide different regions from each camera. Visibility-aware
+sampling selects observations of the receiving surface; ordinary projection
+also copies features from the folds in front of it. The fitted texture is
+then rendered from a fourth camera to reveal the difference.
 
 .. raw:: html
 
@@ -15,133 +21,150 @@ samples can move the occluding geometry into place.
      Your browser does not support HTML video.
    </video>
 
-The fit starts from a smaller, displaced polygon. White dots mark its boundary
-vertices; the dashed contour marks the target. The camera and error color
-scale stay fixed. The curve compares the fit with a run that disables boundary
-gradients, starting from the same mesh.
+The top row shows the held-out view; the middle row unfolds the surface into
+its texture coordinates. Both fits use the same network, initialization, and
+optimizer. The curve measures PSNR in the held-out view throughout fitting.
 
-Scene and supervision
----------------------
+Source images and surface queries
+---------------------------------
 
-The scene contains two opaque surfaces: a polygon at camera depth 1 and a
-plane at depth 2. RGB channels serve as the feature image. The polygon's
-center and twenty boundary radii are optimized; its depth and the camera
-are fixed. Radii at ordered angles keep the boundary connected during fitting.
-
-This synthetic example generates a source image and target sampled features
-from the target mesh. Those feature values supply supervision for the fit.
-The rendered comparison panels visualize the geometry; the optimization loss
-is computed from the samples on the rear plane.
+The example generates three RGB images of an opaque folded mesh. Its geometry
+and camera poses are supplied. RGB channels serve as image features, and a
+128 by 64 grid in texture space defines the points where features are sampled.
+Each point belongs to a particular face, with a position given by 3D
+barycentric coordinates.
 
 .. figure:: ../_static/source_features_sampling.png
    :width: 100%
-   :alt: Source RGB image, sampled rear-plane features with an occluded region, and binary visibility confidence.
+   :alt: Three views of a folded surface and their visibility maps in surface texture coordinates.
 
-   Samples behind the opaque polygon have zero features and zero confidence.
-   Visible samples retain the plane's texture.
+   The bottom row unfolds the same surface into UV coordinates. White regions
+   are visible from that camera; black regions are occluded. Together, these
+   three views observe the whole surface.
 
-Surface queries
----------------
+A pixel near the front fold can have contributions from several overlapping
+triangles, but each receiving point has its own visibility. Points on a fold
+behind it must not acquire that front fold's color. Shared mesh connectivity
+does not exempt a surface from self-occlusion.
 
-Choose a face and 3D barycentric coordinates for each point where features
-will be sampled. Here, a regular grid of points lies on the rear plane.
-Project the mesh vertices into the source camera to obtain pixel XY and
-positive camera Z.
-
-For a mesh built with :func:`drtk.pixel_grid_mesh`, ``v`` contains the displaced
-camera-space positions and ``uv_anchor`` gives the original texture coordinates:
-
-.. code-block:: python
-
-   v, uv_anchor, uv_reprojected, faces, opacity, _, _ = drtk.pixel_grid_mesh(
-       depth, displacement, intrinsics,
-       alive, join_right, join_down,
-       feather_width=feather_width,
-   )
-
-A query's face identifies its local surface. This matters at cuts and shared
-crack tips, where coincident points may belong to different sides of the mesh.
-
-Sampling
---------
-
-Compute the sampling stencil from the projected geometry, then apply it to
-the feature image:
+Project the vertices into each source camera, obtaining pixel XY and positive
+camera Z. Query face IDs and 3D barycentrics identify the same surface points
+across the cameras:
 
 .. code-block:: python
 
    indices, weights, source_uv, source_z = drtk.source_feature_stencil(
        v_source_pixels, faces, query_faces, query_barycentrics,
        feature_height, feature_width,
-       vertex_opacity=opacity,
        return_queries=True,
    )
    sampled, confidence = drtk.sample_feature_stencil(
-       features, indices, weights
+       source_features, indices, weights
    )
 
-``sampled`` has shape ``(N, C, Q)`` and ``confidence`` has shape ``(N, 1, Q)``.
-The weights combine bilinear interpolation with source transmittance. They
-also account for image boundaries and the receiving surface's extent.
-Additional feature maps with the same batch and image dimensions can use
-``indices`` and ``weights`` from this call.
+Here, the batch dimension contains the three cameras. ``sampled`` has shape
+``(3, C, Q)`` and ``confidence`` has shape ``(3, 1, Q)``. Each bilinear tap is
+weighted by the transmittance of the geometry preceding its receiving face
+in the source view. The stencil also accounts for the local surface boundary
+and image bounds.
 
-Fitting the boundary
---------------------
+The visibility maps in the figure are these confidence values, arranged in
+texture space. With opaque surfaces, points behind a fold have zero confidence;
+samples near a visibility boundary can have fractional confidence because
+their bilinear footprint straddles the edge.
 
-For sampled features :math:`S_q(\theta)` and target samples :math:`S_q^*`,
-the example minimizes
+Fitting appearance
+------------------
+
+The appearance model maps texture coordinates to RGB. It uses Fourier-encoded
+UV coordinates, two hidden layers of 96 units, and a sigmoid output. The
+model is optimized against the observations gathered from the source images.
+
+For camera :math:`k` and surface point :math:`q`, let :math:`S_{kq}` be the
+unnormalized sampled features and :math:`c_{kq}` their confidence. A normalized
+observation is
 
 .. math::
 
-   L(\theta)=\frac{1}{CQ}\sum_{q=1}^{Q}
-   \left\|S_q(\theta)-S_q^*\right\|_2^2,
+   O_{kq}=\frac{S_{kq}}{\max(c_{kq},\epsilon)}.
 
-where :math:`\theta` contains the polygon's center and boundary radii.
-Recompute the stencil after every geometry update:
+With appearance field :math:`F_\theta(u_q)` and :math:`C` feature channels,
+the fitting objective is
 
-.. code-block:: python
+.. math::
 
-   optimizer.zero_grad()
-   v_source_pixels = make_vertices(center, radii)
-   indices, weights, _, _ = drtk.source_feature_stencil(
-       v_source_pixels, faces, query_faces, query_barycentrics, H, W
-   )
-   sampled, confidence = drtk.sample_feature_stencil(features, indices, weights)
-   loss = (sampled - target_samples).square().mean()
-   loss.backward()
-   optimizer.step()
+   L(\theta)=
+   \frac{\sum_{k,q} c_{kq}\left\|F_\theta(u_q)-O_{kq}\right\|_2^2}
+        {C\sum_{k,q}c_{kq}}.
 
-An opaque polygon's visibility changes at its boundary. Smooth interpolation
-derivatives alone do not move this boundary, so the control run stays at its
-initial shape. DRTK's boundary-motion estimator supplies the missing geometry
-gradient. It is enabled by default through ``edge_gradients=True``.
-
-At 128 by 128 pixels, the example reduces sampled-feature MSE by about 97%
-over 240 Adam steps. A small residual remains near the rasterized boundary.
-The image does not constrain the polygon's depth while its ordering is
-unchanged; this example therefore fits its projected shape.
-
-For topology optimization with :func:`drtk.bernoulli_render_loss`, construct
-the mesh and its stencil inside the loss callback so that each sampled
-topology has its own visibility.
-
-Combining observations
-----------------------
-
-For applications that update features already stored on a surface, confidence
-can blend the new observations with existing features:
+Zero-confidence observations contribute zero loss. Visible observations
+from different cameras constrain the same surface feature:
 
 .. code-block:: python
 
-   refined = sampled + (1.0 - confidence) * anchor_features
+   observations = sampled / confidence.clamp_min(1e-6)
+   for step in range(num_steps):
+       optimizer.zero_grad()
+       prediction = appearance_model(encoded_uv).T[None]
+       loss = ((prediction - observations).square() * confidence).sum()
+       loss = loss / (num_channels * confidence.sum())
+       loss.backward()
+       optimizer.step()
 
-``sampled`` already includes the visibility weights. Where confidence is zero,
-the result is entirely the anchor feature. A learned refinement model can
-instead take anchor features, sampled features, confidence, and geometric
-context as inputs. Confidence lets it distinguish a missing observation from
-an observed feature value of zero. The resulting features can be stored on
-the mesh for rendering from other viewpoints.
+The geometry and cameras stay fixed during this fit, so the observations are
+computed once. The source views collectively cover every query. If some
+surface regions are unobserved, additional views or an appearance prior are
+needed to constrain them.
+
+The comparison fit uses ordinary bilinear image samples at the same projected
+locations and gives equal weight to all in-image observations. These samples
+can belong to another fold. Averaging them into a common surface feature
+creates the wrong colors and duplicated patterns visible in the video.
+
+Held-out rendering
+------------------
+
+Evaluate the appearance model on the texture grid, attach the resulting
+texture to the mesh, and render it with :func:`drtk.render_transparent`.
+This camera was excluded from the fitting objective. The known target texture
+and held-out image are used for evaluation only.
+
+With the default settings, after 400 steps the held-out image MSE is about
+0.00220 for ordinary projection and 0.000140 with source visibility, a roughly
+16-fold reduction. The corresponding PSNR values are about 26.6 and 38.5 dB.
+These measurements describe this synthetic example; the difference depends
+on the scene, camera coverage, and source features.
+
+Gradients and changing geometry
+-------------------------------
+
+The same sampling calls support trainable geometry. Rebuild the stencil after
+changing vertices, topology, the camera, or material opacity. Gradients then
+propagate through query projection, bilinear sampling, and transmittance.
+Visibility boundaries use DRTK's boundary-motion estimator, enabled by default.
+
+For a mesh built by :func:`drtk.pixel_grid_mesh`, project its camera-space
+positions into each source camera and attach the queries to its returned
+faces. When learning topology with :func:`drtk.bernoulli_render_loss`, construct
+the mesh and its stencil inside the loss callback so each sampled topology
+has its own visibility.
+
+Using sampled features in a model
+---------------------------------
+
+Image features can have more than three channels. A refinement model can take
+the sampled features, confidence, and existing surface features as inputs.
+Confidence distinguishes an occluded observation from an observed feature
+whose value is zero.
+
+For a single source view, a simple update to existing surface features is
+
+.. code-block:: python
+
+   updated = sampled + (1.0 - confidence) * existing_features
+
+``sampled`` already includes the visibility weights. The updated features can
+be stored with the mesh and rendered from other viewpoints.
 
 Run the example
 ---------------
@@ -153,8 +176,8 @@ It requires a CUDA-enabled DRTK installation, Matplotlib, and FFmpeg.
 
    python source_features_demo.py --output ./source_features_demo
 
-The output directory contains the comparison figures, an H.264 video,
-per-step measurements, and saved boundary coordinates. The video records
-actual optimizer states, with a pause at the beginning and end.
+The output directory contains the video, source-view figure, comparison
+frames, per-step measurements, and saved texture estimates. The video shows
+actual optimization states, with pauses at the beginning and end.
 See :doc:`../api_reference/source_features` for argument shapes, coordinate
 conventions, and gradient behavior.
