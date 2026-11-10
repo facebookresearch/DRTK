@@ -406,13 +406,18 @@
     <span class="n">edge_gradients</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
     <span class="n">return_queries</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]]:</span>
-<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Compute bilinear sampling indices and visibility weights for mesh points.</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Compute bilinear sampling indices and transmittance weights for mesh points.</span>
 
 <span class="sd">    Each query is attached to a face by 3D barycentric coordinates. Its four</span>
 <span class="sd">    image taps follow the receiving surface through shared manifold edges,</span>
 <span class="sd">    stopping at cuts, projected folds, or nonmanifold junctions. Each valid</span>
 <span class="sd">    tap is weighted by transmittance from faces preceding its receiver in</span>
 <span class="sd">    ``(mean triangle camera Z, face index)`` order.</span>
+
+<span class="sd">    Outputs retain the query order. For queries attached to an original</span>
+<span class="sd">    surface grid, reshape the outputs into that grid after deformation.</span>
+<span class="sd">    Queries projecting to the same camera pixel can have different</span>
+<span class="sd">    transmittances when they lie on different surface layers.</span>
 
 <span class="sd">    Apply the result to a feature image with :func:`sample_feature_stencil`.</span>
 <span class="sd">    Feature maps with matching batch and spatial dimensions can share the</span>
@@ -528,7 +533,7 @@
 <span class="k">def</span><span class="w"> </span><span class="nf">sample_feature_stencil</span><span class="p">(</span>
     <span class="n">feature_image</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">tap_indices</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">tap_weights</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
-<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Sample image features using a visibility-weighted bilinear stencil.</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Sample image features using a transmittance-weighted bilinear stencil.</span>
 
 <span class="sd">    For texel features :math:`F_j` and weights :math:`w_{qj}`, returns</span>
 <span class="sd">    :math:`S_q=\sum_j w_{qj}F_j` and confidence</span>

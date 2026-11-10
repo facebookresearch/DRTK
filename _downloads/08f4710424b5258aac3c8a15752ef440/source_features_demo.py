@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # Licensed under the MIT license in the root LICENSE file.
-"""Fit a folded surface's appearance from three partially occluded views."""
+"""Fit deformation and opacity from transmittance in an original surface grid."""
 
 import argparse
-import copy
 import json
 import subprocess
 from pathlib import Path
@@ -15,17 +14,13 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import torch as th
-import torch.nn.functional as F
-from drtk.source_features import sample_feature_stencil, source_feature_stencil
+from drtk.source_features import source_feature_stencil
 from drtk.transparent_render import render_transparent
+from matplotlib.ticker import NullFormatter
 
 
 def to_image(tensor):
     return tensor.detach().permute(1, 2, 0).clamp(0, 1).cpu().numpy()
-
-
-def to_bytes(tensor):
-    return (tensor.detach().clamp(0, 1) * 255).byte().permute(0, 2, 3, 1).cpu().numpy()
 
 
 class Scene:
@@ -73,7 +68,6 @@ class Scene:
             (th.arange(self.texture_width, device=device) + 0.5) / self.texture_width,
             indexing="ij",
         )
-        self.coordinates = th.stack((u, v), -1).reshape(-1, 2)
         texture = th.stack(
             (
                 0.48 + 0.29 * th.sin(2 * th.pi * u + 0.6),
@@ -100,44 +94,36 @@ class Scene:
             -1,
         ).reshape(1, -1, 3)
         self.source_angles = [-65, 0, 65]
-        self.vertices = self.project(self.source_angles)
-        self.held_vertices = self.project([35])
-        with th.no_grad():
-            self.images = self.render(self.vertices, self.texture)
-            indices, weights, query_uv, _ = source_feature_stencil(
-                self.vertices,
-                self.faces,
-                self.query_faces.expand(3, -1),
-                self.query_barycentrics.expand(3, -1, -1),
-                size,
-                size,
-                return_queries=True,
-            )
-            self.samples, self.confidence = sample_feature_stencil(
-                self.images, indices, weights
-            )
-            self.plain = F.grid_sample(
-                self.images, query_uv[:, None], align_corners=False
-            ).squeeze(2)
-            self.in_image = (query_uv.abs() <= 1).all(-1)[:, None].float()
-            self.target = self.render(self.held_vertices, self.texture)[0]
+        self.corners = corners
+        self.fold_delta = corners.new_tensor([[-0.18, 0.16], [0.18, 0.13]])
 
-    def project(self, angles):
+    def deform(self, amount):
+        corners = th.cat(
+            (
+                self.corners[:2],
+                self.corners[2:4] + amount * self.fold_delta,
+                self.corners[4:],
+            )
+        )
+        position = self.uv[0, :, 0] * 5
+        segment = position.long().clamp_max(4)
+        fraction = (position - segment)[:, None]
+        xz = corners[segment] * (1 - fraction) + corners[segment + 1] * fraction
+        return th.stack((xz[:, 0], self.world[:, 1], xz[:, 1]), -1)
+
+    def project(self, angles, world=None):
+        world = self.world if world is None else world
         views = []
         for degrees in angles:
             angle = np.deg2rad(degrees)
-            x = np.cos(angle) * self.world[:, 0] + np.sin(angle) * self.world[:, 2]
-            z = (
-                -np.sin(angle) * self.world[:, 0]
-                + np.cos(angle) * self.world[:, 2]
-                + 3.2
-            )
+            x = np.cos(angle) * world[:, 0] + np.sin(angle) * world[:, 2]
+            z = -np.sin(angle) * world[:, 0] + np.cos(angle) * world[:, 2] + 3.2
             focal = self.size * (210 / 192)
             views.append(
                 th.stack(
                     (
                         x / z * focal + (self.size - 1) / 2,
-                        self.world[:, 1] / z * focal + (self.size - 1) / 2,
+                        world[:, 1] / z * focal + (self.size - 1) / 2,
                         z,
                     ),
                     -1,
@@ -145,15 +131,16 @@ class Scene:
             )
         return th.stack(views)
 
-    def render(self, vertices, textures):
+    def render(self, vertices, alpha):
         count = vertices.shape[0]
         return render_transparent(
             vertices,
             self.faces,
             self.uv.expand(count, -1, -1),
-            textures.expand(count, -1, -1, -1),
+            self.texture.expand(count, -1, -1, -1),
             self.size,
             self.size,
+            opacity=alpha.expand(count, vertices.shape[1]),
             background=vertices.new_tensor([0.94, 0.95, 0.97]),
             rgb_activation="identity",
             alpha_activation="clamp",
@@ -161,213 +148,328 @@ class Scene:
         )[0]
 
 
-def fit_appearance(scene, steps):
-    coordinates = scene.coordinates
-    frequency = coordinates.new_tensor([1, 2, 4, 8, 16]) * (2 * th.pi)
-    phase = (coordinates[:, :, None] * frequency).flatten(1)
-    inputs = th.cat((coordinates, phase.sin(), phase.cos()), 1)
-    th.manual_seed(5)
-    model = th.nn.Sequential(
-        th.nn.Linear(inputs.shape[1], 96),
-        th.nn.ReLU(),
-        th.nn.Linear(96, 96),
-        th.nn.ReLU(),
-        th.nn.Linear(96, 3),
-        th.nn.Sigmoid(),
-    ).to(coordinates.device)
-    models = [model, copy.deepcopy(model)]
-    optimizers = [th.optim.Adam(model.parameters(), lr=0.003) for model in models]
-    weights = [scene.in_image, scene.confidence]
-    observations = [scene.plain, scene.samples / scene.confidence.clamp_min(1e-6)]
-    history, renders, textures = [], [], []
-    for step in range(steps + 1):
-        values, losses = [], []
-        for model, optimizer, observed, weight in zip(
-            models, optimizers, observations, weights, strict=True
-        ):
+def transmittance(scene, amount, alpha, edge_gradients=True):
+    vertices = scene.project(scene.source_angles, scene.deform(amount))
+    _, weights, _, _ = source_feature_stencil(
+        vertices,
+        scene.faces,
+        scene.query_faces.expand(3, -1),
+        scene.query_barycentrics.expand(3, -1, -1),
+        scene.size,
+        scene.size,
+        vertex_opacity=alpha.expand(3, vertices.shape[1]),
+        edge_gradients=edge_gradients,
+    )
+    return weights.sum(-1).reshape(3, scene.texture_height, scene.texture_width)
+
+
+def fit(scene, steps):
+    zero = scene.world.new_tensor(0.0)
+    target_alpha = scene.world.new_tensor(0.65)
+    with th.no_grad():
+        target = transmittance(scene, zero, target_alpha, False)
+    histories, fields, images = {}, [], []
+    for edge_gradients in (False, True):
+        amount = scene.world.new_tensor(0.6, requires_grad=True)
+        logit = scene.world.new_tensor(np.log(0.4 / 0.6), requires_grad=True)
+        optimizer = th.optim.Adam(
+            [
+                {"params": [amount], "lr": 0.015},
+                {"params": [logit], "lr": 0.04},
+            ]
+        )
+        history = []
+        for step in range(steps + 1):
             optimizer.zero_grad()
-            prediction = model(inputs).T[None]
-            loss = ((prediction - observed).square() * weight).sum() / (
-                3 * weight.sum()
-            )
-            values.append(
-                prediction.detach().reshape(
-                    1, 3, scene.texture_height, scene.texture_width
-                )
-            )
-            losses.append(float(loss.detach()))
-            if step < steps:
-                loss.backward()
-                optimizer.step()
-        if step % 4 == 0 or step == steps:
-            with th.no_grad():
-                texture = th.cat(values)
-                rendered = scene.render(scene.held_vertices.expand(2, -1, -1), texture)
-                mse = (rendered - scene.target[None]).square().mean((1, 2, 3))
-                texture_mse = (texture - scene.texture).square().mean((1, 2, 3))
+            alpha = logit.sigmoid()
+            prediction = transmittance(scene, amount, alpha, edge_gradients)
+            loss = (prediction - target).square().mean()
+            if step % 4 == 0 or step == steps:
                 history.append(
                     {
                         "step": step,
-                        "training_loss": losses,
-                        "heldout_mse": mse.cpu().tolist(),
-                        "texture_mse": texture_mse.cpu().tolist(),
+                        "loss": float(loss.detach()),
+                        "fold": float(amount.detach()),
+                        "alpha": float(alpha.detach()),
                     }
                 )
-                renders.append(to_bytes(rendered))
-                textures.append(to_bytes(texture))
-    return history, np.asarray(renders), np.asarray(textures)
+                if edge_gradients:
+                    fields.append(prediction.detach().cpu().numpy())
+                    with th.no_grad():
+                        vertices = scene.project(
+                            scene.source_angles, scene.deform(amount)
+                        )
+                        render = scene.render(vertices, alpha)
+                        images.append(
+                            (render.clamp(0, 1) * 255)
+                            .byte()
+                            .permute(0, 2, 3, 1)
+                            .cpu()
+                            .numpy()
+                        )
+            if step < steps:
+                loss.backward()
+                optimizer.step()
+                if step + 1 in (steps // 2, 3 * steps // 4):
+                    for group in optimizer.param_groups:
+                        group["lr"] *= 0.25
+        histories["boundary" if edge_gradients else "smooth"] = history
+    return histories, np.asarray(fields), np.asarray(images), target.cpu().numpy()
 
 
-def clean_image_axis(axis):
+def clean_axis(axis):
     axis.set_xticks([])
     axis.set_yticks([])
     for spine in axis.spines.values():
         spine.set_visible(False)
 
 
-def draw_sources(output, scene):
-    fig, axes = plt.subplots(
-        2,
-        3,
-        figsize=(16, 8),
-        dpi=100,
-        gridspec_kw={"height_ratios": [2, 1]},
-        facecolor="#f5f7fb",
+def same_pixel_queries(scene):
+    uv = scene.world.new_tensor(
+        [[0.62, 0.5], [(2 + 6 / 7) / 5, 0.5], [(1 + 0.55 / 1.15) / 5, 0.5]]
     )
-    for index in range(3):
-        axes[0, index].imshow(to_image(scene.images[index]), interpolation="nearest")
-        axes[0, index].set_title(
-            f"Source camera {'ABC'[index]}", fontsize=22, color="#17314b", weight="bold"
+    gx, gy = uv[:, 0] * 80, uv[:, 1] * 24
+    ix, iy = gx.long(), gy.long()
+    du, dv = gx - ix, gy - iy
+    second = dv > du
+    face_ids = ((iy * 80 + ix) * 2 + second.int())[None].int()
+    barycentrics = th.stack(
+        (
+            th.where(second, 1 - dv, 1 - du),
+            th.where(second, du, du - dv),
+            th.where(second, dv - du, dv),
+        ),
+        -1,
+    )[None]
+    vertices = scene.project([0])
+    alpha = scene.world.new_tensor(0.65, requires_grad=True)
+    _, weights, projected, _ = source_feature_stencil(
+        vertices,
+        scene.faces,
+        face_ids,
+        barycentrics,
+        scene.size,
+        scene.size,
+        vertex_opacity=alpha.expand(1, vertices.shape[1]),
+        return_queries=True,
+    )
+    values = weights.sum(-1)[0]
+    derivatives = [
+        float(th.autograd.grad(value, alpha, retain_graph=True)[0]) for value in values
+    ]
+    th.testing.assert_close(
+        projected[0], th.zeros_like(projected[0]), atol=2e-5, rtol=0
+    )
+    th.testing.assert_close(
+        values, values.new_tensor([1, 0.35, 0.1225]), atol=2e-5, rtol=0
+    )
+    th.testing.assert_close(
+        values.new_tensor(derivatives),
+        values.new_tensor([0, -1, -0.7]),
+        atol=2e-5,
+        rtol=0,
+    )
+    return uv.cpu().numpy(), values.detach().cpu().tolist(), derivatives
+
+
+def draw_pullback(output, scene, target):
+    uv, values, derivatives = same_pixel_queries(scene)
+    with th.no_grad():
+        image = to_image(
+            scene.render(scene.project([0]), scene.world.new_tensor(0.65))[0]
         )
-        axes[1, index].imshow(
-            scene.confidence[index, 0]
-            .reshape(scene.texture_height, scene.texture_width)
-            .cpu(),
-            cmap="gray",
-            vmin=0,
-            vmax=1,
-            interpolation="nearest",
-        )
-        axes[1, index].set_title(
-            "Visibility on the unfolded surface", fontsize=15, color="#52667a"
-        )
-        clean_image_axis(axes[0, index])
-        clean_image_axis(axes[1, index])
+    fig, axes = plt.subplots(1, 3, figsize=(16, 6.8), dpi=100, facecolor="#f5f7fb")
+    axes[0].imshow(
+        to_image(scene.texture[0]), extent=(0, 1, 1, 0), interpolation="nearest"
+    )
+    axes[1].imshow(image, interpolation="nearest")
+    axes[2].imshow(
+        target[1],
+        extent=(0, 1, 1, 0),
+        vmin=0,
+        vmax=1,
+        cmap="viridis",
+        interpolation="nearest",
+    )
+    for i, title in enumerate(
+        [
+            "Original surface grid",
+            "Deformed surface in the camera",
+            "Transmittance in the original grid",
+        ]
+    ):
+        axes[i].set_title(title, fontsize=17, color="#17314b", weight="bold", pad=18)
+        clean_axis(axes[i])
+    for i, (u, v) in enumerate(uv):
+        for axis in (axes[0], axes[2]):
+            axis.plot(u, v, "o", color="white", mec="#17314b", ms=7, zorder=5)
+            axis.annotate(
+                f"q{i + 1}",
+                (u, v),
+                (u, 0.1 + i * 0.13),
+                ha="center",
+                fontsize=13,
+                color="#17314b",
+                bbox={"facecolor": "white", "edgecolor": "none", "pad": 2},
+                arrowprops={"arrowstyle": "-", "color": "white", "lw": 1.4},
+            )
+    center = (scene.size - 1) / 2
+    axes[1].plot(center, center, "+", color="white", ms=15, mew=2)
+    axes[1].annotate(
+        "p", (center, center), (center + 12, center - 12), color="white", fontsize=18
+    )
+    subtitles = [
+        "Each point keeps its original index",
+        "q1, q2 and q3 project to pixel p",
+        "Each point receives its own value",
+    ]
+    for i, text in enumerate(subtitles):
+        fig.text((i + 0.5) / 3, 0.21, text, ha="center", fontsize=15, color="#52667a")
     fig.suptitle(
-        "Different cameras see different folds",
-        fontsize=28,
+        "Transmittance returns to the original grid",
+        fontsize=27,
         color="#17314b",
         weight="bold",
-        y=0.98,
+        y=0.97,
     )
     fig.text(
         0.5,
-        0.035,
-        "White: visible from this camera · Black: occluded",
+        0.89,
+        "Several surface points can share a camera pixel while retaining different transmittances.",
         ha="center",
         fontsize=16,
         color="#52667a",
     )
-    fig.subplots_adjust(
-        left=0.025, right=0.975, top=0.88, bottom=0.10, hspace=0.24, wspace=0.08
+    for x in (1 / 3, 2 / 3):
+        fig.text(x, 0.51, "→", ha="center", fontsize=30, color="#52667a")
+    labels = [r"$T(q_1)=1$", r"$T(q_2)=1-\alpha=0.35$", r"$T(q_3)=(1-\alpha)^2=0.1225$"]
+    for i, label in enumerate(labels):
+        fig.text((i + 0.5) / 3, 0.115, label, ha="center", fontsize=20, color="#17314b")
+    fig.text(
+        0.5,
+        0.045,
+        r"Material opacity $\alpha=0.65$. The receiving surface's own opacity is excluded.",
+        ha="center",
+        fontsize=14,
+        color="#52667a",
     )
+    fig.subplots_adjust(left=0.025, right=0.975, top=0.79, bottom=0.27, wspace=0.12)
     fig.savefig(output / "source_features_sampling.png", dpi=100)
     plt.close(fig)
+    return {
+        "query_uv": uv.tolist(),
+        "transmittance": values,
+        "opacity_derivative": derivatives,
+    }
 
 
-def make_fit_figure(scene, history, renders, textures):
-    fig = plt.figure(figsize=(16, 10), dpi=100, facecolor="#f5f7fb")
+def make_fit_figure(scene, histories, fields, images, target):
+    fig = plt.figure(figsize=(16, 13), dpi=100, facecolor="#f5f7fb")
     grid = fig.add_gridspec(
+        4,
         3,
-        3,
-        height_ratios=[2.8, 1.2, 1.05],
+        height_ratios=[2.5, 1.1, 1.1, 1.1],
         left=0.035,
         right=0.965,
-        top=0.86,
-        bottom=0.08,
-        hspace=0.28,
-        wspace=0.09,
+        top=0.88,
+        bottom=0.12,
+        hspace=0.34,
+        wspace=0.08,
     )
-    axes = [fig.add_subplot(grid[0, i]) for i in range(3)]
-    atlas_axes = [fig.add_subplot(grid[1, i]) for i in range(3)]
-    titles = ["Held-out target", "Ordinary projection", "Source visibility"]
-    image_handles, texture_handles = [], []
-    for index in range(3):
-        value = to_image(scene.target) if index == 0 else renders[0, index - 1]
-        atlas = to_image(scene.texture[0]) if index == 0 else textures[0, index - 1]
-        image_handles.append(axes[index].imshow(value, interpolation="nearest"))
-        texture_handles.append(atlas_axes[index].imshow(atlas, interpolation="nearest"))
-        axes[index].set_title(
-            titles[index], fontsize=22, color="#17314b", weight="bold", pad=15
+    render_handles, field_handles = [], []
+    for view in range(3):
+        axis = fig.add_subplot(grid[0, view])
+        render_handles.append(axis.imshow(images[0, view], interpolation="nearest"))
+        axis.set_title(
+            f"Source camera {'ABC'[view]}", fontsize=21, color="#17314b", weight="bold"
         )
-        atlas_axes[index].set_title(
-            "Surface texture" if index == 0 else "Fitted texture",
-            fontsize=15,
-            color="#52667a",
-        )
-        clean_image_axis(axes[index])
-        clean_image_axis(atlas_axes[index])
-    chart = fig.add_subplot(grid[2, 1:])
-    colors = ["#c66b39", "#127f9b"]
+        clean_axis(axis)
+        for row, data in ((1, target[view]), (2, fields[0, view])):
+            axis = fig.add_subplot(grid[row, view])
+            handle = axis.imshow(
+                data, cmap="viridis", vmin=0, vmax=1, interpolation="nearest"
+            )
+            axis.set_title(
+                "Target · original grid" if row == 1 else "Estimate · original grid",
+                fontsize=15,
+                color="#52667a",
+            )
+            clean_axis(axis)
+            if row == 2:
+                field_handles.append(handle)
+    color_axis = fig.add_axes((0.37, 0.035, 0.26, 0.012))
+    colorbar = fig.colorbar(
+        field_handles[0],
+        cax=color_axis,
+        orientation="horizontal",
+        ticks=[0, 0.35, 0.65, 1],
+    )
+    colorbar.ax.set_title("Transmittance", fontsize=11, pad=6)
+    chart = fig.add_subplot(grid[3, 1:])
     lines = [
-        chart.plot([], [], color=color, lw=2.5, label=title)[0]
-        for color, title in zip(colors, titles[1:], strict=True)
+        chart.plot([], [], color=color, lw=2.5, label=label)[0]
+        for color, label in [
+            ("#127f9b", "With boundary gradients"),
+            ("#c66b39", "Smooth gradients only"),
+        ]
     ]
-    scores = -10 * np.log10(
-        np.maximum(np.array([row["heldout_mse"] for row in history]), 1e-12)
-    )
+    minimum = min(row["loss"] for values in histories.values() for row in values)
+    maximum = max(row["loss"] for values in histories.values() for row in values)
     chart.set(
-        xlim=(0, history[-1]["step"]),
-        ylim=(np.floor(scores.min()) - 1, np.ceil(scores.max()) + 1),
+        yscale="log",
+        xlim=(0, histories["boundary"][-1]["step"]),
+        ylim=(max(minimum * 0.7, 1e-7), maximum * 1.4),
         xlabel="Optimization step",
-        ylabel="Held-out PSNR (dB)",
+        ylabel="Original-grid MSE",
     )
+    chart.set_yticks(
+        [0.002, 0.005, 0.01, 0.02, 0.04], ["0.002", "0.005", "0.01", "0.02", "0.04"]
+    )
+    chart.yaxis.set_minor_formatter(NullFormatter())
     chart.spines[["top", "right"]].set_visible(False)
     chart.grid(alpha=0.18)
-    chart.legend(frameon=False, loc="lower right", fontsize=11)
-    status = fig.add_subplot(grid[2, 0])
+    chart.legend(frameon=False, fontsize=12, loc="upper right")
+    status = fig.add_subplot(grid[3, 0])
     status.axis("off")
-    step_text = status.text(0, 0.75, "", fontsize=21, color="#17314b", weight="bold")
-    score_text = [
-        status.text(0, y, "", fontsize=14, color=color)
-        for y, color in zip([0.40, 0.13], colors, strict=True)
-    ]
+    step_text = status.text(0, 0.78, "", fontsize=22, color="#17314b", weight="bold")
+    alpha_text = status.text(0, 0.46, "", fontsize=15, color="#52667a")
+    fold_text = status.text(0, 0.16, "", fontsize=15, color="#52667a")
     fig.suptitle(
-        "Learning appearance from occluded views",
+        "Fitting transmittance in the original grid",
         fontsize=28,
         color="#17314b",
         weight="bold",
-        y=0.98,
+        y=0.975,
     )
     fig.text(
         0.5,
-        0.925,
-        "Fit a texture from three source images; evaluate it from a fourth camera.",
+        0.928,
+        "Gradients from the returned field update the fold and its material opacity.",
         ha="center",
-        fontsize=16,
+        fontsize=17,
         color="#52667a",
     )
 
     def update(index):
-        step = history[index]["step"]
-        for model in range(2):
-            image_handles[model + 1].set_data(renders[index, model])
-            texture_handles[model + 1].set_data(textures[index, model])
-            lines[model].set_data(
-                [row["step"] for row in history[: index + 1]],
-                scores[: index + 1, model],
+        row = histories["boundary"][index]
+        for view in range(3):
+            render_handles[view].set_data(images[index, view])
+            field_handles[view].set_data(fields[index, view])
+        for line, name in zip(lines, ["boundary", "smooth"], strict=True):
+            partial = histories[name][: index + 1]
+            line.set_data(
+                [item["step"] for item in partial], [item["loss"] for item in partial]
             )
-            score_text[model].set_text(
-                f"{titles[model + 1]}: {scores[index, model]:.1f} dB"
-            )
-        step_text.set_text(f"Step {step} / {history[-1]['step']}")
+        step_text.set_text(f"Step {row['step']} / {histories['boundary'][-1]['step']}")
+        alpha_text.set_text(f"Opacity: {row['alpha']:.3f}  (target 0.650)")
+        fold_text.set_text(f"Fold offset: {row['fold']:.3f}  (target 0.000)")
         fig.canvas.draw()
 
     return fig, update
 
 
-def write_video(output, scene, history, renders, textures, fps):
-    fig, update = make_fit_figure(scene, history, renders, textures)
+def write_video(output, scene, histories, fields, images, target, fps):
+    fig, update = make_fit_figure(scene, histories, fields, images, target)
     command = [
         "ffmpeg",
         "-y",
@@ -378,7 +480,7 @@ def write_video(output, scene, history, renders, textures, fps):
         "-pix_fmt",
         "rgb24",
         "-s",
-        "1600x1000",
+        "1600x1300",
         "-r",
         str(fps),
         "-i",
@@ -398,15 +500,21 @@ def write_video(output, scene, history, renders, textures, fps):
     ]
     process = subprocess.Popen(command, stdin=subprocess.PIPE)
     assert process.stdin is not None
-    for index in range(len(history)):
+    history = histories["boundary"]
+    stride = max(1, len(history) // 10)
+    for index in range(len(fields)):
+        early = history[index]["step"] <= 0.3 * history[-1]["step"]
+        if not early and index % stride != 0 and index != len(fields) - 1:
+            continue
         update(index)
         pixels = np.asarray(fig.canvas.buffer_rgba())[:, :, :3].copy().tobytes()
-        repeat = 2 * fps if index in (0, len(history) - 1) else 1
-        for _ in range(repeat):
+        repeats = 2 * fps if index in (0, len(fields) - 1) else (3 if early else 1)
+        for _ in range(repeats):
             process.stdin.write(pixels)
-        if index in (0, len(history) // 2, len(history) - 1):
+        if index in (0, len(fields) // 2, len(fields) - 1):
             fig.savefig(
-                output / f"source_features_step_{history[index]['step']:03d}.png",
+                output
+                / f"source_features_step_{histories['boundary'][index]['step']:03d}.png",
                 dpi=100,
             )
     process.stdin.close()
@@ -420,37 +528,39 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=Path("source_features_demo"))
     parser.add_argument("--steps", type=int, default=400)
-    parser.add_argument("--size", type=int, default=192)
+    parser.add_argument("--size", type=int, default=160)
     parser.add_argument("--fps", type=int, default=12)
     parser.add_argument("--device", default="cuda")
     args = parser.parse_args()
-    if args.steps < 1 or args.size < 16 or args.fps < 1:
-        parser.error("steps and fps must be positive; size must be at least 16")
+    if args.steps < 4 or args.size < 32 or args.fps < 1:
+        parser.error("steps must be at least 4, size at least 32, and fps positive")
     args.output.mkdir(parents=True, exist_ok=True)
     scene = Scene(args.size, args.device)
-    history, renders, textures = fit_appearance(scene, args.steps)
-    draw_sources(args.output, scene)
-    write_video(args.output, scene, history, renders, textures, args.fps)
+    histories, fields, images, target = fit(scene, args.steps)
+    queries = draw_pullback(args.output, scene, target)
+    write_video(args.output, scene, histories, fields, images, target, args.fps)
     (args.output / "source_features_demo.json").write_text(
         json.dumps(
             {
                 "source_angles": scene.source_angles,
-                "heldout_angle": 35,
                 "steps": args.steps,
                 "size": args.size,
-                "observed_surface_fraction": float(
-                    (scene.confidence.sum(0) > 0).float().mean()
-                ),
-                "history": history,
+                "same_pixel_queries": queries,
+                "histories": histories,
             },
             indent=2,
         )
         + "\n"
     )
     np.savez_compressed(
-        args.output / "source_features_fit.npz", renders=renders, textures=textures
+        args.output / "source_features_fit.npz",
+        fields=fields,
+        images=images,
+        target=target,
     )
-    print(json.dumps(history[-1], indent=2))
+    print(
+        json.dumps({name: values[-1] for name, values in histories.items()}, indent=2)
+    )
 
 
 if __name__ == "__main__":

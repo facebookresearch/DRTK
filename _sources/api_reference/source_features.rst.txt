@@ -11,10 +11,12 @@ drtk.source_features
     source_feature_stencil_ref
     sample_feature_stencil_ref
 
-Sample image features at points on a mesh, weighted by their visibility from
-the source camera. The outputs are a feature vector and visibility confidence
-for each point. Gradients propagate to features, surface positions, and
-occluding geometry.
+Sample image features at points on a mesh, weighted by source transmittance.
+The outputs follow the original query order. Queries associated with an
+original surface grid therefore produce features and confidence in that grid,
+even after the mesh deforms. Several queries can project to the same camera
+pixel and receive different transmittances because they lie on different
+layers. Gradients propagate to features, deformation, and material opacity.
 
 See :doc:`../tutorials/DRTK_Tutorial_source_features` for an example.
 
@@ -42,10 +44,10 @@ The same indices and weights can sample several feature maps with matching
 batch and spatial dimensions. Recompute them when the geometry, topology,
 material opacity, or source camera changes.
 
-Visibility and confidence
--------------------------
+Transmittance and confidence
+----------------------------
 
-For a receiving face :math:`r`, visibility at source pixel :math:`p` is
+For a receiving face :math:`r`, transmittance at source pixel :math:`p` is
 
 .. math::
 

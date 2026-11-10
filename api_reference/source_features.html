@@ -428,10 +428,10 @@
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table">
 <tbody>
 <tr class="row-odd"><td><p><a class="reference internal" href="#drtk.source_feature_stencil" title="drtk.source_feature_stencil"><code class="xref py py-obj docutils literal notranslate"><span class="pre">source_feature_stencil</span></code></a></p></td>
-<td><p>Compute bilinear sampling indices and visibility weights for mesh points.</p></td>
+<td><p>Compute bilinear sampling indices and transmittance weights for mesh points.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#drtk.sample_feature_stencil" title="drtk.sample_feature_stencil"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sample_feature_stencil</span></code></a></p></td>
-<td><p>Sample image features using a visibility-weighted bilinear stencil.</p></td>
+<td><p>Sample image features using a transmittance-weighted bilinear stencil.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#drtk.source_feature_stencil_ref" title="drtk.source_feature_stencil_ref"><code class="xref py py-obj docutils literal notranslate"><span class="pre">source_feature_stencil_ref</span></code></a></p></td>
 <td><p>Reference for <a class="reference internal" href="#drtk.source_feature_stencil" title="drtk.source_feature_stencil"><code class="xref py py-func docutils literal notranslate"><span class="pre">source_feature_stencil()</span></code></a>, with smooth gradients only.</p></td>
@@ -442,11 +442,13 @@
 </tbody>
 </table>
 </div>
-<p>Sample image features at points on a mesh, weighted by their visibility from
-the source camera. The outputs are a feature vector and visibility confidence
-for each point. Gradients propagate to features, surface positions, and
-occluding geometry.</p>
-<p>See <a class="reference internal" href="../tutorials/DRTK_Tutorial_source_features.html"><span class="doc">Learning surface appearance from source views</span></a> for an example.</p>
+<p>Sample image features at points on a mesh, weighted by source transmittance.
+The outputs follow the original query order. Queries associated with an
+original surface grid therefore produce features and confidence in that grid,
+even after the mesh deforms. Several queries can project to the same camera
+pixel and receive different transmittances because they lie on different
+layers. Gradients propagate to features, deformation, and material opacity.</p>
+<p>See <a class="reference internal" href="../tutorials/DRTK_Tutorial_source_features.html"><span class="doc">Transmittance in the original surface grid</span></a> for an example.</p>
 <section id="sampling-features">
 <h2>Sampling features<a class="headerlink" href="#sampling-features" title="Link to this heading">#</a></h2>
 <p><a class="reference internal" href="#drtk.source_feature_stencil" title="drtk.source_feature_stencil"><code class="xref py py-func docutils literal notranslate"><span class="pre">source_feature_stencil()</span></code></a> computes the four source texels and weights
@@ -467,9 +469,9 @@ self-occlusion within a connected mesh.</p>
 batch and spatial dimensions. Recompute them when the geometry, topology,
 material opacity, or source camera changes.</p>
 </section>
-<section id="visibility-and-confidence">
-<h2>Visibility and confidence<a class="headerlink" href="#visibility-and-confidence" title="Link to this heading">#</a></h2>
-<p>For a receiving face <span class="math notranslate nohighlight">\(r\)</span>, visibility at source pixel <span class="math notranslate nohighlight">\(p\)</span> is</p>
+<section id="transmittance-and-confidence">
+<h2>Transmittance and confidence<a class="headerlink" href="#transmittance-and-confidence" title="Link to this heading">#</a></h2>
+<p>For a receiving face <span class="math notranslate nohighlight">\(r\)</span>, transmittance at source pixel <span class="math notranslate nohighlight">\(p\)</span> is</p>
 <div class="math notranslate nohighlight">
 \[T_r(p)=\prod_{f\prec r}\left(1-\alpha_f(p)\right).\]</div>
 <p>Faces are ordered by mean camera-space vertex depth, with face index breaking
@@ -562,12 +564,16 @@ nondeterministic. <code class="docutils literal notranslate"><span class="pre">s
 <dl class="py function">
 <dt class="sig sig-object py" id="drtk.source_feature_stencil">
 <span class="sig-prename descclassname"><span class="pre">drtk.</span></span><span class="sig-name descname"><span class="pre">source_feature_stencil</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v_pix</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vi</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">query_face_ids</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">query_barycentrics</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">height</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">width</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">vertex_opacity</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">edge_gradients</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_queries</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/drtk/source_features.html#source_feature_stencil"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#drtk.source_feature_stencil" title="Link to this definition">#</a></dt>
-<dd><p>Compute bilinear sampling indices and visibility weights for mesh points.</p>
+<dd><p>Compute bilinear sampling indices and transmittance weights for mesh points.</p>
 <p>Each query is attached to a face by 3D barycentric coordinates. Its four
 image taps follow the receiving surface through shared manifold edges,
 stopping at cuts, projected folds, or nonmanifold junctions. Each valid
 tap is weighted by transmittance from faces preceding its receiver in
 <code class="docutils literal notranslate"><span class="pre">(mean</span> <span class="pre">triangle</span> <span class="pre">camera</span> <span class="pre">Z,</span> <span class="pre">face</span> <span class="pre">index)</span></code> order.</p>
+<p>Outputs retain the query order. For queries attached to an original
+surface grid, reshape the outputs into that grid after deformation.
+Queries projecting to the same camera pixel can have different
+transmittances when they lie on different surface layers.</p>
 <p>Apply the result to a feature image with <a class="reference internal" href="#drtk.sample_feature_stencil" title="drtk.sample_feature_stencil"><code class="xref py py-func docutils literal notranslate"><span class="pre">sample_feature_stencil()</span></code></a>.
 Feature maps with matching batch and spatial dimensions can share the
 same stencil. Recompute it when geometry, topology, material opacity,
@@ -655,7 +661,7 @@ field remain mixed.</p>
 <dl class="py function">
 <dt class="sig sig-object py" id="drtk.sample_feature_stencil">
 <span class="sig-prename descclassname"><span class="pre">drtk.</span></span><span class="sig-name descname"><span class="pre">sample_feature_stencil</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">feature_image</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tap_indices</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tap_weights</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/drtk/source_features.html#sample_feature_stencil"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#drtk.sample_feature_stencil" title="Link to this definition">#</a></dt>
-<dd><p>Sample image features using a visibility-weighted bilinear stencil.</p>
+<dd><p>Sample image features using a transmittance-weighted bilinear stencil.</p>
 <p>For texel features <span class="math notranslate nohighlight">\(F_j\)</span> and weights <span class="math notranslate nohighlight">\(w_{qj}\)</span>, returns
 <span class="math notranslate nohighlight">\(S_q=\sum_j w_{qj}F_j\)</span> and confidence
 <span class="math notranslate nohighlight">\(c_q=\sum_j w_{qj}\)</span>. The feature sum is unnormalized. For example,
@@ -731,7 +737,7 @@ weights, including zero weights with valid indices.</p>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#sampling-features">Sampling features</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#visibility-and-confidence">Visibility and confidence</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#transmittance-and-confidence">Transmittance and confidence</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#gradients">Gradients</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#coordinates-and-data-types">Coordinates and data types</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#functions">Functions</a><ul class="nav section-nav flex-column">

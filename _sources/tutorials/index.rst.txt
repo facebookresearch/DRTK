@@ -90,8 +90,8 @@ Tutorials
 
     .. grid-item-card:: :doc:`DRTK_Tutorial_source_features`
 
-        Fit a folded surface's appearance from three partially occluded
-        source views, then render it from a new camera.
+        Return source transmittance to the original surface grid and use
+        its gradients to fit deformation and opacity.
 
         .. image:: ../_static/source_features_demo_poster.png
            :width: 400
