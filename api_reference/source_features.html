@@ -430,14 +430,14 @@
 <tr class="row-odd"><td><p><a class="reference internal" href="#drtk.source_transmittance" title="drtk.source_transmittance"><code class="xref py py-obj docutils literal notranslate"><span class="pre">source_transmittance</span></code></a></p></td>
 <td><p>Evaluate transmittance from a source camera or light to mesh points.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#drtk.sample_source_features" title="drtk.sample_source_features"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sample_source_features</span></code></a></p></td>
-<td><p>Sample image features using source transmittance and bilinear weights.</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#drtk.sample_with_transmittance" title="drtk.sample_with_transmittance"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sample_with_transmittance</span></code></a></p></td>
+<td><p>Sample an image at surface points, attenuated by source transmittance.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#drtk.source_transmittance_ref" title="drtk.source_transmittance_ref"><code class="xref py py-obj docutils literal notranslate"><span class="pre">source_transmittance_ref</span></code></a></p></td>
 <td><p>Reference for <a class="reference internal" href="#drtk.source_transmittance" title="drtk.source_transmittance"><code class="xref py py-func docutils literal notranslate"><span class="pre">source_transmittance()</span></code></a>, with smooth gradients only.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#drtk.sample_source_features_ref" title="drtk.sample_source_features_ref"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sample_source_features_ref</span></code></a></p></td>
-<td><p>Reference for <a class="reference internal" href="#drtk.sample_source_features" title="drtk.sample_source_features"><code class="xref py py-func docutils literal notranslate"><span class="pre">sample_source_features()</span></code></a>, supporting CPU and float64.</p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#drtk.sample_with_transmittance_ref" title="drtk.sample_with_transmittance_ref"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sample_with_transmittance_ref</span></code></a></p></td>
+<td><p>Reference for <a class="reference internal" href="#drtk.sample_with_transmittance" title="drtk.sample_with_transmittance"><code class="xref py py-func docutils literal notranslate"><span class="pre">sample_with_transmittance()</span></code></a>, supporting CPU and float64.</p></td>
 </tr>
 </tbody>
 </table>
@@ -465,12 +465,12 @@ intensity on that surface.</p>
 <section id="sampling-features">
 <h2>Sampling features<a class="headerlink" href="#sampling-features" title="Link to this heading">#</a></h2>
 <p><a class="reference internal" href="#drtk.source_transmittance" title="drtk.source_transmittance"><code class="xref py py-func docutils literal notranslate"><span class="pre">source_transmittance()</span></code></a> computes the four source texels and weights
-for each surface query. <a class="reference internal" href="#drtk.sample_source_features" title="drtk.sample_source_features"><code class="xref py py-func docutils literal notranslate"><span class="pre">sample_source_features()</span></code></a> gathers their features:</p>
+for each surface query. <a class="reference internal" href="#drtk.sample_with_transmittance" title="drtk.sample_with_transmittance"><code class="xref py py-func docutils literal notranslate"><span class="pre">sample_with_transmittance()</span></code></a> gathers their features:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">indices</span><span class="p">,</span> <span class="n">weights</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">source_transmittance</span><span class="p">(</span>
     <span class="n">v_pix</span><span class="p">,</span> <span class="n">faces</span><span class="p">,</span> <span class="n">query_faces</span><span class="p">,</span> <span class="n">query_barycentrics</span><span class="p">,</span> <span class="n">height</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span>
     <span class="n">vertex_opacity</span><span class="o">=</span><span class="n">opacity</span><span class="p">,</span>
 <span class="p">)</span>
-<span class="n">sampled</span><span class="p">,</span> <span class="n">confidence</span> <span class="o">=</span> <span class="n">sample_source_features</span><span class="p">(</span><span class="n">features</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="n">weights</span><span class="p">)</span>
+<span class="n">sampled</span><span class="p">,</span> <span class="n">confidence</span> <span class="o">=</span> <span class="n">sample_with_transmittance</span><span class="p">(</span><span class="n">features</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="n">weights</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>A query is specified by a face ID and 3D barycentric coordinates. Each
@@ -591,7 +591,7 @@ tap is weighted by transmittance from faces preceding its receiver in
 surface grid, reshape the outputs into that grid after deformation.
 Queries projecting to the same camera pixel can have different
 transmittances when they lie on different surface layers.</p>
-<p>Apply the result to a feature image with <a class="reference internal" href="#drtk.sample_source_features" title="drtk.sample_source_features"><code class="xref py py-func docutils literal notranslate"><span class="pre">sample_source_features()</span></code></a>.
+<p>Apply the result to a feature image with <a class="reference internal" href="#drtk.sample_with_transmittance" title="drtk.sample_with_transmittance"><code class="xref py py-func docutils literal notranslate"><span class="pre">sample_with_transmittance()</span></code></a>.
 Feature maps with matching batch and spatial dimensions can share the
 same indices and weights. Recompute them when geometry, topology, material
 opacity, or the source camera changes.</p>
@@ -668,7 +668,7 @@ field remain mixed.</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">indices</span><span class="p">,</span> <span class="n">weights</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">source_transmittance</span><span class="p">(</span>
     <span class="n">v_pix</span><span class="p">,</span> <span class="n">faces</span><span class="p">,</span> <span class="n">query_faces</span><span class="p">,</span> <span class="n">query_barycentrics</span><span class="p">,</span> <span class="n">H</span><span class="p">,</span> <span class="n">W</span>
 <span class="p">)</span>
-<span class="n">sampled</span><span class="p">,</span> <span class="n">confidence</span> <span class="o">=</span> <span class="n">sample_source_features</span><span class="p">(</span><span class="n">features</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="n">weights</span><span class="p">)</span>
+<span class="n">sampled</span><span class="p">,</span> <span class="n">confidence</span> <span class="o">=</span> <span class="n">sample_with_transmittance</span><span class="p">(</span><span class="n">features</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="n">weights</span><span class="p">)</span>
 <span class="n">prediction</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">anchor_features</span><span class="p">,</span> <span class="n">sampled</span><span class="p">,</span> <span class="n">confidence</span><span class="p">)</span>
 <span class="n">loss_fn</span><span class="p">(</span><span class="n">prediction</span><span class="p">,</span> <span class="n">target</span><span class="p">)</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
 </pre></div>
@@ -676,18 +676,21 @@ field remain mixed.</p>
 </dd></dl>
 
 <dl class="py function">
-<dt class="sig sig-object py" id="drtk.sample_source_features">
-<span class="sig-prename descclassname"><span class="pre">drtk.</span></span><span class="sig-name descname"><span class="pre">sample_source_features</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">feature_image</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tap_indices</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tap_weights</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/drtk/source_features.html#sample_source_features"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#drtk.sample_source_features" title="Link to this definition">#</a></dt>
-<dd><p>Sample image features using source transmittance and bilinear weights.</p>
-<p>For texel features <span class="math notranslate nohighlight">\(F_j\)</span> and weights <span class="math notranslate nohighlight">\(w_{qj}\)</span>, returns
-<span class="math notranslate nohighlight">\(S_q=\sum_j w_{qj}F_j\)</span> and confidence
-<span class="math notranslate nohighlight">\(c_q=\sum_j w_{qj}\)</span>. The feature sum is unnormalized. For example,
+<dt class="sig sig-object py" id="drtk.sample_with_transmittance">
+<span class="sig-prename descclassname"><span class="pre">drtk.</span></span><span class="sig-name descname"><span class="pre">sample_with_transmittance</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">image</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tap_indices</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tap_weights</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/drtk/source_features.html#sample_with_transmittance"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#drtk.sample_with_transmittance" title="Link to this definition">#</a></dt>
+<dd><p>Sample an image at surface points, attenuated by source transmittance.</p>
+<p>Use the indices and weights returned by <a class="reference internal" href="#drtk.source_transmittance" title="drtk.source_transmittance"><code class="xref py py-func docutils literal notranslate"><span class="pre">source_transmittance()</span></code></a>.
+For image values <span class="math notranslate nohighlight">\(F_j\)</span> and weights <span class="math notranslate nohighlight">\(w_{qj}\)</span>, returns
+<span class="math notranslate nohighlight">\(S_q=\sum_j w_{qj}F_j\)</span> and transmittance
+<span class="math notranslate nohighlight">\(c_q=\sum_j w_{qj}\)</span>. The weighted sum retains attenuation: a unit
+light image returns transmitted illumination. For feature images,
+transmittance can serve as confidence. For example,
 <code class="docutils literal notranslate"><span class="pre">sampled</span> <span class="pre">+</span> <span class="pre">(1</span> <span class="pre">-</span> <span class="pre">confidence)</span> <span class="pre">*</span> <span class="pre">anchor</span></code> blends the observations with an
 existing surface feature where visibility is incomplete.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>feature_image</strong> (<em>Tensor</em>) – CUDA <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">C,</span> <span class="pre">H,</span> <span class="pre">W)</span></code>, float16, bfloat16, or
+<li><p><strong>image</strong> (<em>Tensor</em>) – CUDA <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">C,</span> <span class="pre">H,</span> <span class="pre">W)</span></code>, float16, bfloat16, or
 float32. Arbitrary nonnegative strides, including channels-last
 and sliced images, are supported. The grid and batch must match
 the weights.</p></li>
@@ -699,9 +702,9 @@ contribute zero. Indices have no gradient.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">(sampled_features,</span> <span class="pre">confidence)</span></code>. Samples have
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">(sampled,</span> <span class="pre">transmittance)</span></code>. Samples have
 shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">C,</span> <span class="pre">Q)</span></code> and the image dtype, with float32 accumulation.
-Confidence is float32 <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">1,</span> <span class="pre">Q)</span></code>. Gradients reach the image and
+Transmittance is float32 <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">1,</span> <span class="pre">Q)</span></code>. Gradients reach the image and
 weights, including zero weights with valid indices.</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
@@ -711,7 +714,7 @@ weights, including zero weights with valid indices.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>Only first derivatives are supported. Backward may be nondeterministic.
-<a class="reference internal" href="#drtk.sample_source_features_ref" title="drtk.sample_source_features_ref"><code class="xref py py-func docutils literal notranslate"><span class="pre">sample_source_features_ref()</span></code></a> supports CPU and float64 inputs.</p>
+<a class="reference internal" href="#drtk.sample_with_transmittance_ref" title="drtk.sample_with_transmittance_ref"><code class="xref py py-func docutils literal notranslate"><span class="pre">sample_with_transmittance_ref()</span></code></a> supports CPU and float64 inputs.</p>
 </div>
 </dd></dl>
 
@@ -722,9 +725,9 @@ weights, including zero weights with valid indices.</p>
 </dd></dl>
 
 <dl class="py function">
-<dt class="sig sig-object py" id="drtk.sample_source_features_ref">
-<span class="sig-prename descclassname"><span class="pre">drtk.</span></span><span class="sig-name descname"><span class="pre">sample_source_features_ref</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">feature_image</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tap_indices</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tap_weights</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/drtk/source_features.html#sample_source_features_ref"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#drtk.sample_source_features_ref" title="Link to this definition">#</a></dt>
-<dd><p>Reference for <a class="reference internal" href="#drtk.sample_source_features" title="drtk.sample_source_features"><code class="xref py py-func docutils literal notranslate"><span class="pre">sample_source_features()</span></code></a>, supporting CPU and float64.</p>
+<dt class="sig sig-object py" id="drtk.sample_with_transmittance_ref">
+<span class="sig-prename descclassname"><span class="pre">drtk.</span></span><span class="sig-name descname"><span class="pre">sample_with_transmittance_ref</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">image</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tap_indices</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tap_weights</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/drtk/source_features.html#sample_with_transmittance_ref"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#drtk.sample_with_transmittance_ref" title="Link to this definition">#</a></dt>
+<dd><p>Reference for <a class="reference internal" href="#drtk.sample_with_transmittance" title="drtk.sample_with_transmittance"><code class="xref py py-func docutils literal notranslate"><span class="pre">sample_with_transmittance()</span></code></a>, supporting CPU and float64.</p>
 </dd></dl>
 
 </section>
@@ -760,9 +763,9 @@ weights, including zero weights with valid indices.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#coordinates-and-data-types">Coordinates and data types</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#functions">Functions</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.source_transmittance"><code class="docutils literal notranslate"><span class="pre">source_transmittance()</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.sample_source_features"><code class="docutils literal notranslate"><span class="pre">sample_source_features()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.sample_with_transmittance"><code class="docutils literal notranslate"><span class="pre">sample_with_transmittance()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.source_transmittance_ref"><code class="docutils literal notranslate"><span class="pre">source_transmittance_ref()</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.sample_source_features_ref"><code class="docutils literal notranslate"><span class="pre">sample_source_features_ref()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.sample_with_transmittance_ref"><code class="docutils literal notranslate"><span class="pre">sample_with_transmittance_ref()</span></code></a></li>
 </ul>
 </li>
 </ul>

@@ -424,7 +424,7 @@
 <span class="sd">    Queries projecting to the same camera pixel can have different</span>
 <span class="sd">    transmittances when they lie on different surface layers.</span>
 
-<span class="sd">    Apply the result to a feature image with :func:`sample_source_features`.</span>
+<span class="sd">    Apply the result to a feature image with :func:`sample_with_transmittance`.</span>
 <span class="sd">    Feature maps with matching batch and spatial dimensions can share the</span>
 <span class="sd">    same indices and weights. Recompute them when geometry, topology, material</span>
 <span class="sd">    opacity, or the source camera changes.</span>
@@ -499,7 +499,7 @@
 <span class="sd">        indices, weights, _, _ = source_transmittance(</span>
 <span class="sd">            v_pix, faces, query_faces, query_barycentrics, H, W</span>
 <span class="sd">        )</span>
-<span class="sd">        sampled, confidence = sample_source_features(features, indices, weights)</span>
+<span class="sd">        sampled, confidence = sample_with_transmittance(features, indices, weights)</span>
 <span class="sd">        prediction = model(anchor_features, sampled, confidence)</span>
 <span class="sd">        loss_fn(prediction, target).backward()</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -532,22 +532,25 @@
 
 
 
-<div class="viewcode-block" id="sample_source_features">
-<a class="viewcode-back" href="../../api_reference/source_features.html#drtk.sample_source_features">[docs]</a>
+<div class="viewcode-block" id="sample_with_transmittance">
+<a class="viewcode-back" href="../../api_reference/source_features.html#drtk.sample_with_transmittance">[docs]</a>
 <span class="nd">@th</span><span class="o">.</span><span class="n">compiler</span><span class="o">.</span><span class="n">disable</span>
-<span class="k">def</span><span class="w"> </span><span class="nf">sample_source_features</span><span class="p">(</span>
-    <span class="n">feature_image</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">tap_indices</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">tap_weights</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">sample_with_transmittance</span><span class="p">(</span>
+    <span class="n">image</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">tap_indices</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">tap_weights</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
-<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Sample image features using source transmittance and bilinear weights.</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Sample an image at surface points, attenuated by source transmittance.</span>
 
-<span class="sd">    For texel features :math:`F_j` and weights :math:`w_{qj}`, returns</span>
-<span class="sd">    :math:`S_q=\sum_j w_{qj}F_j` and confidence</span>
-<span class="sd">    :math:`c_q=\sum_j w_{qj}`. The feature sum is unnormalized. For example,</span>
+<span class="sd">    Use the indices and weights returned by :func:`source_transmittance`.</span>
+<span class="sd">    For image values :math:`F_j` and weights :math:`w_{qj}`, returns</span>
+<span class="sd">    :math:`S_q=\sum_j w_{qj}F_j` and transmittance</span>
+<span class="sd">    :math:`c_q=\sum_j w_{qj}`. The weighted sum retains attenuation: a unit</span>
+<span class="sd">    light image returns transmitted illumination. For feature images,</span>
+<span class="sd">    transmittance can serve as confidence. For example,</span>
 <span class="sd">    ``sampled + (1 - confidence) * anchor`` blends the observations with an</span>
 <span class="sd">    existing surface feature where visibility is incomplete.</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">        feature_image (Tensor): CUDA ``(N, C, H, W)``, float16, bfloat16, or</span>
+<span class="sd">        image (Tensor): CUDA ``(N, C, H, W)``, float16, bfloat16, or</span>
 <span class="sd">            float32. Arbitrary nonnegative strides, including channels-last</span>
 <span class="sd">            and sliced images, are supported. The grid and batch must match</span>
 <span class="sd">            the weights.</span>
@@ -558,19 +561,19 @@
 <span class="sd">            :func:`source_transmittance`.</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        Tuple[Tensor, Tensor]: ``(sampled_features, confidence)``. Samples have</span>
+<span class="sd">        Tuple[Tensor, Tensor]: ``(sampled, transmittance)``. Samples have</span>
 <span class="sd">        shape ``(N, C, Q)`` and the image dtype, with float32 accumulation.</span>
-<span class="sd">        Confidence is float32 ``(N, 1, Q)``. Gradients reach the image and</span>
+<span class="sd">        Transmittance is float32 ``(N, 1, Q)``. Gradients reach the image and</span>
 <span class="sd">        weights, including zero weights with valid indices.</span>
 
 <span class="sd">    Note:</span>
 <span class="sd">        Only first derivatives are supported. Backward may be nondeterministic.</span>
-<span class="sd">        :func:`sample_source_features_ref` supports CPU and float64 inputs.</span>
+<span class="sd">        :func:`sample_with_transmittance_ref` supports CPU and float64 inputs.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">_check_sampler</span><span class="p">(</span><span class="n">feature_image</span><span class="p">,</span> <span class="n">tap_indices</span><span class="p">,</span> <span class="n">tap_weights</span><span class="p">,</span> <span class="n">native</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">_check_sampler</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">tap_indices</span><span class="p">,</span> <span class="n">tap_weights</span><span class="p">,</span> <span class="n">native</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
     <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span>
         <span class="n">th</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">source_features_ext</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span>
-            <span class="n">feature_image</span><span class="p">,</span> <span class="n">tap_indices</span><span class="o">.</span><span class="n">contiguous</span><span class="p">(),</span> <span class="n">tap_weights</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span>
+            <span class="n">image</span><span class="p">,</span> <span class="n">tap_indices</span><span class="o">.</span><span class="n">contiguous</span><span class="p">(),</span> <span class="n">tap_weights</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span>
         <span class="p">)</span>
     <span class="p">)</span></div>
 
@@ -604,7 +607,7 @@
     <span class="k">if</span> <span class="n">vi</span><span class="o">.</span><span class="n">dtype</span> <span class="o">!=</span> <span class="n">th</span><span class="o">.</span><span class="n">int32</span> <span class="ow">or</span> <span class="n">qf</span><span class="o">.</span><span class="n">dtype</span> <span class="o">!=</span> <span class="n">th</span><span class="o">.</span><span class="n">int32</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;vi and query_face_ids must have int32 dtype&quot;</span><span class="p">)</span>
     <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">device</span> <span class="o">!=</span> <span class="n">v</span><span class="o">.</span><span class="n">device</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="p">(</span><span class="n">vi</span><span class="p">,</span> <span class="n">qf</span><span class="p">,</span> <span class="n">qb</span><span class="p">,</span> <span class="n">opacity</span><span class="p">)):</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;source stencil inputs must share a device&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;source transmittance inputs must share a device&quot;</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">native</span> <span class="ow">and</span> <span class="p">(</span>
         <span class="n">v</span><span class="o">.</span><span class="n">device</span><span class="o">.</span><span class="n">type</span> <span class="o">!=</span> <span class="s2">&quot;cuda&quot;</span> <span class="ow">or</span> <span class="nb">any</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">dtype</span> <span class="o">!=</span> <span class="n">th</span><span class="o">.</span><span class="n">float32</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">qb</span><span class="p">,</span> <span class="n">opacity</span><span class="p">))</span>
     <span class="p">):</span>
@@ -624,7 +627,7 @@
     <span class="k">if</span> <span class="n">f</span><span class="o">.</span><span class="n">ndim</span> <span class="o">!=</span> <span class="mi">4</span> <span class="ow">or</span> <span class="n">indices</span><span class="o">.</span><span class="n">ndim</span> <span class="o">!=</span> <span class="mi">3</span> <span class="ow">or</span> <span class="n">indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">4</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;expected feature image (N,C,H,W) and indices (N,Q,4)&quot;</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">weights</span><span class="o">.</span><span class="n">shape</span> <span class="o">!=</span> <span class="n">indices</span><span class="o">.</span><span class="n">shape</span> <span class="ow">or</span> <span class="n">f</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="n">indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;stencil shapes and image batch must match&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;sampling indices, weights, and image batch must match&quot;</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">f</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">f</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;feature image spatial dimensions must be positive&quot;</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">indices</span><span class="o">.</span><span class="n">dtype</span> <span class="o">!=</span> <span class="n">th</span><span class="o">.</span><span class="n">int32</span> <span class="ow">or</span> <span class="nb">any</span><span class="p">(</span>
@@ -715,11 +718,14 @@
     <span class="n">target</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
     <span class="n">previous</span><span class="p">,</span> <span class="n">progress</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mf">1e-5</span>
-    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span> <span class="o">*</span> <span class="n">vi</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+    <span class="k">for</span> <span class="n">step</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span> <span class="o">*</span> <span class="n">vi</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
         <span class="n">tri</span> <span class="o">=</span> <span class="n">v</span><span class="p">[</span><span class="n">vi</span><span class="p">[</span><span class="n">face</span><span class="p">]</span><span class="o">.</span><span class="n">long</span><span class="p">()]</span>
         <span class="k">if</span> <span class="n">_covered</span><span class="p">(</span><span class="n">tri</span><span class="p">,</span> <span class="n">target</span><span class="p">):</span>
             <span class="k">return</span> <span class="n">face</span>
         <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="n">_screen_bary</span><span class="p">(</span><span class="n">tri</span><span class="p">,</span> <span class="n">origin</span><span class="p">),</span> <span class="n">_screen_bary</span><span class="p">(</span><span class="n">tri</span><span class="p">,</span> <span class="n">target</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">step</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># The validated query belongs to this face before projection rounding.</span>
+            <span class="n">a</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">clamp_min</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
         <span class="n">best</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">3</span><span class="p">):</span>
             <span class="k">if</span> <span class="nb">float</span><span class="p">(</span><span class="n">b</span><span class="p">[</span><span class="n">c</span><span class="p">])</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
@@ -849,20 +855,20 @@
 
 
 
-<div class="viewcode-block" id="sample_source_features_ref">
-<a class="viewcode-back" href="../../api_reference/source_features.html#drtk.sample_source_features_ref">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">sample_source_features_ref</span><span class="p">(</span>
-    <span class="n">feature_image</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">tap_indices</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">tap_weights</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span>
+<div class="viewcode-block" id="sample_with_transmittance_ref">
+<a class="viewcode-back" href="../../api_reference/source_features.html#drtk.sample_with_transmittance_ref">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">sample_with_transmittance_ref</span><span class="p">(</span>
+    <span class="n">image</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">tap_indices</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">tap_weights</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Reference for :func:`sample_source_features`, supporting CPU and float64.&quot;&quot;&quot;</span>
-    <span class="n">_check_sampler</span><span class="p">(</span><span class="n">feature_image</span><span class="p">,</span> <span class="n">tap_indices</span><span class="p">,</span> <span class="n">tap_weights</span><span class="p">,</span> <span class="n">native</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-    <span class="n">n</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">h</span><span class="p">,</span> <span class="n">w</span> <span class="o">=</span> <span class="n">feature_image</span><span class="o">.</span><span class="n">shape</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Reference for :func:`sample_with_transmittance`, supporting CPU and float64.&quot;&quot;&quot;</span>
+    <span class="n">_check_sampler</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">tap_indices</span><span class="p">,</span> <span class="n">tap_weights</span><span class="p">,</span> <span class="n">native</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">n</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">h</span><span class="p">,</span> <span class="n">w</span> <span class="o">=</span> <span class="n">image</span><span class="o">.</span><span class="n">shape</span>
     <span class="n">q</span> <span class="o">=</span> <span class="n">tap_indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
     <span class="n">valid</span> <span class="o">=</span> <span class="p">(</span><span class="n">tap_indices</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">tap_indices</span> <span class="o">&lt;</span> <span class="n">h</span> <span class="o">*</span> <span class="n">w</span><span class="p">)</span>
     <span class="n">idx</span> <span class="o">=</span> <span class="p">(</span>
         <span class="n">tap_indices</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">h</span> <span class="o">*</span> <span class="n">w</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">long</span><span class="p">()</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">q</span> <span class="o">*</span> <span class="mi">4</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">q</span> <span class="o">*</span> <span class="mi">4</span><span class="p">)</span>
     <span class="p">)</span>
-    <span class="n">samples</span> <span class="o">=</span> <span class="n">feature_image</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">h</span> <span class="o">*</span> <span class="n">w</span><span class="p">)</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">idx</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+    <span class="n">samples</span> <span class="o">=</span> <span class="n">image</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">h</span> <span class="o">*</span> <span class="n">w</span><span class="p">)</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">idx</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
     <span class="n">weights</span> <span class="o">=</span> <span class="n">tap_weights</span> <span class="o">*</span> <span class="n">valid</span>
     <span class="k">return</span> <span class="p">(</span><span class="n">samples</span> <span class="o">*</span> <span class="n">weights</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">])</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">),</span> <span class="n">weights</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)[:,</span> <span class="kc">None</span><span class="p">]</span></div>
 

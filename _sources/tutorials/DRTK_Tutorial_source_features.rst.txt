@@ -1,11 +1,12 @@
 Differentiable visibility
 =========================
 
-Recover the shape and opacity of two translucent surfaces from the shadows
-they cast. Three fixed lights illuminate a receiving plane, and a loss on
-the shadows adjusts the surfaces above it.
+Recover the shape and opacity of three surfaces from the shadows
+they cast. Three fixed lights illuminate a recessed platform, and a loss on
+the shadows adjusts the surfaces above it. The blue object is opaque, the
+orange object is 80% opaque, and the green object is 30% opaque.
 
-A light can be treated as a camera. Project a point on the receiving plane
+A light can be treated as a camera. Project a point on the receiver
 into that camera and evaluate how much light reaches it through the intervening
 surfaces. :func:`drtk.source_transmittance` returns these values in the receiver's
 query order, so the shadow lives in its original surface grid. Moving the
@@ -19,8 +20,10 @@ objects changes the shadow while the receiving points stay fixed.
      Your browser does not support HTML video.
    </video>
 
-Each column shows the current scene lit by one of three lights. Below it,
-the target and fitted shadows are shown in the receiving plane's grid.
+Each column shows the scene illuminated by a different light, with the
+target and fitted transmittance maps below it. The maps are expressed in
+receiver UV coordinates, so the loss compares lighting at the same surface
+points throughout the optimization.
 The objects' outlines, positions, heights, and material opacities are optimized
 together. The curve compares the default gradients with a control that
 disables visibility-boundary gradients.
@@ -44,10 +47,11 @@ own opacity is excluded.
 
 .. figure:: ../_static/source_features_sampling.png
    :width: 100%
-   :alt: Two translucent surfaces cast partially overlapping shadows. A single layer transmits 38 or 22 percent of the light; their overlap transmits 8.36 percent.
+   :alt: Three surfaces cast shadows of different strengths. Blue blocks all light, orange transmits 20 percent, and green transmits 70 percent. The orange-green overlap transmits 14 percent.
 
-   Visibility has intermediate values. The overlap is darker because light
-   passes through both surfaces.
+   Transmittance ranges from zero behind the opaque object to 0.7 behind
+   the faint green surface. The orange-green overlap transmits
+   :math:`0.2\times0.7=0.14` of the light.
 
 For unoccluded direct illumination :math:`E_k(q)`, the shadowed illumination is
 
@@ -58,14 +62,15 @@ For unoccluded direct illumination :math:`E_k(q)`, the shadowed illumination is
 The example compares each light separately and uses unit unoccluded
 illumination, so its shadow intensity is simply transmittance. Distance
 falloff, receiver orientation, and light intensity can be included in
-:math:`E_k`. The colored scene views add a small ambient term for display.
+:math:`E_k`. The scene views use Lambertian diffuse lighting, inverse-square falloff,
+and a small ambient term. These display effects do not enter the loss.
 This model describes attenuation by thin surfaces; refraction and multiple
 scattering require a different light-transport model.
 
 Evaluating shadows on the receiver
 ----------------------------------
 
-Create query points on the receiving plane using face IDs and 3D barycentric
+Create query points on the receiver using face IDs and 3D barycentric
 coordinates. Include both the shadow-casting objects and the receiver in the
 mesh. Transform its vertices into each light's camera coordinates, with pixel
 XY and positive camera Z:
@@ -92,14 +97,14 @@ fully transparent.
 The output belongs to the receiving surface, rather than the light's image
 plane. The query face IDs and barycentrics provide this correspondence;
 reshape using the original query-grid dimensions :math:`H_0\times W_0`.
-The same construction works on a curved or deforming receiver by keeping
-queries attached to its triangles.
+For a deforming receiver, keep the queries attached to its triangles to
+preserve their UV correspondence.
 
 A projector can supply a spatially varying image instead of uniform light:
 
 .. code-block:: python
 
-   illumination, confidence = drtk.sample_source_features(
+   illumination, confidence = drtk.sample_with_transmittance(
        light_image, indices, weights
    )
    illumination = illumination.reshape(num_lights, channels, H0, W0)
@@ -110,18 +115,20 @@ can be applied to several image or feature channels on the light's grid.
 Fitting shape and opacity
 -------------------------
 
-The three target shadows are generated from a pair of translucent surfaces.
-Each surface has a radial outline with seven Fourier coefficients, a 3D
-position, and one material opacity. Its tilt remains fixed. The fit starts
-from circular outlines with displaced positions and incorrect opacities.
+The three target shadow maps are generated from curved surfaces with
+different opacities. Each surface has a radial outline with seven Fourier coefficients,
+a 3D position, and one material opacity. Its tilt and bowing remain fixed. The fit starts
+from displaced, distorted outlines with different sizes. The initial opacities
+are 0.3, 0.5, and 1.0 for blue, orange, and green: the object that should be
+opaque starts mostly transparent, while the faintest target starts opaque.
 
 Let :math:`\theta` contain the geometry parameters and let
-:math:`\alpha=\sigma(a)` keep opacity between zero and one. The objective is
+:math:`\alpha\in[0,1]` contain their opacities. The objective is
 
 .. math::
 
-   L(\theta,a)=\frac{1}{K H_0 W_0}
-   \sum_{k,q}\left(c_k(q;\theta,\sigma(a))-c_k^*(q)\right)^2,
+   L(\theta,\alpha)=\frac{1}{K H_0 W_0}
+   \sum_{k,q}\left(c_k(q;\theta,\alpha)-c_k^*(q)\right)^2,
    \qquad c_k(q)=\sum_j w_{kqj}.
 
 Only the target shadows enter this loss. The 3D views show what is being
@@ -130,10 +137,12 @@ optimized but supply no image or geometry supervision.
 .. code-block:: python
 
    optimizer.zero_grad()
-   transmittance = evaluate_shadows(shape, opacity_logits.sigmoid())
+   transmittance = evaluate_shadows(shape, opacity)
    loss = (transmittance - target_shadows).square().mean()
    loss.backward()
    optimizer.step()
+   with torch.no_grad():
+       opacity.clamp_(0, 1)
 
 For fixed coverage, transmittance is differentiable with respect to opacity:
 
@@ -146,11 +155,12 @@ Moving an object also moves its shadow boundary. That coverage change needs
 the boundary-motion estimator, enabled by default. Smooth derivatives alone
 adjust the opacities in this scene but leave the geometry unchanged.
 
-With boundary gradients, 400 Adam steps recover opacities of approximately
-0.620 and 0.780, matching the targets, and align the sampled shadows to
-numerical precision. The smooth-gradient control retains a shadow MSE of
-about 0.035. The geometric parameters remain within the finite shadow grid's
-resolution: matching its samples does not imply a unique reconstruction of
+The fit uses projected Adam steps: after each update, opacities are clamped
+to the valid interval. This permits an exactly opaque surface at
+:math:`\alpha=1`, as well as partially transmitting surfaces. With boundary
+gradients, 1,200 steps recover opacities close to 1.0, 0.8, and 0.3 and align all
+three shadow maps. The smooth-gradient control adjusts opacity but retains
+the initial shape and position. The finite shadow grid limits geometric precision: matching its samples does not imply a unique reconstruction of
 an arbitrary object. Multiple lights constrain more shape directions than
 a single shadow.
 
@@ -163,7 +173,7 @@ at the original surface points:
 
 .. code-block:: python
 
-   sampled, confidence = drtk.sample_source_features(
+   sampled, confidence = drtk.sample_with_transmittance(
        source_features, indices, weights
    )
    sampled = sampled.reshape(num_views, num_channels, H0, W0)
@@ -184,7 +194,9 @@ It requires a CUDA-enabled DRTK installation, Matplotlib, and FFmpeg.
 
    python source_features_demo.py --output ./source_features_demo
 
-The output contains the optimization video, shadow illustration, snapshots,
-measurements, and saved geometry and shadow fields. See
+The output contains a 1920×1600 optimization video, shadow illustration,
+snapshots, measurements, and saved geometry and UV transmittance fields.
+Scene views render at 768×1024, light views at 1024×1024, and receiver maps at
+512×512. See
 :doc:`../api_reference/source_features` for tensor shapes, camera conventions,
 and gradient behavior.

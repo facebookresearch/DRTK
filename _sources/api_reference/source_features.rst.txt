@@ -7,9 +7,9 @@ drtk.source_transmittance
     :nosignatures:
 
     source_transmittance
-    sample_source_features
+    sample_with_transmittance
     source_transmittance_ref
-    sample_source_features_ref
+    sample_with_transmittance_ref
 
 Evaluate transmittance from a source camera or light to points on a mesh.
 The outputs retain the original query order, including points on layers
@@ -39,7 +39,7 @@ Sampling features
 -----------------
 
 :func:`source_transmittance` computes the four source texels and weights
-for each surface query. :func:`sample_source_features` gathers their features:
+for each surface query. :func:`sample_with_transmittance` gathers their features:
 
 .. code-block:: python
 
@@ -47,7 +47,7 @@ for each surface query. :func:`sample_source_features` gathers their features:
        v_pix, faces, query_faces, query_barycentrics, height, width,
        vertex_opacity=opacity,
    )
-   sampled, confidence = sample_source_features(features, indices, weights)
+   sampled, confidence = sample_with_transmittance(features, indices, weights)
 
 A query is specified by a face ID and 3D barycentric coordinates. Each
 bilinear tap must lie on the query's local surface. The surface continues
@@ -163,8 +163,8 @@ Functions
 
 .. autofunction:: source_transmittance
 
-.. autofunction:: sample_source_features
+.. autofunction:: sample_with_transmittance
 
 .. autofunction:: source_transmittance_ref
 
-.. autofunction:: sample_source_features_ref
+.. autofunction:: sample_with_transmittance_ref
