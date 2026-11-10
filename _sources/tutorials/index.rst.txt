@@ -90,8 +90,8 @@ Tutorials
 
     .. grid-item-card:: :doc:`DRTK_Tutorial_source_features`
 
-        Return source transmittance to the original surface grid and use
-        its gradients to fit deformation and opacity.
+        Fit the shape and opacity of translucent surfaces from their shadows
+        under three lights.
 
         .. image:: ../_static/source_features_demo_poster.png
            :width: 400

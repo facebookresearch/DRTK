@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Transmittance in the original surface grid &#8212; DRTK  documentation</title>
+    <title>Differentiable visibility &#8212; DRTK  documentation</title>
   
   
   
@@ -353,7 +353,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Computing Gradients and Fitting</span></p>
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="DRTK_Tutorial_pixel_grid_mesh.html">Learning pixel-grid geometry and topology</a></li>
-<li class="toctree-l1 current active"><a class="current reference internal" href="#">Transmittance in the original surface grid</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Differentiable visibility</a></li>
 <li class="toctree-l1"><a class="reference internal" href="DRTK_Tutorial_hand_fitting.html">Single image hand fitting</a></li>
 </ul>
 </div>
@@ -398,7 +398,7 @@
     
     <li class="breadcrumb-item"><a href="index.html" class="nav-link">Tutorials</a></li>
     
-    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Transmittance in the original surface grid</span></li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Differentiable visibility</span></li>
   </ul>
 </nav>
 </div>
@@ -415,129 +415,145 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="transmittance-in-the-original-surface-grid">
-<h1>Transmittance in the original surface grid<a class="headerlink" href="#transmittance-in-the-original-surface-grid" title="Link to this heading">#</a></h1>
-<p>Give each point in an original surface grid a face ID and barycentric
-coordinates. After deforming the mesh, several of those points can project
-to the same camera pixel. They lie at different depths and have different
-amounts of material in front of them.</p>
-<p><a class="reference internal" href="../api_reference/source_features.html#drtk.source_feature_stencil" title="drtk.source_feature_stencil"><code class="xref py py-func docutils literal notranslate"><span class="pre">drtk.source_feature_stencil()</span></code></a> evaluates source transmittance for each
-point and returns it in the original query order. Reshaping these values
-produces a field in the original grid, including points on layers behind
-other surfaces. That field can guide feature processing and carry gradients
-back to the deformation and material opacity.</p>
-<figure class="align-default" id="id1">
-<a class="reference internal image-reference" href="../_images/source_features_sampling.png"><img alt="Three points in an original grid project to one camera pixel but receive different transmittances at their original grid locations." src="../_images/source_features_sampling.png" style="width: 100%;" />
-</a>
-<figcaption>
-<p><span class="caption-text">The three marked points project to the same pixel. Their returned values
-belong to three different locations in the original grid. Each fold has
-material opacity 0.65.</span><a class="headerlink" href="#id1" title="Link to this image">#</a></p>
-</figcaption>
-</figure>
-<p>This example optimizes a fold and its opacity by comparing predicted and
-target transmittance fields in the original grid. Camera renders alongside
-the fields show which surfaces produce the occlusions.</p>
+  <section id="differentiable-visibility">
+<h1>Differentiable visibility<a class="headerlink" href="#differentiable-visibility" title="Link to this heading">#</a></h1>
+<p>Recover the shape and opacity of two translucent surfaces from the shadows
+they cast. Three fixed lights illuminate a receiving plane, and a loss on
+the shadows adjusts the surfaces above it.</p>
+<p>A light can be treated as a camera. Project a point on the receiving plane
+into that camera and evaluate how much light reaches it through the intervening
+surfaces. <a class="reference internal" href="../api_reference/source_features.html#drtk.source_transmittance" title="drtk.source_transmittance"><code class="xref py py-func docutils literal notranslate"><span class="pre">drtk.source_transmittance()</span></code></a> returns these values in the receiver’s
+query order, so the shadow lives in its original surface grid. Moving the
+objects changes the shadow while the receiving points stay fixed.</p>
 <video controls playsinline preload="metadata" style="width:100%;height:auto"
   poster="../_static/source_features_demo_poster.png">
   <source src="../_static/source_features_demo.mp4" type="video/mp4">
   Your browser does not support HTML video.
-</video><p>Each column uses a different source camera. The target and estimated fields
-share the same original grid coordinates throughout the optimization. The
-curve compares the full gradient with a control that retains smooth
-derivatives but disables the boundary estimator.</p>
-<section id="from-a-grid-point-to-source-transmittance">
-<h2>From a grid point to source transmittance<a class="headerlink" href="#from-a-grid-point-to-source-transmittance" title="Link to this heading">#</a></h2>
-<p>Let <span class="math notranslate nohighlight">\(q\)</span> identify a point in the original grid, <span class="math notranslate nohighlight">\(X_\theta(q)\)</span> its
-position on the deformed mesh, and <span class="math notranslate nohighlight">\(\pi_k\)</span> the projection into source
-camera <span class="math notranslate nohighlight">\(k\)</span>. Its projected location is</p>
+</video><p>Each column shows the current scene lit by one of three lights. Below it,
+the target and fitted shadows are shown in the receiving plane’s grid.
+The objects’ outlines, positions, heights, and material opacities are optimized
+together. The curve compares the default gradients with a control that
+disables visibility-boundary gradients.</p>
+<section id="shadows-through-transparent-surfaces">
+<h2>Shadows through transparent surfaces<a class="headerlink" href="#shadows-through-transparent-surfaces" title="Link to this heading">#</a></h2>
+<p>For opaque objects, a point is either illuminated or blocked. A translucent
+surface with opacity <span class="math notranslate nohighlight">\(\alpha\)</span> passes a fraction <span class="math notranslate nohighlight">\(1-\alpha\)</span> of
+the light. With several layers, their transmittances multiply:</p>
 <div class="math notranslate nohighlight">
-\[p_k(q)=\pi_k(X_\theta(q)).\]</div>
-<p>Transmittance to the receiving surface is</p>
+\[T_k(q)=\prod_{f\prec q}\left(1-\alpha_f(p_k(q))\right),
+\qquad p_k(q)=\pi_k(X(q)).\]</div>
+<p>Here <span class="math notranslate nohighlight">\(X(q)\)</span> is a point on the receiving surface and <span class="math notranslate nohighlight">\(\pi_k\)</span>
+projects it into light <span class="math notranslate nohighlight">\(k\)</span>. The product contains fragments preceding
+the receiver in the renderer’s stable triangle-depth order. The receiver’s
+own opacity is excluded.</p>
+<figure class="align-default" id="id1">
+<a class="reference internal image-reference" href="../_images/source_features_sampling.png"><img alt="Two translucent surfaces cast partially overlapping shadows. A single layer transmits 38 or 22 percent of the light; their overlap transmits 8.36 percent." src="../_images/source_features_sampling.png" style="width: 100%;" />
+</a>
+<figcaption>
+<p><span class="caption-text">Visibility has intermediate values. The overlap is darker because light
+passes through both surfaces.</span><a class="headerlink" href="#id1" title="Link to this image">#</a></p>
+</figcaption>
+</figure>
+<p>For unoccluded direct illumination <span class="math notranslate nohighlight">\(E_k(q)\)</span>, the shadowed illumination is</p>
 <div class="math notranslate nohighlight">
-\[T_k(q)=\prod_{f\prec q}\left(1-\alpha_f(p_k(q))\right).\]</div>
-<p>The product contains fragments preceding the receiver in the renderer’s
-stable triangle-depth order. The receiver’s own opacity is excluded. Thus a
-front surface has transmittance one, while a point behind one layer of opacity
-0.65 has transmittance 0.35. Behind two such layers, it is 0.1225.</p>
-<p>For bilinear image sampling, the operator evaluates transmittance separately
-at each of the four texel taps. Its returned confidence is</p>
-<div class="math notranslate nohighlight">
-\[c_k(q)=\sum_{j=1}^{4}b_{qj}T_{kqj},\]</div>
-<p>where <span class="math notranslate nohighlight">\(b_{qj}\)</span> are the bilinear coefficients. Taps outside the image or
-the receiving surface contribute zero. The confidence is therefore a
-filtered transmittance value that also accounts for the sampling footprint.</p>
+\[I(q)=\sum_k T_k(q)E_k(q).\]</div>
+<p>The example compares each light separately and uses unit unoccluded
+illumination, so its shadow intensity is simply transmittance. Distance
+falloff, receiver orientation, and light intensity can be included in
+<span class="math notranslate nohighlight">\(E_k\)</span>. The colored scene views add a small ambient term for display.
+This model describes attenuation by thin surfaces; refraction and multiple
+scattering require a different light-transport model.</p>
 </section>
-<section id="returning-the-field-to-the-original-grid">
-<h2>Returning the field to the original grid<a class="headerlink" href="#returning-the-field-to-the-original-grid" title="Link to this heading">#</a></h2>
-<p>Keep the query face IDs and barycentrics attached to the same material
-points while updating the mesh vertices. Here, <span class="math notranslate nohighlight">\(H_0\times W_0\)</span> is the
-original query grid, and the batch dimension contains the source cameras:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">vertices</span> <span class="o">=</span> <span class="n">deform_mesh</span><span class="p">(</span><span class="n">parameters</span><span class="p">)</span>
-<span class="n">v_source</span> <span class="o">=</span> <span class="n">project_to_source_cameras</span><span class="p">(</span><span class="n">vertices</span><span class="p">)</span>
-<span class="n">indices</span><span class="p">,</span> <span class="n">weights</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">drtk</span><span class="o">.</span><span class="n">source_feature_stencil</span><span class="p">(</span>
-    <span class="n">v_source</span><span class="p">,</span> <span class="n">faces</span><span class="p">,</span> <span class="n">query_faces</span><span class="p">,</span> <span class="n">query_barycentrics</span><span class="p">,</span>
-    <span class="n">image_height</span><span class="p">,</span> <span class="n">image_width</span><span class="p">,</span>
+<section id="evaluating-shadows-on-the-receiver">
+<h2>Evaluating shadows on the receiver<a class="headerlink" href="#evaluating-shadows-on-the-receiver" title="Link to this heading">#</a></h2>
+<p>Create query points on the receiving plane using face IDs and 3D barycentric
+coordinates. Include both the shadow-casting objects and the receiver in the
+mesh. Transform its vertices into each light’s camera coordinates, with pixel
+XY and positive camera Z:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">vertices</span> <span class="o">=</span> <span class="n">make_mesh</span><span class="p">(</span><span class="n">shape_parameters</span><span class="p">)</span>
+<span class="n">v_light</span> <span class="o">=</span> <span class="n">project_to_lights</span><span class="p">(</span><span class="n">vertices</span><span class="p">)</span>
+<span class="n">indices</span><span class="p">,</span> <span class="n">weights</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">drtk</span><span class="o">.</span><span class="n">source_transmittance</span><span class="p">(</span>
+    <span class="n">v_light</span><span class="p">,</span> <span class="n">faces</span><span class="p">,</span> <span class="n">receiver_faces</span><span class="p">,</span> <span class="n">receiver_barycentrics</span><span class="p">,</span>
+    <span class="n">light_height</span><span class="p">,</span> <span class="n">light_width</span><span class="p">,</span>
     <span class="n">vertex_opacity</span><span class="o">=</span><span class="n">material_opacity</span><span class="p">,</span>
 <span class="p">)</span>
-<span class="n">transmittance</span> <span class="o">=</span> <span class="n">weights</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">num_cameras</span><span class="p">,</span> <span class="n">H0</span><span class="p">,</span> <span class="n">W0</span><span class="p">)</span>
+<span class="n">transmittance</span> <span class="o">=</span> <span class="n">weights</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">num_lights</span><span class="p">,</span> <span class="n">H0</span><span class="p">,</span> <span class="n">W0</span><span class="p">)</span>
 </pre></div>
 </div>
-<p>The final reshape uses the original ordering of the queries. A query does
-not move to another output cell when its projection moves across the camera
-image. If topology changes, construct face IDs and barycentrics for the new
-mesh while preserving the intended original-grid correspondence.</p>
+<p>The operation evaluates transmittance at the four bilinear texel taps of
+each query. Its weights are <span class="math notranslate nohighlight">\(w_{qj}=b_{qj}T_{qj}\)</span>, where
+<span class="math notranslate nohighlight">\(b_{qj}\)</span> is the bilinear coefficient. Summing them gives filtered
+transmittance. Taps outside the light’s image or the receiving surface
+contribute zero; size the light frustum to cover the receiving region.
+The example checks that every query returns one when the objects are
+fully transparent.</p>
+<p>The output belongs to the receiving surface, rather than the light’s image
+plane. The query face IDs and barycentrics provide this correspondence;
+reshape using the original query-grid dimensions <span class="math notranslate nohighlight">\(H_0\times W_0\)</span>.
+The same construction works on a curved or deforming receiver by keeping
+queries attached to its triangles.</p>
+<p>A projector can supply a spatially varying image instead of uniform light:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">illumination</span><span class="p">,</span> <span class="n">confidence</span> <span class="o">=</span> <span class="n">drtk</span><span class="o">.</span><span class="n">sample_source_features</span><span class="p">(</span>
+    <span class="n">light_image</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="n">weights</span>
+<span class="p">)</span>
+<span class="n">illumination</span> <span class="o">=</span> <span class="n">illumination</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">num_lights</span><span class="p">,</span> <span class="n">channels</span><span class="p">,</span> <span class="n">H0</span><span class="p">,</span> <span class="n">W0</span><span class="p">)</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">illumination</span></code> already includes attenuation. The same indices and weights
+can be applied to several image or feature channels on the light’s grid.</p>
 </section>
-<section id="differentiating-the-returned-field">
-<h2>Differentiating the returned field<a class="headerlink" href="#differentiating-the-returned-field" title="Link to this heading">#</a></h2>
-<p>For a fixed set of covering fragments, opacity has the derivative</p>
-<div class="math notranslate nohighlight">
-\[\begin{split}\frac{\partial T}{\partial\alpha_i}
-=-\prod_{\substack{f\prec q\\f\ne i}}(1-\alpha_f).\end{split}\]</div>
-<p>This expression also defines the derivative when a factor is zero; it does
-not require division by <span class="math notranslate nohighlight">\(1-\alpha_i\)</span>. The example checks that its three
-marked queries have opacity derivatives 0, -1, and -0.7 when a shared opacity
-parameter controls all folds.</p>
-<p>Geometry changes the projection of each query, the interpolated opacity,
-and the occlusion boundaries. Smooth derivatives handle projection and
-interpolation. The boundary-motion estimator supplies the coverage-change
-term and is enabled by default. Both contributions reach the parameters
-used to deform the mesh.</p>
-<p>The fitting objective in this example is entirely in the original grid:</p>
+<section id="fitting-shape-and-opacity">
+<h2>Fitting shape and opacity<a class="headerlink" href="#fitting-shape-and-opacity" title="Link to this heading">#</a></h2>
+<p>The three target shadows are generated from a pair of translucent surfaces.
+Each surface has a radial outline with seven Fourier coefficients, a 3D
+position, and one material opacity. Its tilt remains fixed. The fit starts
+from circular outlines with displaced positions and incorrect opacities.</p>
+<p>Let <span class="math notranslate nohighlight">\(\theta\)</span> contain the geometry parameters and let
+<span class="math notranslate nohighlight">\(\alpha=\sigma(a)\)</span> keep opacity between zero and one. The objective is</p>
 <div class="math notranslate nohighlight">
 \[L(\theta,a)=\frac{1}{K H_0 W_0}
-\sum_{k,q}\left(c_k(q;\theta,\sigma(a))-c_k^*(q)\right)^2.\]</div>
-<p>Here, <span class="math notranslate nohighlight">\(\theta\)</span> controls the fold, <span class="math notranslate nohighlight">\(\sigma(a)\)</span> is its material
-opacity, and <span class="math notranslate nohighlight">\(c^*\)</span> is a synthetic target field generated from the
-target mesh. The target camera images are not used as a fitting loss.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">loss</span> <span class="o">=</span> <span class="p">(</span><span class="n">transmittance</span> <span class="o">-</span> <span class="n">target_transmittance</span><span class="p">)</span><span class="o">.</span><span class="n">square</span><span class="p">()</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+\sum_{k,q}\left(c_k(q;\theta,\sigma(a))-c_k^*(q)\right)^2,
+\qquad c_k(q)=\sum_j w_{kqj}.\]</div>
+<p>Only the target shadows enter this loss. The 3D views show what is being
+optimized but supply no image or geometry supervision.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">optimizer</span><span class="o">.</span><span class="n">zero_grad</span><span class="p">()</span>
+<span class="n">transmittance</span> <span class="o">=</span> <span class="n">evaluate_shadows</span><span class="p">(</span><span class="n">shape</span><span class="p">,</span> <span class="n">opacity_logits</span><span class="o">.</span><span class="n">sigmoid</span><span class="p">())</span>
+<span class="n">loss</span> <span class="o">=</span> <span class="p">(</span><span class="n">transmittance</span> <span class="o">-</span> <span class="n">target_shadows</span><span class="p">)</span><span class="o">.</span><span class="n">square</span><span class="p">()</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
 <span class="n">loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
 <span class="n">optimizer</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
 </pre></div>
 </div>
-<p>The video uses three source views and jointly updates one fold parameter
-and one material-opacity parameter. Both runs start from the same values
-and use the same optimizer. The final values and residual field error are
-shown in the video; the boundary estimator improves the deformation fit,
-while the opacity derivatives adjust the intermediate transmittance levels.</p>
+<p>For fixed coverage, transmittance is differentiable with respect to opacity:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}\frac{\partial T}{\partial\alpha_i}
+=-\prod_{\substack{f\prec q\\f\ne i}}(1-\alpha_f).\end{split}\]</div>
+<p>Moving an object also moves its shadow boundary. That coverage change needs
+the boundary-motion estimator, enabled by default. Smooth derivatives alone
+adjust the opacities in this scene but leave the geometry unchanged.</p>
+<p>With boundary gradients, 400 Adam steps recover opacities of approximately
+0.620 and 0.780, matching the targets, and align the sampled shadows to
+numerical precision. The smooth-gradient control retains a shadow MSE of
+about 0.035. The geometric parameters remain within the finite shadow grid’s
+resolution: matching its samples does not imply a unique reconstruction of
+an arbitrary object. Multiple lights constrain more shape directions than
+a single shadow.</p>
 </section>
-<section id="using-the-field-with-image-features">
-<h2>Using the field with image features<a class="headerlink" href="#using-the-field-with-image-features" title="Link to this heading">#</a></h2>
-<p>The same stencil also returns source image features to the original grid:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">sampled</span><span class="p">,</span> <span class="n">confidence</span> <span class="o">=</span> <span class="n">drtk</span><span class="o">.</span><span class="n">sample_feature_stencil</span><span class="p">(</span>
+<section id="from-lights-to-camera-features">
+<h2>From lights to camera features<a class="headerlink" href="#from-lights-to-camera-features" title="Link to this heading">#</a></h2>
+<p>Replace the light with a source camera and its illumination image with an
+image-feature map. The same operation then returns attenuated observations
+at the original surface points:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">sampled</span><span class="p">,</span> <span class="n">confidence</span> <span class="o">=</span> <span class="n">drtk</span><span class="o">.</span><span class="n">sample_source_features</span><span class="p">(</span>
     <span class="n">source_features</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="n">weights</span>
 <span class="p">)</span>
-<span class="n">sampled</span> <span class="o">=</span> <span class="n">sampled</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">num_cameras</span><span class="p">,</span> <span class="n">num_channels</span><span class="p">,</span> <span class="n">H0</span><span class="p">,</span> <span class="n">W0</span><span class="p">)</span>
-<span class="n">confidence</span> <span class="o">=</span> <span class="n">confidence</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">num_cameras</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">H0</span><span class="p">,</span> <span class="n">W0</span><span class="p">)</span>
+<span class="n">sampled</span> <span class="o">=</span> <span class="n">sampled</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">num_views</span><span class="p">,</span> <span class="n">num_channels</span><span class="p">,</span> <span class="n">H0</span><span class="p">,</span> <span class="n">W0</span><span class="p">)</span>
+<span class="n">confidence</span> <span class="o">=</span> <span class="n">confidence</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">num_views</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">H0</span><span class="p">,</span> <span class="n">W0</span><span class="p">)</span>
 <span class="n">prediction</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">original_features</span><span class="p">,</span> <span class="n">sampled</span><span class="p">,</span> <span class="n">confidence</span><span class="p">)</span>
 </pre></div>
 </div>
-<p><code class="docutils literal notranslate"><span class="pre">sampled</span></code> already includes the transmittance weights. Confidence lets a
-model distinguish an attenuated observation from an observed feature whose
-value is zero. For a single source view, a simple blend with existing
-features is <code class="docutils literal notranslate"><span class="pre">sampled</span> <span class="pre">+</span> <span class="pre">(1</span> <span class="pre">-</span> <span class="pre">confidence)</span> <span class="pre">*</span> <span class="pre">original_features</span></code>.</p>
-<p>Features already mixed by transparency or by an image encoder remain mixed;
-transmittance describes access to the source observation.</p>
+<p>Confidence distinguishes an attenuated observation from an observed feature
+whose value is zero. Features already mixed by transparency or a feature
+extractor remain mixed; transmittance describes access to the observation.</p>
 </section>
 <section id="run-the-example">
 <h2>Run the example<a class="headerlink" href="#run-the-example" title="Link to this heading">#</a></h2>
@@ -546,10 +562,10 @@ It requires a CUDA-enabled DRTK installation, Matplotlib, and FFmpeg.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>source_features_demo.py<span class="w"> </span>--output<span class="w"> </span>./source_features_demo
 </pre></div>
 </div>
-<p>The output contains the video, original-grid illustration, optimization
-snapshots, measurements, and saved fields. See
-<a class="reference internal" href="../api_reference/source_features.html"><span class="doc">drtk.source_features</span></a> for coordinate conventions, tensor
-shapes, and gradient behavior.</p>
+<p>The output contains the optimization video, shadow illustration, snapshots,
+measurements, and saved geometry and shadow fields. See
+<a class="reference internal" href="../api_reference/source_features.html"><span class="doc">drtk.source_transmittance</span></a> for tensor shapes, camera conventions,
+and gradient behavior.</p>
 </section>
 </section>
 
@@ -576,10 +592,10 @@ shapes, and gradient behavior.</p>
   </div>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#from-a-grid-point-to-source-transmittance">From a grid point to source transmittance</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#returning-the-field-to-the-original-grid">Returning the field to the original grid</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#differentiating-the-returned-field">Differentiating the returned field</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#using-the-field-with-image-features">Using the field with image features</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#shadows-through-transparent-surfaces">Shadows through transparent surfaces</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#evaluating-shadows-on-the-receiver">Evaluating shadows on the receiver</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#fitting-shape-and-opacity">Fitting shape and opacity</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#from-lights-to-camera-features">From lights to camera features</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#run-the-example">Run the example</a></li>
 </ul>
   </nav></div>

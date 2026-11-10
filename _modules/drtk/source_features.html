@@ -391,10 +391,10 @@
 <span class="n">load_torch_ops</span><span class="p">(</span><span class="s2">&quot;drtk.transparent_render_ext&quot;</span><span class="p">)</span>
 
 
-<div class="viewcode-block" id="source_feature_stencil">
-<a class="viewcode-back" href="../../api_reference/source_features.html#drtk.source_feature_stencil">[docs]</a>
+<div class="viewcode-block" id="source_transmittance">
+<a class="viewcode-back" href="../../api_reference/source_features.html#drtk.source_transmittance">[docs]</a>
 <span class="nd">@th</span><span class="o">.</span><span class="n">compiler</span><span class="o">.</span><span class="n">disable</span>
-<span class="k">def</span><span class="w"> </span><span class="nf">source_feature_stencil</span><span class="p">(</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">source_transmittance</span><span class="p">(</span>
     <span class="n">v_pix</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
     <span class="n">vi</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
     <span class="n">query_face_ids</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
@@ -406,7 +406,12 @@
     <span class="n">edge_gradients</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
     <span class="n">return_queries</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]]:</span>
-<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Compute bilinear sampling indices and transmittance weights for mesh points.</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Evaluate transmittance from a source camera or light to mesh points.</span>
+
+<span class="sd">    Return bilinear image indices and weights for each point. Summing its</span>
+<span class="sd">    four weights gives filtered transmittance, including the valid sampling</span>
+<span class="sd">    footprint. Under unit illumination, this is the shadow intensity on the</span>
+<span class="sd">    receiving surface.</span>
 
 <span class="sd">    Each query is attached to a face by 3D barycentric coordinates. Its four</span>
 <span class="sd">    image taps follow the receiving surface through shared manifold edges,</span>
@@ -419,10 +424,10 @@
 <span class="sd">    Queries projecting to the same camera pixel can have different</span>
 <span class="sd">    transmittances when they lie on different surface layers.</span>
 
-<span class="sd">    Apply the result to a feature image with :func:`sample_feature_stencil`.</span>
+<span class="sd">    Apply the result to a feature image with :func:`sample_source_features`.</span>
 <span class="sd">    Feature maps with matching batch and spatial dimensions can share the</span>
-<span class="sd">    same stencil. Recompute it when geometry, topology, material opacity,</span>
-<span class="sd">    or the source camera changes.</span>
+<span class="sd">    same indices and weights. Recompute them when geometry, topology, material</span>
+<span class="sd">    opacity, or the source camera changes.</span>
 
 <span class="sd">    Args:</span>
 <span class="sd">        v_pix (Tensor): Float32 CUDA vertices, ``(N, V, 3)``. XY are source</span>
@@ -476,13 +481,13 @@
 <span class="sd">        count this contribution twice.</span>
 
 <span class="sd">        Face IDs, topology, and ordering are discrete. To optimize topology</span>
-<span class="sd">        logits, use :func:`bernoulli_render_loss` with a fresh stencil for each</span>
-<span class="sd">        sampled mesh. Only first derivatives are supported. Backward may be</span>
+<span class="sd">        logits, use :func:`bernoulli_render_loss` with fresh transmittance weights</span>
+<span class="sd">        for each sampled mesh. Only first derivatives are supported. Backward may be</span>
 <span class="sd">        nondeterministic.</span>
 
 <span class="sd">    Note:</span>
 <span class="sd">        Geometry and weights remain float32 under autocast. CUDA graph capture</span>
-<span class="sd">        is unsupported. :func:`source_feature_stencil_ref` supports CPU inputs</span>
+<span class="sd">        is unsupported. :func:`source_transmittance_ref` supports CPU inputs</span>
 <span class="sd">        and smooth derivatives.</span>
 
 <span class="sd">        Visibility weights describe geometric access to the source image.</span>
@@ -491,10 +496,10 @@
 
 <span class="sd">    Example::</span>
 
-<span class="sd">        indices, weights, _, _ = source_feature_stencil(</span>
+<span class="sd">        indices, weights, _, _ = source_transmittance(</span>
 <span class="sd">            v_pix, faces, query_faces, query_barycentrics, H, W</span>
 <span class="sd">        )</span>
-<span class="sd">        sampled, confidence = sample_feature_stencil(features, indices, weights)</span>
+<span class="sd">        sampled, confidence = sample_source_features(features, indices, weights)</span>
 <span class="sd">        prediction = model(anchor_features, sampled, confidence)</span>
 <span class="sd">        loss_fn(prediction, target).backward()</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -527,13 +532,13 @@
 
 
 
-<div class="viewcode-block" id="sample_feature_stencil">
-<a class="viewcode-back" href="../../api_reference/source_features.html#drtk.sample_feature_stencil">[docs]</a>
+<div class="viewcode-block" id="sample_source_features">
+<a class="viewcode-back" href="../../api_reference/source_features.html#drtk.sample_source_features">[docs]</a>
 <span class="nd">@th</span><span class="o">.</span><span class="n">compiler</span><span class="o">.</span><span class="n">disable</span>
-<span class="k">def</span><span class="w"> </span><span class="nf">sample_feature_stencil</span><span class="p">(</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">sample_source_features</span><span class="p">(</span>
     <span class="n">feature_image</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">tap_indices</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">tap_weights</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
-<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Sample image features using a transmittance-weighted bilinear stencil.</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Sample image features using source transmittance and bilinear weights.</span>
 
 <span class="sd">    For texel features :math:`F_j` and weights :math:`w_{qj}`, returns</span>
 <span class="sd">    :math:`S_q=\sum_j w_{qj}F_j` and confidence</span>
@@ -545,12 +550,12 @@
 <span class="sd">        feature_image (Tensor): CUDA ``(N, C, H, W)``, float16, bfloat16, or</span>
 <span class="sd">            float32. Arbitrary nonnegative strides, including channels-last</span>
 <span class="sd">            and sliced images, are supported. The grid and batch must match</span>
-<span class="sd">            the stencil.</span>
+<span class="sd">            the weights.</span>
 <span class="sd">        tap_indices (Tensor): Int32 CUDA ``(N, Q, 4)`` from</span>
-<span class="sd">            :func:`source_feature_stencil`. ``-1`` and out-of-range indices</span>
+<span class="sd">            :func:`source_transmittance`. ``-1`` and out-of-range indices</span>
 <span class="sd">            contribute zero. Indices have no gradient.</span>
 <span class="sd">        tap_weights (Tensor): Float32 CUDA ``(N, Q, 4)`` from</span>
-<span class="sd">            :func:`source_feature_stencil`.</span>
+<span class="sd">            :func:`source_transmittance`.</span>
 
 <span class="sd">    Returns:</span>
 <span class="sd">        Tuple[Tensor, Tensor]: ``(sampled_features, confidence)``. Samples have</span>
@@ -560,7 +565,7 @@
 
 <span class="sd">    Note:</span>
 <span class="sd">        Only first derivatives are supported. Backward may be nondeterministic.</span>
-<span class="sd">        :func:`sample_feature_stencil_ref` supports CPU and float64 inputs.</span>
+<span class="sd">        :func:`sample_source_features_ref` supports CPU and float64 inputs.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">_check_sampler</span><span class="p">(</span><span class="n">feature_image</span><span class="p">,</span> <span class="n">tap_indices</span><span class="p">,</span> <span class="n">tap_weights</span><span class="p">,</span> <span class="n">native</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
     <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span>
@@ -737,9 +742,9 @@
     <span class="k">return</span> <span class="o">-</span><span class="mi">1</span>
 
 
-<div class="viewcode-block" id="source_feature_stencil_ref">
-<a class="viewcode-back" href="../../api_reference/source_features.html#drtk.source_feature_stencil_ref">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">source_feature_stencil_ref</span><span class="p">(</span>
+<div class="viewcode-block" id="source_transmittance_ref">
+<a class="viewcode-back" href="../../api_reference/source_features.html#drtk.source_transmittance_ref">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">source_transmittance_ref</span><span class="p">(</span>
     <span class="n">v_pix</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
     <span class="n">vi</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
     <span class="n">query_face_ids</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
@@ -751,7 +756,7 @@
     <span class="n">edge_gradients</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
     <span class="n">return_queries</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Reference for :func:`source_feature_stencil`, with smooth gradients only.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Reference for :func:`source_transmittance`, with smooth gradients only.&quot;&quot;&quot;</span>
     <span class="k">if</span> <span class="n">edge_gradients</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;the reference implements smooth gradients only&quot;</span><span class="p">)</span>
     <span class="n">vi</span><span class="p">,</span> <span class="n">opacity</span> <span class="o">=</span> <span class="n">_prepare</span><span class="p">(</span>
@@ -844,12 +849,12 @@
 
 
 
-<div class="viewcode-block" id="sample_feature_stencil_ref">
-<a class="viewcode-back" href="../../api_reference/source_features.html#drtk.sample_feature_stencil_ref">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">sample_feature_stencil_ref</span><span class="p">(</span>
+<div class="viewcode-block" id="sample_source_features_ref">
+<a class="viewcode-back" href="../../api_reference/source_features.html#drtk.sample_source_features_ref">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">sample_source_features_ref</span><span class="p">(</span>
     <span class="n">feature_image</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">tap_indices</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">tap_weights</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Reference for :func:`sample_feature_stencil`, supporting CPU and float64.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Reference for :func:`sample_source_features`, supporting CPU and float64.&quot;&quot;&quot;</span>
     <span class="n">_check_sampler</span><span class="p">(</span><span class="n">feature_image</span><span class="p">,</span> <span class="n">tap_indices</span><span class="p">,</span> <span class="n">tap_weights</span><span class="p">,</span> <span class="n">native</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
     <span class="n">n</span><span class="p">,</span> <span class="n">c</span><span class="p">,</span> <span class="n">h</span><span class="p">,</span> <span class="n">w</span> <span class="o">=</span> <span class="n">feature_image</span><span class="o">.</span><span class="n">shape</span>
     <span class="n">q</span> <span class="o">=</span> <span class="n">tap_indices</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>

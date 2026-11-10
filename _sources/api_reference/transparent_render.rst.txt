@@ -32,7 +32,7 @@ small per-fragment appearance network, while
 MLP input may contain up to 32 channels.
 
 When constructing textures from source images, use
-:func:`source_feature_stencil` and :func:`sample_feature_stencil` to account
+:func:`source_transmittance` and :func:`sample_source_features` to account
 for occlusion. The rendering functions sample the supplied texture values
 at their UV coordinates.
 

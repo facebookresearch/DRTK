@@ -1,38 +1,53 @@
-drtk.source_features
-====================
+drtk.source_transmittance
+=========================
 
 .. currentmodule:: drtk
 
 .. autosummary::
     :nosignatures:
 
-    source_feature_stencil
-    sample_feature_stencil
-    source_feature_stencil_ref
-    sample_feature_stencil_ref
+    source_transmittance
+    sample_source_features
+    source_transmittance_ref
+    sample_source_features_ref
 
-Sample image features at points on a mesh, weighted by source transmittance.
-The outputs follow the original query order. Queries associated with an
-original surface grid therefore produce features and confidence in that grid,
-even after the mesh deforms. Several queries can project to the same camera
-pixel and receive different transmittances because they lie on different
-layers. Gradients propagate to features, deformation, and material opacity.
+Evaluate transmittance from a source camera or light to points on a mesh.
+The outputs retain the original query order, including points on layers
+behind other surfaces. Use their weights to evaluate shadows or to sample
+image features with attenuation. Gradients propagate to deformation,
+material opacity, and sampled features.
 
 See :doc:`../tutorials/DRTK_Tutorial_source_features` for an example.
+
+Evaluating transmittance
+------------------------
+
+.. code-block:: python
+
+   indices, weights, _, _ = source_transmittance(
+       v_pix, faces, query_faces, query_barycentrics, height, width,
+       vertex_opacity=opacity,
+   )
+   transmittance = weights.sum(-1)
+
+The result is bilinearly filtered transmittance at each receiving point.
+It includes the fraction of the sampling footprint inside the image and
+receiving surface. For unit illumination from a light, it gives the shadow
+intensity on that surface.
 
 Sampling features
 -----------------
 
-:func:`source_feature_stencil` computes the four source texels and weights
-for each surface query. :func:`sample_feature_stencil` gathers their features:
+:func:`source_transmittance` computes the four source texels and weights
+for each surface query. :func:`sample_source_features` gathers their features:
 
 .. code-block:: python
 
-   indices, weights, _, _ = source_feature_stencil(
+   indices, weights, _, _ = source_transmittance(
        v_pix, faces, query_faces, query_barycentrics, height, width,
        vertex_opacity=opacity,
    )
-   sampled, confidence = sample_feature_stencil(features, indices, weights)
+   sampled, confidence = sample_source_features(features, indices, weights)
 
 A query is specified by a face ID and 3D barycentric coordinates. Each
 bilinear tap must lie on the query's local surface. The surface continues
@@ -114,12 +129,12 @@ twice. A target-view renderer computes its own boundary contribution.
    * - Occlusion and receiving-surface boundaries
      - Estimated geometry derivatives from boundary motion.
    * - Face IDs, connectivity, ordering, and surface-continuation decisions
-     - Discrete. Use :func:`bernoulli_render_loss` for sampled topology, rebuilding the stencil for each sample.
+     - Discrete. Use :func:`bernoulli_render_loss` for sampled topology, recomputing transmittance weights for each sample.
    * - Second derivatives
      - Unsupported.
 
 The reference functions support CPU tensors and smooth derivatives. The
-boundary estimator is available in :func:`source_feature_stencil`.
+boundary estimator is available in :func:`source_transmittance`.
 
 Coordinates and data types
 --------------------------
@@ -138,18 +153,18 @@ transform pixel coordinates as
 ``return_queries=True`` returns normalized UV coordinates compatible with
 ``grid_sample(..., align_corners=False)`` and camera Z.
 
-The stencil requires float32 CUDA geometry and produces float32 weights.
+The transmittance operation requires float32 CUDA geometry and produces float32 weights.
 Sampling accepts float16, bfloat16, and float32 CUDA features, with arbitrary
 channel counts and strides. Accumulation uses float32. Backward may be
-nondeterministic. ``source_feature_stencil`` does not support CUDA graph capture.
+nondeterministic. ``source_transmittance`` does not support CUDA graph capture.
 
 Functions
 ---------
 
-.. autofunction:: source_feature_stencil
+.. autofunction:: source_transmittance
 
-.. autofunction:: sample_feature_stencil
+.. autofunction:: sample_source_features
 
-.. autofunction:: source_feature_stencil_ref
+.. autofunction:: source_transmittance_ref
 
-.. autofunction:: sample_feature_stencil_ref
+.. autofunction:: sample_source_features_ref

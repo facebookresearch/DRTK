@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # Licensed under the MIT license in the root LICENSE file.
-"""Fit deformation and opacity from transmittance in an original surface grid."""
+"""Fit translucent surfaces from shadows cast by three lights."""
 
 import argparse
 import json
 import subprocess
+import time
 from pathlib import Path
 
 import matplotlib
@@ -14,207 +15,298 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import torch as th
-from drtk.source_features import source_feature_stencil
+from drtk.source_features import sample_source_features, source_transmittance
 from drtk.transparent_render import render_transparent
-from matplotlib.ticker import NullFormatter
-
-
-def to_image(tensor):
-    return tensor.detach().permute(1, 2, 0).clamp(0, 1).cpu().numpy()
 
 
 class Scene:
-    def __init__(self, size, device):
-        self.size = size
-        self.texture_width, self.texture_height = 128, 64
-        nu, nv = 80, 24
+    def __init__(self, size=256, resolution=128, device="cuda"):
+        self.size, self.resolution, self.device = size, resolution, device
+        grid = 24
+        self.segments = 24
         yy, xx = th.meshgrid(
-            th.linspace(0, 1, nv + 1, device=device),
-            th.linspace(0, 1, nu + 1, device=device),
+            th.linspace(-3, 3, grid + 1, device=device),
+            th.linspace(-3, 3, grid + 1, device=device),
             indexing="ij",
         )
-        corners = th.tensor(
-            [
-                [-1.1, 0.4],
-                [-0.55, 0.05],
-                [0.6, 0.50],
-                [-0.10, -0.20],
-                [0.9, -0.38],
-                [1.15, 0.15],
-            ],
-            device=device,
-        )
-        position = xx * 5
-        segment = position.long().clamp_max(4)
-        fraction = position - segment
-        xz = (
-            corners[segment] * (1 - fraction[..., None])
-            + corners[segment + 1] * fraction[..., None]
-        )
-        self.world = th.stack((xz[..., 0], (yy - 0.5) * 1.65, xz[..., 1]), -1).reshape(
-            -1, 3
-        )
-        self.uv = th.stack((xx, yy), -1).reshape(1, -1, 2)
+        self.floor = th.stack((xx, yy, th.zeros_like(xx)), -1).reshape(-1, 3)
         faces = []
-        for y in range(nv):
-            for x in range(nu):
-                a = y * (nu + 1) + x
-                b, d = a + 1, a + nu + 1
+        for y in range(grid):
+            for x in range(grid):
+                a = y * (grid + 1) + x
+                b = a + 1
+                d = a + grid + 1
                 c = d + 1
                 faces.extend(((a, b, c), (a, c, d)))
+        self.floor_faces = len(faces)
+        for layer in range(2):
+            offset = len(self.floor) + layer * (self.segments + 1)
+            for i in range(self.segments):
+                faces.append(
+                    (offset, offset + 1 + i, offset + 1 + (i + 1) % self.segments)
+                )
         self.faces = th.tensor(faces, device=device, dtype=th.int32)
         v, u = th.meshgrid(
-            (th.arange(self.texture_height, device=device) + 0.5) / self.texture_height,
-            (th.arange(self.texture_width, device=device) + 0.5) / self.texture_width,
+            (th.arange(resolution, device=device) + 0.5) / resolution,
+            (th.arange(resolution, device=device) + 0.5) / resolution,
             indexing="ij",
         )
-        texture = th.stack(
-            (
-                0.48 + 0.29 * th.sin(2 * th.pi * u + 0.6),
-                0.48 + 0.27 * th.sin(2 * th.pi * u + 2.7),
-                0.48 + 0.25 * th.sin(2 * th.pi * u + 4.8),
-            ),
-            0,
-        )
-        checker = ((u * 16).long() + (v * 10).long()) % 2
-        self.texture = (
-            texture + (0.16 * checker - 0.08)[None] + 0.08 * th.sin(v * 2 * th.pi)[None]
-        ).clamp(0, 1)[None]
-        gx, gy = u * nu, v * nv
+        gx, gy = (u * 0.8 + 0.1) * grid, (v * 0.8 + 0.1) * grid
         ix, iy = gx.long(), gy.long()
         du, dv = gx - ix, gy - iy
-        second = dv > du
-        self.query_faces = ((iy * nu + ix) * 2 + second.int()).reshape(1, -1).int()
-        self.query_barycentrics = th.stack(
+        s = dv > du
+        self.q_faces = ((iy * grid + ix) * 2 + s.int()).reshape(1, -1).int()
+        self.q_bary = th.stack(
             (
-                th.where(second, 1 - dv, 1 - du),
-                th.where(second, du, du - dv),
-                th.where(second, dv - du, dv),
+                th.where(s, 1 - dv, 1 - du),
+                th.where(s, du, du - dv),
+                th.where(s, dv - du, dv),
             ),
             -1,
         ).reshape(1, -1, 3)
-        self.source_angles = [-65, 0, 65]
-        self.corners = corners
-        self.fold_delta = corners.new_tensor([[-0.18, 0.16], [0.18, 0.13]])
-
-    def deform(self, amount):
-        corners = th.cat(
-            (
-                self.corners[:2],
-                self.corners[2:4] + amount * self.fold_delta,
-                self.corners[4:],
-            )
+        self.theta = th.arange(self.segments, device=device) * 2 * th.pi / self.segments
+        self.lights = th.tensor(
+            [[-2, -1.5, 5.5], [2, -1.5, 5.5], [0.3, 2.5, 5.5]],
+            device=device,
+            dtype=th.float32,
         )
-        position = self.uv[0, :, 0] * 5
-        segment = position.long().clamp_max(4)
-        fraction = (position - segment)[:, None]
-        xz = corners[segment] * (1 - fraction) + corners[segment + 1] * fraction
-        return th.stack((xz[:, 0], self.world[:, 1], xz[:, 1]), -1)
-
-    def project(self, angles, world=None):
-        world = self.world if world is None else world
-        views = []
-        for degrees in angles:
-            angle = np.deg2rad(degrees)
-            x = np.cos(angle) * world[:, 0] + np.sin(angle) * world[:, 2]
-            z = -np.sin(angle) * world[:, 0] + np.cos(angle) * world[:, 2] + 3.2
-            focal = self.size * (210 / 192)
-            views.append(
-                th.stack(
-                    (
-                        x / z * focal + (self.size - 1) / 2,
-                        world[:, 1] / z * focal + (self.size - 1) / 2,
-                        z,
-                    ),
-                    -1,
-                )
-            )
-        return th.stack(views)
-
-    def render(self, vertices, alpha):
-        count = vertices.shape[0]
-        return render_transparent(
-            vertices,
-            self.faces,
-            self.uv.expand(count, -1, -1),
-            self.texture.expand(count, -1, -1, -1),
-            self.size,
-            self.size,
-            opacity=alpha.expand(count, vertices.shape[1]),
-            background=vertices.new_tensor([0.94, 0.95, 0.97]),
-            rgb_activation="identity",
-            alpha_activation="clamp",
-            edge_gradients=False,
-        )[0]
-
-
-def transmittance(scene, amount, alpha, edge_gradients=True):
-    vertices = scene.project(scene.source_angles, scene.deform(amount))
-    _, weights, _, _ = source_feature_stencil(
-        vertices,
-        scene.faces,
-        scene.query_faces.expand(3, -1),
-        scene.query_barycentrics.expand(3, -1, -1),
-        scene.size,
-        scene.size,
-        vertex_opacity=alpha.expand(3, vertices.shape[1]),
-        edge_gradients=edge_gradients,
-    )
-    return weights.sum(-1).reshape(3, scene.texture_height, scene.texture_width)
-
-
-def fit(scene, steps):
-    zero = scene.world.new_tensor(0.0)
-    target_alpha = scene.world.new_tensor(0.65)
-    with th.no_grad():
-        target = transmittance(scene, zero, target_alpha, False)
-    histories, fields, images = {}, [], []
-    for edge_gradients in (False, True):
-        amount = scene.world.new_tensor(0.6, requires_grad=True)
-        logit = scene.world.new_tensor(np.log(0.4 / 0.6), requires_grad=True)
-        optimizer = th.optim.Adam(
+        forward = -self.lights
+        forward = forward / forward.norm(dim=-1, keepdim=True)
+        right = th.linalg.cross(
+            forward, forward.new_tensor([0, 0, 1]).expand_as(forward)
+        )
+        right = right / right.norm(dim=-1, keepdim=True)
+        up = th.linalg.cross(right, forward)
+        self.rotation = th.stack((right, -up, forward), 1)
+        self.target_centers = th.tensor(
+            [[-0.35, -0.1, 0.8], [0.4, 0.25, 1.3]], device=device
+        )
+        self.initial_centers = th.tensor(
+            [[-0.55, 0.15, 0.6], [0.6, -0.05, 1.05]], device=device
+        )
+        self.basis = th.stack(
+            [th.ones_like(self.theta)]
+            + [f(k * self.theta) for k in (2, 3, 4) for f in (th.cos, th.sin)]
+        )
+        self.target_coeffs = th.tensor(
             [
-                {"params": [amount], "lr": 0.015},
-                {"params": [logit], "lr": 0.04},
-            ]
+                [np.log(0.67), 0, 0.09, 0.15, -0.06, 0, 0],
+                [np.log(0.57), 0.11, 0.17, 0.025, 0.12, 0, 0],
+            ],
+            device=device,
+            dtype=th.float32,
         )
-        history = []
-        for step in range(steps + 1):
-            optimizer.zero_grad()
-            alpha = logit.sigmoid()
-            prediction = transmittance(scene, amount, alpha, edge_gradients)
-            loss = (prediction - target).square().mean()
-            if step % 4 == 0 or step == steps:
-                history.append(
-                    {
-                        "step": step,
-                        "loss": float(loss.detach()),
-                        "fold": float(amount.detach()),
-                        "alpha": float(alpha.detach()),
-                    }
-                )
-                if edge_gradients:
-                    fields.append(prediction.detach().cpu().numpy())
-                    with th.no_grad():
-                        vertices = scene.project(
-                            scene.source_angles, scene.deform(amount)
-                        )
-                        render = scene.render(vertices, alpha)
-                        images.append(
-                            (render.clamp(0, 1) * 255)
-                            .byte()
-                            .permute(0, 2, 3, 1)
-                            .cpu()
-                            .numpy()
-                        )
-            if step < steps:
-                loss.backward()
-                optimizer.step()
-                if step + 1 in (steps // 2, 3 * steps // 4):
-                    for group in optimizer.param_groups:
-                        group["lr"] *= 0.25
-        histories["boundary" if edge_gradients else "smooth"] = history
-    return histories, np.asarray(fields), np.asarray(images), target.cpu().numpy()
+        self.initial_coeffs = th.tensor(
+            [[np.log(0.53), 0, 0, 0, 0, 0, 0], [np.log(0.72), 0, 0, 0, 0, 0, 0]],
+            device=device,
+            dtype=th.float32,
+        )
+        self.target_radii = (self.target_coeffs @ self.basis).exp()
+        self.initial_radii = th.stack(
+            (th.full_like(self.theta, 0.53), th.full_like(self.theta, 0.72))
+        )
+        self.tilts = th.tensor([[0.14, -0.13], [-0.18, 0.08]], device=device)
+        self.alpha_target = th.tensor([0.62, 0.78], device=device)
+
+    def world(self, centers, radii):
+        xy = (
+            th.stack((th.cos(self.theta), 0.8 * th.sin(self.theta)), -1)[None]
+            * radii[:, :, None]
+        )
+        z = (xy * self.tilts[:, None]).sum(-1, keepdim=True)
+        ring = th.cat((xy, z), -1) + centers[:, None]
+        panels = th.cat((centers[:, None], ring), 1).reshape(-1, 3)
+        return th.cat((self.floor, panels))
+
+    def project(self, world):
+        camera = th.einsum(
+            "kij,kvj->kvi", self.rotation, world[None] - self.lights[:, None]
+        )
+        return th.cat(
+            (
+                camera[..., :2] / camera[..., 2:] * self.size * 0.70
+                + (self.size - 1) / 2,
+                camera[..., 2:],
+            ),
+            -1,
+        )
+
+    def field(self, centers, radii, alpha, edge=True):
+        world = self.world(centers, radii)
+        opacity = th.cat(
+            (
+                world.new_ones(len(self.floor)),
+                alpha[:, None].expand(-1, self.segments + 1).reshape(-1),
+            )
+        )
+        _, w, _, _ = source_transmittance(
+            self.project(world),
+            self.faces,
+            self.q_faces.expand(3, -1),
+            self.q_bary.expand(3, -1, -1),
+            self.size,
+            self.size,
+            vertex_opacity=opacity[None].expand(3, -1),
+            edge_gradients=edge,
+        )
+        return w.sum(-1).reshape(3, self.resolution, self.resolution)
+
+
+def fit(scene, steps, edge):
+    with th.no_grad():
+        target = scene.field(
+            scene.target_centers, scene.target_radii, scene.alpha_target, False
+        )
+    centers = scene.initial_centers.clone().requires_grad_()
+    logr = scene.initial_coeffs.clone().requires_grad_()
+    logits = th.logit(th.tensor([0.4, 0.4], device=scene.device)).requires_grad_()
+    opt = th.optim.Adam(
+        [
+            {"params": [centers], "lr": 0.012},
+            {"params": [logr], "lr": 0.02},
+            {"params": [logits], "lr": 0.035},
+        ]
+    )
+    snapshots = []
+    history = []
+    t = time.monotonic()
+    for step in range(steps + 1):
+        opt.zero_grad()
+        radii = (logr @ scene.basis).exp()
+        alpha = logits.sigmoid()
+        field = scene.field(centers, radii, alpha, edge)
+        loss = (field - target).square().mean()
+        if step % 4 == 0 or step == steps:
+            row = {
+                "step": step,
+                "loss": float(loss.detach()),
+                "center_error": float(
+                    (centers - scene.target_centers).square().mean().sqrt().detach()
+                ),
+                "radius_error": float(
+                    (radii - scene.target_radii).square().mean().sqrt().detach()
+                ),
+                "opacity": alpha.detach().cpu().tolist(),
+            }
+            history.append(row)
+            snapshots.append(
+                {
+                    "field": field.detach().cpu().numpy(),
+                    "centers": centers.detach().cpu().numpy().copy(),
+                    "radii": radii.detach().cpu().numpy().copy(),
+                    "alpha": alpha.detach().cpu().numpy().copy(),
+                }
+            )
+            if step % 100 == 0:
+                print(edge, row, round(time.monotonic() - t, 2), flush=True)
+        if step < steps:
+            loss.backward()
+            opt.step()
+            if step + 1 in (steps // 2, 3 * steps // 4):
+                for g in opt.param_groups:
+                    g["lr"] *= 0.3
+    return target.cpu().numpy(), history, snapshots
+
+
+def check_transmittance(scene):
+    with th.no_grad():
+        centers, radii = scene.target_centers, scene.target_radii
+        clear = scene.field(centers, radii, scene.alpha_target * 0, False)
+        th.testing.assert_close(clear, th.ones_like(clear), rtol=0, atol=1e-5)
+        target = scene.field(centers, radii, scene.alpha_target, False)
+        levels = target.new_tensor([1, 0.38, 0.22, 0.0836])
+        counts = ((target[..., None] - levels).abs() < 1e-5).sum((0, 1, 2))
+        assert bool((counts > 10).all()), counts
+        world = scene.world(centers, radii)
+        opacity = th.cat(
+            (
+                world.new_ones(len(scene.floor)),
+                scene.alpha_target[:, None].expand(-1, scene.segments + 1).reshape(-1),
+            )
+        )
+        indices, weights, _, _ = source_transmittance(
+            scene.project(world),
+            scene.faces,
+            scene.q_faces.expand(3, -1),
+            scene.q_bary.expand(3, -1, -1),
+            scene.size,
+            scene.size,
+            vertex_opacity=opacity[None].expand(3, -1),
+        )
+        lighting, confidence = sample_source_features(
+            world.new_ones(3, 1, scene.size, scene.size), indices, weights
+        )
+        th.testing.assert_close(lighting, confidence)
+        th.testing.assert_close(lighting.reshape_as(target), target)
+    return {
+        "transmittance_levels": levels.cpu().tolist(),
+        "interior_sample_counts": counts.cpu().tolist(),
+    }
+
+
+def project_camera(world, position, look_at, size):
+    eye = world.new_tensor(position)
+    forward = world.new_tensor(look_at) - eye
+    forward = forward / forward.norm()
+    right = th.linalg.cross(forward, world.new_tensor([0, 0, 1]))
+    right = right / right.norm()
+    up = th.linalg.cross(right, forward)
+    camera = (world - eye) @ th.stack((right, -up, forward)).T
+    return th.cat(
+        (camera[:, :2] / camera[:, 2:] * size * 1.8 + (size - 1) / 2, camera[:, 2:]), -1
+    )
+
+
+@th.no_grad()
+def render_scene(scene, snapshot, size=400):
+    centers = th.as_tensor(snapshot["centers"], device=scene.device)
+    radii = th.as_tensor(snapshot["radii"], device=scene.device)
+    alpha = th.as_tensor(snapshot["alpha"], device=scene.device)
+    world = scene.world(centers, radii)
+    field = th.as_tensor(snapshot["field"], device=scene.device)
+    resolution = scene.resolution
+    color = world.new_tensor([[0.12, 0.48, 0.80], [0.95, 0.42, 0.15]])
+    texture = world.new_ones(3, 3, resolution, resolution + 32)
+    floor_light = (0.12 + 0.88 * field)[:, None].expand(-1, 3, -1, -1)
+    # Padding keeps the floor white when its UV lies outside the queried patch.
+    texture[:, :, :, :resolution] = floor_light
+    texture[:, :, :, resolution : resolution + 16] = color[0][None, :, None, None]
+    texture[:, :, :, resolution + 16 :] = color[1][None, :, None, None]
+    floor_uv = ((scene.floor[:, :2] + 2.4) / 4.8).clamp(0, 1)
+    floor_uv = th.stack(
+        ((floor_uv[:, 0] * (resolution - 1) + 0.5) / (resolution + 32), floor_uv[:, 1]),
+        -1,
+    )
+    panel_uv = world.new_tensor(
+        [
+            [(resolution + 8) / (resolution + 32), 0.5],
+            [(resolution + 24) / (resolution + 32), 0.5],
+        ]
+    )
+    uv = th.cat(
+        (floor_uv, panel_uv[:, None].expand(-1, scene.segments + 1, -1).reshape(-1, 2))
+    )
+    opacity = th.cat(
+        (
+            world.new_ones(len(scene.floor)),
+            alpha[:, None].expand(-1, scene.segments + 1).reshape(-1),
+        )
+    )
+    camera = project_camera(world, [4.2, -6.5, 6.2], [0, 0, 0.45], size)
+    image = render_transparent(
+        camera[None].expand(3, -1, -1),
+        scene.faces,
+        uv[None].expand(3, -1, -1),
+        texture,
+        size,
+        size,
+        opacity=opacity[None].expand(3, -1),
+        background=world.new_tensor([0.95, 0.96, 0.98]),
+        rgb_activation="identity",
+        alpha_activation="clamp",
+        edge_gradients=False,
+    )[0]
+    return (image.clamp(0, 1) * 255).byte().permute(0, 2, 3, 1).cpu().numpy()
 
 
 def clean_axis(axis):
@@ -224,303 +316,217 @@ def clean_axis(axis):
         spine.set_visible(False)
 
 
-def same_pixel_queries(scene):
-    uv = scene.world.new_tensor(
-        [[0.62, 0.5], [(2 + 6 / 7) / 5, 0.5], [(1 + 0.55 / 1.15) / 5, 0.5]]
-    )
-    gx, gy = uv[:, 0] * 80, uv[:, 1] * 24
-    ix, iy = gx.long(), gy.long()
-    du, dv = gx - ix, gy - iy
-    second = dv > du
-    face_ids = ((iy * 80 + ix) * 2 + second.int())[None].int()
-    barycentrics = th.stack(
-        (
-            th.where(second, 1 - dv, 1 - du),
-            th.where(second, du, du - dv),
-            th.where(second, dv - du, dv),
-        ),
-        -1,
-    )[None]
-    vertices = scene.project([0])
-    alpha = scene.world.new_tensor(0.65, requires_grad=True)
-    _, weights, projected, _ = source_feature_stencil(
-        vertices,
-        scene.faces,
-        face_ids,
-        barycentrics,
-        scene.size,
-        scene.size,
-        vertex_opacity=alpha.expand(1, vertices.shape[1]),
-        return_queries=True,
-    )
-    values = weights.sum(-1)[0]
-    derivatives = [
-        float(th.autograd.grad(value, alpha, retain_graph=True)[0]) for value in values
-    ]
-    th.testing.assert_close(
-        projected[0], th.zeros_like(projected[0]), atol=2e-5, rtol=0
-    )
-    th.testing.assert_close(
-        values, values.new_tensor([1, 0.35, 0.1225]), atol=2e-5, rtol=0
-    )
-    th.testing.assert_close(
-        values.new_tensor(derivatives),
-        values.new_tensor([0, -1, -0.7]),
-        atol=2e-5,
-        rtol=0,
-    )
-    return uv.cpu().numpy(), values.detach().cpu().tolist(), derivatives
-
-
-def draw_pullback(output, scene, target):
-    uv, values, derivatives = same_pixel_queries(scene)
-    with th.no_grad():
-        image = to_image(
-            scene.render(scene.project([0]), scene.world.new_tensor(0.65))[0]
-        )
-    fig, axes = plt.subplots(1, 3, figsize=(16, 6.8), dpi=100, facecolor="#f5f7fb")
-    axes[0].imshow(
-        to_image(scene.texture[0]), extent=(0, 1, 1, 0), interpolation="nearest"
-    )
-    axes[1].imshow(image, interpolation="nearest")
-    axes[2].imshow(
-        target[1],
-        extent=(0, 1, 1, 0),
-        vmin=0,
-        vmax=1,
-        cmap="viridis",
-        interpolation="nearest",
-    )
-    for i, title in enumerate(
-        [
-            "Original surface grid",
-            "Deformed surface in the camera",
-            "Transmittance in the original grid",
-        ]
-    ):
-        axes[i].set_title(title, fontsize=17, color="#17314b", weight="bold", pad=18)
-        clean_axis(axes[i])
-    for i, (u, v) in enumerate(uv):
-        for axis in (axes[0], axes[2]):
-            axis.plot(u, v, "o", color="white", mec="#17314b", ms=7, zorder=5)
-            axis.annotate(
-                f"q{i + 1}",
-                (u, v),
-                (u, 0.1 + i * 0.13),
-                ha="center",
-                fontsize=13,
-                color="#17314b",
-                bbox={"facecolor": "white", "edgecolor": "none", "pad": 2},
-                arrowprops={"arrowstyle": "-", "color": "white", "lw": 1.4},
-            )
-    center = (scene.size - 1) / 2
-    axes[1].plot(center, center, "+", color="white", ms=15, mew=2)
-    axes[1].annotate(
-        "p", (center, center), (center + 12, center - 12), color="white", fontsize=18
-    )
-    subtitles = [
-        "Each point keeps its original index",
-        "q1, q2 and q3 project to pixel p",
-        "Each point receives its own value",
-    ]
-    for i, text in enumerate(subtitles):
-        fig.text((i + 0.5) / 3, 0.21, text, ha="center", fontsize=15, color="#52667a")
-    fig.suptitle(
-        "Transmittance returns to the original grid",
-        fontsize=27,
-        color="#17314b",
-        weight="bold",
-        y=0.97,
-    )
-    fig.text(
-        0.5,
-        0.89,
-        "Several surface points can share a camera pixel while retaining different transmittances.",
-        ha="center",
-        fontsize=16,
-        color="#52667a",
-    )
-    for x in (1 / 3, 2 / 3):
-        fig.text(x, 0.51, "→", ha="center", fontsize=30, color="#52667a")
-    labels = [r"$T(q_1)=1$", r"$T(q_2)=1-\alpha=0.35$", r"$T(q_3)=(1-\alpha)^2=0.1225$"]
-    for i, label in enumerate(labels):
-        fig.text((i + 0.5) / 3, 0.115, label, ha="center", fontsize=20, color="#17314b")
-    fig.text(
-        0.5,
-        0.045,
-        r"Material opacity $\alpha=0.65$. The receiving surface's own opacity is excluded.",
-        ha="center",
-        fontsize=14,
-        color="#52667a",
-    )
-    fig.subplots_adjust(left=0.025, right=0.975, top=0.79, bottom=0.27, wspace=0.12)
-    fig.savefig(output / "source_features_sampling.png", dpi=100)
-    plt.close(fig)
-    return {
-        "query_uv": uv.tolist(),
-        "transmittance": values,
-        "opacity_derivative": derivatives,
+def draw_explanation(output, scene, target):
+    snapshot = {
+        "centers": scene.target_centers.cpu().numpy(),
+        "radii": scene.target_radii.cpu().numpy(),
+        "alpha": scene.alpha_target.cpu().numpy(),
+        "field": target,
     }
-
-
-def make_fit_figure(scene, histories, fields, images, target):
-    fig = plt.figure(figsize=(16, 13), dpi=100, facecolor="#f5f7fb")
-    grid = fig.add_gridspec(
-        4,
-        3,
-        height_ratios=[2.5, 1.1, 1.1, 1.1],
-        left=0.035,
-        right=0.965,
-        top=0.88,
-        bottom=0.12,
-        hspace=0.34,
-        wspace=0.08,
+    image = render_scene(scene, snapshot, size=512)[2]
+    fig, axes = plt.subplots(1, 3, figsize=(16, 5.6), dpi=100, facecolor="#f5f7fb")
+    axes[0].imshow(image)
+    clean_axis(axes[0])
+    axes[1].imshow(target[2], cmap="gray", vmin=0, vmax=1, origin="lower")
+    clean_axis(axes[1])
+    axes[0].set_title(
+        "Translucent surfaces cast shadows", fontsize=16, color="#17314b", pad=16
     )
-    render_handles, field_handles = [], []
-    for view in range(3):
-        axis = fig.add_subplot(grid[0, view])
-        render_handles.append(axis.imshow(images[0, view], interpolation="nearest"))
-        axis.set_title(
-            f"Source camera {'ABC'[view]}", fontsize=21, color="#17314b", weight="bold"
+    axes[1].set_title(
+        "Light reaching the receiving surface", fontsize=16, color="#17314b", pad=16
+    )
+    ax = axes[2]
+    heights = [1, 0.38, 0.22, 0.0836]
+    ax.bar(
+        range(4),
+        heights,
+        color=["#c3cbd6", "#1f7abb", "#f26b26", "#484354"],
+        width=0.65,
+    )
+    ax.set_xticks(range(4), ["Clear", "Blue", "Orange", "Both"], fontsize=12)
+    ax.set_ylim(0, 1.18)
+    ax.set_yticks([0, 0.5, 1])
+    ax.set_ylabel("Transmittance", fontsize=12)
+    ax.spines[["top", "right"]].set_visible(False)
+    for i, h in enumerate(heights):
+        ax.text(
+            i, h + 0.045, f"{100 * h:g}%", ha="center", fontsize=13, color="#17314b"
         )
-        clean_axis(axis)
-        for row, data in ((1, target[view]), (2, fields[0, view])):
-            axis = fig.add_subplot(grid[row, view])
-            handle = axis.imshow(
-                data, cmap="viridis", vmin=0, vmax=1, interpolation="nearest"
-            )
-            axis.set_title(
-                "Target · original grid" if row == 1 else "Estimate · original grid",
-                fontsize=15,
-                color="#52667a",
-            )
-            clean_axis(axis)
-            if row == 2:
-                field_handles.append(handle)
-    color_axis = fig.add_axes((0.37, 0.035, 0.26, 0.012))
-    colorbar = fig.colorbar(
-        field_handles[0],
-        cax=color_axis,
-        orientation="horizontal",
-        ticks=[0, 0.35, 0.65, 1],
+    ax.set_title(
+        "Each layer attenuates the light", fontsize=16, color="#17314b", pad=16
     )
-    colorbar.ax.set_title("Transmittance", fontsize=11, pad=6)
-    chart = fig.add_subplot(grid[3, 1:])
-    lines = [
-        chart.plot([], [], color=color, lw=2.5, label=label)[0]
-        for color, label in [
-            ("#127f9b", "With boundary gradients"),
-            ("#c66b39", "Smooth gradients only"),
-        ]
-    ]
-    minimum = min(row["loss"] for values in histories.values() for row in values)
-    maximum = max(row["loss"] for values in histories.values() for row in values)
+    fig.text(
+        0.5,
+        0.15,
+        r"$T(q)=\prod_{f\prec q}(1-\alpha_f)$",
+        ha="center",
+        fontsize=21,
+        color="#17314b",
+    )
+    fig.text(
+        0.5,
+        0.03,
+        "Opacity: blue 0.62, orange 0.78. Where both overlap, 0.38 × 0.22 = 0.0836 of the light remains.",
+        ha="center",
+        fontsize=13,
+        color="#52667a",
+    )
+    fig.subplots_adjust(left=0.025, right=0.98, bottom=0.29, top=0.89, wspace=0.18)
+    fig.savefig(output / "source_features_sampling.png")
+    plt.close(fig)
+
+
+def make_figure(histories, snapshots, images, target):
+    fig = plt.figure(figsize=(16, 11), dpi=100, facecolor="#f5f7fb")
+    grid = fig.add_gridspec(
+        3,
+        3,
+        left=0.035,
+        right=0.975,
+        top=0.845,
+        bottom=0.09,
+        height_ratios=[2.1, 1.25, 1.0],
+        hspace=0.3,
+        wspace=0.14,
+    )
+    renders = []
+    fields = []
+    for light in range(3):
+        ax = fig.add_subplot(grid[0, light])
+        renders.append(ax.imshow(images[0, light]))
+        clean_axis(ax)
+        ax.set_title(
+            f"Light {light + 1}", fontsize=20, color="#17314b", weight="bold", pad=12
+        )
+        sub = grid[1, light].subgridspec(1, 2, wspace=0.08)
+        for col, data in enumerate((target[light], snapshots[0]["field"][light])):
+            ax = fig.add_subplot(sub[0, col])
+            h = ax.imshow(data, vmin=0, vmax=1, cmap="gray", origin="lower")
+            clean_axis(ax)
+            ax.set_title(
+                "Target shadow" if col == 0 else "Fitted shadow",
+                fontsize=13,
+                color="#52667a",
+                pad=10,
+            )
+            if col == 1:
+                fields.append(h)
+    status = fig.add_subplot(grid[2, 0])
+    status.axis("off")
+    step_text = status.text(0.02, 0.88, "", fontsize=23, weight="bold", color="#17314b")
+    alpha_text = status.text(
+        0.02, 0.40, "", fontsize=15, color="#17314b", linespacing=1.5
+    )
+    status.text(0.02, 0.03, "Supervision: shadows only", fontsize=14, color="#52667a")
+    chart = fig.add_subplot(grid[2, 1:])
+    lines = []
+    for color, label in [
+        ("#127f9b", "With boundary gradients"),
+        ("#c66b39", "Smooth gradients only"),
+    ]:
+        lines.append(chart.plot([], [], color=color, label=label, lw=2.4)[0])
+    all_losses = [r["loss"] for rows in histories.values() for r in rows]
     chart.set(
         yscale="log",
         xlim=(0, histories["boundary"][-1]["step"]),
-        ylim=(max(minimum * 0.7, 1e-7), maximum * 1.4),
+        ylim=(max(min(all_losses) * 0.5, 1e-17), max(all_losses) * 2),
         xlabel="Optimization step",
-        ylabel="Original-grid MSE",
+        ylabel="Shadow MSE",
     )
-    chart.set_yticks(
-        [0.002, 0.005, 0.01, 0.02, 0.04], ["0.002", "0.005", "0.01", "0.02", "0.04"]
-    )
-    chart.yaxis.set_minor_formatter(NullFormatter())
     chart.spines[["top", "right"]].set_visible(False)
-    chart.grid(alpha=0.18)
+    chart.grid(alpha=0.2)
     chart.legend(frameon=False, fontsize=12, loc="upper right")
-    status = fig.add_subplot(grid[3, 0])
-    status.axis("off")
-    step_text = status.text(0, 0.78, "", fontsize=22, color="#17314b", weight="bold")
-    alpha_text = status.text(0, 0.46, "", fontsize=15, color="#52667a")
-    fold_text = status.text(0, 0.16, "", fontsize=15, color="#52667a")
     fig.suptitle(
-        "Fitting transmittance in the original grid",
-        fontsize=28,
+        "Differentiable visibility",
+        fontsize=29,
         color="#17314b",
         weight="bold",
-        y=0.975,
+        y=0.985,
     )
     fig.text(
         0.5,
-        0.928,
-        "Gradients from the returned field update the fold and its material opacity.",
+        0.93,
+        "Fit shape, height and opacity from shadows cast by three lights.",
         ha="center",
-        fontsize=17,
+        fontsize=18,
+        color="#52667a",
+    )
+    fig.text(
+        0.5,
+        0.025,
+        "The overlapping translucent surfaces produce darker partial shadows.",
+        ha="center",
+        fontsize=14,
         color="#52667a",
     )
 
     def update(index):
         row = histories["boundary"][index]
-        for view in range(3):
-            render_handles[view].set_data(images[index, view])
-            field_handles[view].set_data(fields[index, view])
-        for line, name in zip(lines, ["boundary", "smooth"], strict=True):
-            partial = histories[name][: index + 1]
-            line.set_data(
-                [item["step"] for item in partial], [item["loss"] for item in partial]
-            )
+        for light in range(3):
+            renders[light].set_data(images[index, light])
+            fields[light].set_data(snapshots[index]["field"][light])
+        for line, name in zip(lines, ("boundary", "smooth"), strict=True):
+            rows = histories[name][: index + 1]
+            line.set_data([r["step"] for r in rows], [r["loss"] for r in rows])
         step_text.set_text(f"Step {row['step']} / {histories['boundary'][-1]['step']}")
-        alpha_text.set_text(f"Opacity: {row['alpha']:.3f}  (target 0.650)")
-        fold_text.set_text(f"Fold offset: {row['fold']:.3f}  (target 0.000)")
+        a, b = row["opacity"]
+        alpha_text.set_text(
+            f"Blue opacity: {a:.3f}  (target 0.620)\nOrange opacity: {b:.3f}  (target 0.780)"
+        )
         fig.canvas.draw()
 
     return fig, update
 
 
-def write_video(output, scene, histories, fields, images, target, fps):
-    fig, update = make_fit_figure(scene, histories, fields, images, target)
-    command = [
-        "ffmpeg",
-        "-y",
-        "-loglevel",
-        "error",
-        "-f",
-        "rawvideo",
-        "-pix_fmt",
-        "rgb24",
-        "-s",
-        "1600x1300",
-        "-r",
-        str(fps),
-        "-i",
-        "-",
-        "-an",
-        "-c:v",
-        "libx264",
-        "-preset",
-        "medium",
-        "-crf",
-        "18",
-        "-pix_fmt",
-        "yuv420p",
-        "-movflags",
-        "+faststart",
-        str(output / "source_features_demo.mp4"),
-    ]
-    process = subprocess.Popen(command, stdin=subprocess.PIPE)
+def write_video(output, histories, snapshots, images, target, fps):
+    fig, update = make_figure(histories, snapshots, images, target)
+    process = subprocess.Popen(
+        [
+            "ffmpeg",
+            "-y",
+            "-loglevel",
+            "error",
+            "-f",
+            "rawvideo",
+            "-pix_fmt",
+            "rgb24",
+            "-s",
+            "1600x1100",
+            "-r",
+            str(fps),
+            "-i",
+            "-",
+            "-an",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "medium",
+            "-crf",
+            "18",
+            "-pix_fmt",
+            "yuv420p",
+            "-movflags",
+            "+faststart",
+            str(output / "source_features_demo.mp4"),
+        ],
+        stdin=subprocess.PIPE,
+    )
     assert process.stdin is not None
-    history = histories["boundary"]
-    stride = max(1, len(history) // 10)
-    for index in range(len(fields)):
-        early = history[index]["step"] <= 0.3 * history[-1]["step"]
-        if not early and index % stride != 0 and index != len(fields) - 1:
-            continue
+    for index in range(len(snapshots)):
         update(index)
         pixels = np.asarray(fig.canvas.buffer_rgba())[:, :, :3].copy().tobytes()
-        repeats = 2 * fps if index in (0, len(fields) - 1) else (3 if early else 1)
-        for _ in range(repeats):
+        repeat = 2 * fps if index in (0, len(snapshots) - 1) else 1
+        for _ in range(repeat):
             process.stdin.write(pixels)
-        if index in (0, len(fields) // 2, len(fields) - 1):
+        if index in (0, len(snapshots) // 2, len(snapshots) - 1):
             fig.savefig(
                 output
-                / f"source_features_step_{histories['boundary'][index]['step']:03d}.png",
-                dpi=100,
+                / f"source_features_step_{histories['boundary'][index]['step']:03d}.png"
             )
     process.stdin.close()
     if process.wait() != 0:
         raise RuntimeError("video encoding failed")
-    fig.savefig(output / "source_features_demo_poster.png", dpi=100)
+    fig.savefig(output / "source_features_demo_poster.png")
     plt.close(fig)
 
 
@@ -528,38 +534,31 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=Path("source_features_demo"))
     parser.add_argument("--steps", type=int, default=400)
-    parser.add_argument("--size", type=int, default=160)
+    parser.add_argument("--size", type=int, default=256)
+    parser.add_argument("--resolution", type=int, default=128)
     parser.add_argument("--fps", type=int, default=12)
     parser.add_argument("--device", default="cuda")
     args = parser.parse_args()
-    if args.steps < 4 or args.size < 32 or args.fps < 1:
-        parser.error("steps must be at least 4, size at least 32, and fps positive")
-    args.output.mkdir(parents=True, exist_ok=True)
-    scene = Scene(args.size, args.device)
-    histories, fields, images, target = fit(scene, args.steps)
-    queries = draw_pullback(args.output, scene, target)
-    write_video(args.output, scene, histories, fields, images, target, args.fps)
-    (args.output / "source_features_demo.json").write_text(
-        json.dumps(
-            {
-                "source_angles": scene.source_angles,
-                "steps": args.steps,
-                "size": args.size,
-                "same_pixel_queries": queries,
-                "histories": histories,
-            },
-            indent=2,
+    if args.steps < 4 or args.size < 32 or args.resolution < 16 or args.fps < 1:
+        parser.error(
+            "steps >= 4, size >= 32, resolution >= 16 and fps >= 1 are required"
         )
-        + "\n"
-    )
+    args.output.mkdir(parents=True, exist_ok=True)
+    scene = Scene(args.size, args.resolution, args.device)
+    checks = check_transmittance(scene)
+    target, history, snapshots = fit(scene, args.steps, True)
+    _, control, _ = fit(scene, args.steps, False)
+    histories = {"boundary": history, "smooth": control}
+    images = np.asarray([render_scene(scene, snapshot) for snapshot in snapshots])
+    draw_explanation(args.output, scene, target)
+    write_video(args.output, histories, snapshots, images, target, args.fps)
     np.savez_compressed(
         args.output / "source_features_fit.npz",
-        fields=fields,
-        images=images,
         target=target,
+        **{key: np.asarray([s[key] for s in snapshots]) for key in snapshots[0]},
     )
-    print(
-        json.dumps({name: values[-1] for name, values in histories.items()}, indent=2)
+    (args.output / "source_features_demo.json").write_text(
+        json.dumps({"checks": checks, "histories": histories}, indent=2)
     )
 
 
