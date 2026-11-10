@@ -51,7 +51,7 @@
     <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Single image hand fitting" href="DRTK_Tutorial_hand_fitting.html" />
+    <link rel="next" title="Keep source features on their surface" href="DRTK_Tutorial_source_features.html" />
     <link rel="prev" title="Rendering meshes" href="DRTK_Tutorial_rendering_meshes.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
@@ -353,6 +353,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Computing Gradients and Fitting</span></p>
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">Learning pixel-grid geometry and topology</a></li>
+<li class="toctree-l1"><a class="reference internal" href="DRTK_Tutorial_source_features.html">Keep source features on their surface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="DRTK_Tutorial_hand_fitting.html">Single image hand fitting</a></li>
 </ul>
 </div>
@@ -477,7 +478,7 @@ and per-edge tensors:</p>
         <span class="k">return</span> <span class="n">alive</span><span class="p">,</span> <span class="n">right</span><span class="p">,</span> <span class="n">down</span>
 </pre></div>
 </div>
-<p>The native builder returns a fixed tuple. Its vertices already include
+<p>The builder returns a fixed tuple. Its vertices already include
 displacement; <code class="docutils literal notranslate"><span class="pre">vt0</span></code> holds original texture coordinates, while <code class="docutils literal notranslate"><span class="pre">vt1</span></code>
 projects the displaced geometry back into the source image. This example
 uses <code class="docutils literal notranslate"><span class="pre">vt0</span></code> to keep the original texture attached to the material:</p>

@@ -644,8 +644,7 @@
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Tensor reference for :func:`pixel_grid_mesh`, supporting CPU and CUDA.</span>
 
 <span class="sd">    See :func:`pixel_grid_mesh` for the complete argument and return-value</span>
-<span class="sd">    contract. This implementation uses tensor operations for correctness</span>
-<span class="sd">    comparisons; the public function uses native CUDA forward/backward.</span>
+<span class="sd">    contract.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">if</span> <span class="n">depth_z</span><span class="o">.</span><span class="n">ndim</span> <span class="o">!=</span> <span class="mi">2</span> <span class="ow">or</span> <span class="nb">min</span><span class="p">(</span><span class="n">depth_z</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;depth_z must have nonempty shape [H, W]&quot;</span><span class="p">)</span>
@@ -772,10 +771,9 @@
     <span class="o">*</span><span class="p">,</span>
     <span class="n">return_metadata</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">PixelGridMesh</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Build a displaced pixel-cell mesh with native CUDA forward/backward.</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Build a displaced pixel-cell mesh with optional cuts and feathered borders.</span>
 
-<span class="sd">    This is the default implementation. It supports float32/float64 CUDA</span>
-<span class="sd">    tensors and first-order gradients.</span>
+<span class="sd">    Supports float32/float64 CUDA tensors and first-order gradients.</span>
 
 <span class="sd">    Args:</span>
 <span class="sd">        depth_z: Positive camera Z depth ``[H, W]`` (float32 or float64).</span>
@@ -809,9 +807,7 @@
 
 <span class="sd">    All tensors must share device; floating inputs must share dtype. Inputs</span>
 <span class="sd">    must be finite, depths/widths valid, and displaced vertices in front of the</span>
-<span class="sd">    source camera. One small device-to-host count transfer allocates compact</span>
-<span class="sd">    output tensors; this is not a CUDA-graph static API. There is no per-cell</span>
-<span class="sd">    host work or tensor-expression geometry backward.</span>
+<span class="sd">    source camera. CUDA graph capture is unsupported.</span>
 
 <span class="sd">    See :func:`pixel_grid_mesh_ref` for the tensor reference implementation.</span>
 <span class="sd">    Vertex/face storage order may differ; use stable face IDs when comparing</span>

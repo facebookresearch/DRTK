@@ -28,6 +28,7 @@ Tutorials
    :hidden:
 
    DRTK_Tutorial_pixel_grid_mesh
+   DRTK_Tutorial_source_features
    DRTK_Tutorial_hand_fitting
 
 .. grid::
@@ -84,3 +85,13 @@ Tutorials
 
         .. image:: ../_static/tutorial_hand_fitting.gif
           :width: 400
+
+.. grid::
+
+    .. grid-item-card:: :doc:`DRTK_Tutorial_source_features`
+
+        Resample features without painting an occluder onto the surface behind it,
+        and optimize source visibility with automatic edge gradients.
+
+        .. image:: ../_static/source_features_demo_poster.png
+           :width: 400

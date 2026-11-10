@@ -13,6 +13,7 @@ The package includes the following modules:
 * :doc:`render`
 * :doc:`transparent_render`
 * :doc:`pixel_grid_mesh`
+* :doc:`source_features`
 * :doc:`interpolate`
 * :doc:`filter2d`
 * :doc:`edge_grad_estimator`
@@ -28,6 +29,7 @@ The package includes the following modules:
    render
    transparent_render
    pixel_grid_mesh
+   source_features
    interpolate
    filter2d
    edge_grad_estimator

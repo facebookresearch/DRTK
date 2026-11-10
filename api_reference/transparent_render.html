@@ -346,6 +346,7 @@
 <li class="toctree-l1"><a class="reference internal" href="render.html">drtk.render</a></li>
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">drtk.transparent_render</a></li>
 <li class="toctree-l1"><a class="reference internal" href="pixel_grid_mesh.html">drtk.pixel_grid_mesh</a></li>
+<li class="toctree-l1"><a class="reference internal" href="source_features.html">drtk.source_features</a></li>
 <li class="toctree-l1"><a class="reference internal" href="interpolate.html">drtk.interpolate</a></li>
 <li class="toctree-l1"><a class="reference internal" href="filter2d.html">drtk.filter2d</a></li>
 <li class="toctree-l1"><a class="reference internal" href="edge_grad_estimator.html">drtk.edge_grad_estimator</a></li>
@@ -464,8 +465,8 @@ small per-fragment appearance network, while
 MLP input may contain up to 32 channels.</p>
 <p>Independent UV sets do not provide automatic visibility or provenance gating.
 When combining original-source features with features sampled at a displaced
-location, the caller must gate samples that belong to another surface and
-provide the appearance model with the required validity information. For
+location, use <a class="reference internal" href="source_features.html#drtk.source_feature_stencil" title="drtk.source_feature_stencil"><code class="xref py py-func docutils literal notranslate"><span class="pre">source_feature_stencil()</span></code></a> and <a class="reference internal" href="source_features.html#drtk.sample_feature_stencil" title="drtk.sample_feature_stencil"><code class="xref py py-func docutils literal notranslate"><span class="pre">sample_feature_stencil()</span></code></a>
+to account for occlusion and supply confidence to the appearance model. For
 example, a hidden chest surface must not consume features from a hand that
 occludes its current projection. Topology and component ownership remain
 upstream responsibilities.</p>
@@ -487,7 +488,7 @@ for sorting. Define foreground weights, accumulated depth, and opacity as</p>
 \[T_i=\prod_{j&lt;i}(1-\alpha_j),\qquad
 S=\sum_i T_i\alpha_i z_i,\qquad
 A=\sum_i T_i\alpha_i.\]</div>
-<p>All six public native/reference functions accept these depth modes:</p>
+<p>All rendering functions and their reference counterparts accept these depth modes:</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <colgroup>
 <col style="width: 22.0%" />
@@ -528,14 +529,13 @@ of the RGB background, and the returned alpha always remains foreground
 opacity. A very distant background produces stronger depth-loss gradients at
 opacity changes and silhouettes.</p>
 <p>Foreground mean defaults to <code class="docutils literal notranslate"><span class="pre">depth_alpha_threshold=1e-6</span></code>. Pixels at or below
-that threshold return background depth with zero smooth depth gradient; the unsafe
-division is never evaluated. Foreground alpha is accumulated from fragment
-weights directly, avoiding cancellation in <code class="docutils literal notranslate"><span class="pre">1</span> <span class="pre">-</span> <span class="pre">transmittance</span></code> near zero.</p>
+that threshold return background depth with zero smooth depth gradient,
+avoiding division by very small opacity.</p>
 <p>Expected, accumulated, and valid foreground-mean depth have smooth geometry
 and opacity gradients while coverage and ordering are fixed. Median has only
 the selected fragment’s smooth depth gradient: its threshold decision does
 not provide a smooth opacity derivative. Mean-depth validity is also a hard
-decision. The native silhouette estimator includes the selected depth mode,
+decision. The silhouette estimator includes the selected depth mode,
 including median; it does not differentiate depth-order swaps or median
 selection changes caused by opacity alone.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">rgb</span><span class="p">,</span> <span class="n">alpha</span><span class="p">,</span> <span class="n">depth</span> <span class="o">=</span> <span class="n">drtk</span><span class="o">.</span><span class="n">render_transparent</span><span class="p">(</span>
@@ -565,14 +565,7 @@ activation does not suppress a nonzero silhouette gradient.</p>
 of per-triangle ordering, topology, triangle intersections, or clipping at the
 image boundary. Separate coincident vertices remain separate geometry; callers
 should share indices where they intend a continuous, jointly moving edge.
-The pure-PyTorch references remain oracles for smooth/interior derivatives;
-the boundary estimator is validated against compositing identities and
-area-integrated references, not infinitesimal differences of hard coverage.</p>
-<p>All edge discovery and queries run on CUDA during geometry backward. Shared
-edges and zero material-opacity boundaries are removed before expensive
-queries. Sparse queries reuse the saved tile lists and replay shading only at
-boundary pixel pairs. No per-pixel sorting or fragment buffer is added, and
-inference and appearance-only differentiation do not run this work.</p>
+The reference functions support smooth/interior derivatives only.</p>
 </section>
 <section id="appearance-activations">
 <h2>Appearance activations<a class="headerlink" href="#appearance-activations" title="Link to this heading">#</a></h2>
@@ -615,12 +608,10 @@ conversion used by Instant-NGP-style volume models. Its raw input is capped at
 15 before exponentiation to avoid overflow. At sufficiently large density,
 float32 can still round the resulting opacity to exactly one; the fragment
 alpha cap below handles that case before compositing.</p>
-<p>Fragment alpha is clamped internally below one before compositing. This fixed
-numeric safeguard prevents division by zero in reverse compositing and is
-not a material parameter. It is applied after the appearance alpha and
-interpolated vertex opacity are multiplied. Backward saves transmittance as a
-scaled product separately from output alpha, so gradients remain valid when
-output alpha rounds to one or an unscaled product underflows.</p>
+<p>Final fragment alpha is capped slightly below one after multiplying
+appearance alpha by interpolated vertex opacity. This fixed numerical limit
+is not a material parameter. Gradients remain defined even when the returned
+image alpha rounds to one.</p>
 <p>Appearance, material-opacity, and upper safety clamps use a unit subgradient
 at an exact endpoint and zero outside the interval. This is an explicit DRTK
 convention shared by the native operators and reference functions; it does not
@@ -647,22 +638,17 @@ including the lower bound on final fragment alpha.</p>
 <dt class="sig sig-object py" id="drtk.render_transparent">
 <span class="sig-prename descclassname"><span class="pre">drtk.</span></span><span class="sig-name descname"><span class="pre">render_transparent</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vi</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">uv</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">texture</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">height</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">width</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">opacity</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">background</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'bilinear'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">padding_mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'border'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transmittance_epsilon</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rgb_activation</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'relu'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha_activation</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'relu_density'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">edge_gradients</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">depth_mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'expected'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">background_depth</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1000.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">depth_alpha_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1e-06</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/drtk/transparent_render.html#render_transparent"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#drtk.render_transparent" title="Link to this definition">#</a></dt>
 <dd><p>Render depth-sorted transparent textured triangles.</p>
-<p>CUDA inference uses a fused 4x4-tiled renderer. Triangle/tile pairs are
-sorted by a stable 64-bit <code class="docutils literal notranslate"><span class="pre">(batch/tile,</span> <span class="pre">center</span> <span class="pre">depth)</span></code> key, and each pixel
-performs perspective-correct texture sampling and front-to-back compositing
-without a materialized fragment buffer. Mean-depth order is approximate:
-intersecting or depth-crossing triangles can need different orders at
-different pixels.</p>
-<p>CUDA backward traverses the same tile list in reverse and differentiates
-compositing, texture sampling, perspective-correct interpolation, and
-opacity. Coverage follows DRTK’s hard top-left rule. Transparent silhouette
-gradients are enabled by default; this adds a rasterized
-boundary estimator to X/Y vertex gradients without changing forward images.
-Ordinary shared mesh edges and zero-opacity edge traces are suppressed.
-Set <code class="docutils literal notranslate"><span class="pre">transmittance_epsilon</span></code> only for inference: nonzero values
-permit early ray termination and therefore define a discrete approximation.</p>
-<p>This optimized entry point requires CUDA. Use
-<a class="reference internal" href="#drtk.render_transparent_ref" title="drtk.render_transparent_ref"><code class="xref py py-func docutils literal notranslate"><span class="pre">render_transparent_ref()</span></code></a> for the CPU correctness implementation.</p>
+<p>Triangles are composited front-to-back in stable mean-camera-depth order,
+with face index breaking ties. Interpolation is perspective-correct.
+Intersecting or depth-crossing triangles can composite in the wrong order;
+per-pixel sorting is not supported.</p>
+<p>Gradients propagate through texture sampling, interpolation, opacity, and
+compositing. Visibility-boundary gradients are enabled by default through
+<code class="docutils literal notranslate"><span class="pre">edge_gradients=True</span></code>. Ordinary shared tessellation edges and zero-alpha
+borders contribute no boundary term. Set <code class="docutils literal notranslate"><span class="pre">transmittance_epsilon</span></code> only
+for inference: nonzero values permit early termination.</p>
+<p>This function requires CUDA. <a class="reference internal" href="#drtk.render_transparent_ref" title="drtk.render_transparent_ref"><code class="xref py py-func docutils literal notranslate"><span class="pre">render_transparent_ref()</span></code></a> is available
+for CPU use and supports smooth gradients only.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -731,7 +717,7 @@ triangle-center depth used for sorting.</p>
 geometry and opacity. Median differentiates the selected fragment’s
 depth, with no smooth opacity gradient through its discrete selection.
 Ordering and the foreground-mean validity test are also discrete.
-Native boundary gradients include the chosen depth output when
+Boundary gradients include the chosen depth output when
 <code class="docutils literal notranslate"><span class="pre">edge_gradients=True</span></code>; reference implementations retain only smooth
 derivatives with coverage fixed.</p>
 </p>
@@ -743,14 +729,10 @@ derivatives with coverage fixed.</p>
 <dt class="sig sig-object py" id="drtk.render_transparent_mlp">
 <span class="sig-prename descclassname"><span class="pre">drtk.</span></span><span class="sig-name descname"><span class="pre">render_transparent_mlp</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vi</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">uv</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">texture</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weights</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">biases</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">height</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">width</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">opacity</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">background</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">negative_slope</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'bilinear'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">padding_mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'border'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transmittance_epsilon</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rgb_activation</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'shifted_relu'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha_activation</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'shifted_relu_density'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">edge_gradients</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">depth_mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'expected'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">background_depth</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1000.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">depth_alpha_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1e-06</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/drtk/transparent_render.html#render_transparent_mlp"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#drtk.render_transparent_mlp" title="Link to this definition">#</a></dt>
 <dd><p>Render transparent triangles from one neural feature texture.</p>
-<p>The fused CUDA kernel samples <code class="docutils literal notranslate"><span class="pre">texture</span></code> at each covered fragment’s
-perspective-correct interpolated <code class="docutils literal notranslate"><span class="pre">uv</span></code>, evaluates a small appearance MLP,
-and immediately composites the resulting RGBA front-to-back. It does not
-materialize a fragment buffer. The MLP has exactly four or five affine
-layers, hidden width eight, and LeakyReLU hidden activations. CUDA backward
-recomputes the sampled features and MLP intermediates per fragment and
-differentiates texture sampling, the MLP, interpolation, compositing,
-vertex position/depth, UV, opacity, background, weights, and biases.</p>
+<p>Samples <code class="docutils literal notranslate"><span class="pre">texture</span></code> at each fragment’s interpolated <code class="docutils literal notranslate"><span class="pre">uv</span></code> and evaluates
+an appearance MLP to obtain RGBA. The MLP must have four or five affine
+layers, hidden width eight, and LeakyReLU hidden activations. Gradients
+propagate to geometry, UVs, texture, opacity, background, weights, and biases.</p>
 <p><code class="docutils literal notranslate"><span class="pre">rgb_activation</span></code> defaults to <code class="docutils literal notranslate"><span class="pre">&quot;shifted_relu&quot;</span></code>, which computes
 <code class="docutils literal notranslate"><span class="pre">max(x</span> <span class="pre">+</span> <span class="pre">0.5,</span> <span class="pre">0)</span></code>. It also accepts <code class="docutils literal notranslate"><span class="pre">&quot;shifted_identity&quot;</span></code> (<code class="docutils literal notranslate"><span class="pre">x</span> <span class="pre">+</span> <span class="pre">0.5</span></code>),
 <code class="docutils literal notranslate"><span class="pre">&quot;sigmoid&quot;</span></code> (<code class="docutils literal notranslate"><span class="pre">sigmoid(x)</span></code>), and <code class="docutils literal notranslate"><span class="pre">&quot;shifted_clamp&quot;</span></code>
@@ -761,7 +743,8 @@ vertex position/depth, UV, opacity, background, weights, and biases.</p>
 exponentiation), and <code class="docutils literal notranslate"><span class="pre">&quot;shifted_clamp&quot;</span></code>.
 The shifts make a zero-centered MLP output represent a useful mid-range
 value. Activation follows feature filtering and MLP evaluation.</p>
-<p>Triangle/tile pairs are stably sorted by ascending mean vertex depth.
+<p>Triangles are composited in ascending mean camera-depth order, with face
+index breaking ties.
 This approximates per-pixel ordering; intersecting or depth-crossing
 triangles may composite in the wrong order. There is no hard z-buffer.
 Hard top-left coverage and clamped interpolated
@@ -839,7 +822,7 @@ triangle-center depth used for sorting.</p>
 geometry and opacity. Median differentiates the selected fragment’s
 depth, with no smooth opacity gradient through its discrete selection.
 Ordering and the foreground-mean validity test are also discrete.
-Native boundary gradients include the chosen depth output when
+Boundary gradients include the chosen depth output when
 <code class="docutils literal notranslate"><span class="pre">edge_gradients=True</span></code>; reference implementations retain only smooth
 derivatives with coverage fixed.</p>
 </p>
@@ -851,16 +834,12 @@ derivatives with coverage fixed.</p>
 <dt class="sig sig-object py" id="drtk.render_transparent_mlp_two_textures">
 <span class="sig-prename descclassname"><span class="pre">drtk.</span></span><span class="sig-name descname"><span class="pre">render_transparent_mlp_two_textures</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vi</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">uv0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">uv1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">texture0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">texture1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weights</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">biases</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">height</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">width</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">opacity</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">background</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">negative_slope</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'bilinear'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">padding_mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'border'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transmittance_epsilon</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rgb_activation</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'shifted_relu'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha_activation</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'shifted_relu_density'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">edge_gradients</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">depth_mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'expected'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">background_depth</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1000.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">depth_alpha_threshold</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1e-06</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/drtk/transparent_render.html#render_transparent_mlp_two_textures"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#drtk.render_transparent_mlp_two_textures" title="Link to this definition">#</a></dt>
 <dd><p>Render transparent triangles from two neural feature textures.</p>
-<p>The fused CUDA kernel samples <code class="docutils literal notranslate"><span class="pre">texture0</span></code> at each covered fragment’s
-perspective-correct interpolated <code class="docutils literal notranslate"><span class="pre">uv0</span></code> and <code class="docutils literal notranslate"><span class="pre">texture1</span></code> at <code class="docutils literal notranslate"><span class="pre">uv1</span></code>. It
-concatenates the feature vectors in that order, evaluates a small
-appearance MLP, and immediately composites the resulting RGBA
-front-to-back without materializing a fragment buffer. The MLP has exactly
-four or five affine layers, hidden width eight, and LeakyReLU hidden
-activations. CUDA backward recomputes the sampled features and MLP
-intermediates per fragment and differentiates both texture samples, the
-MLP, interpolation, compositing, vertex position/depth, both UV sets,
-opacity, background, weights, and biases.</p>
+<p>Samples <code class="docutils literal notranslate"><span class="pre">texture0</span></code> at interpolated <code class="docutils literal notranslate"><span class="pre">uv0</span></code> and <code class="docutils literal notranslate"><span class="pre">texture1</span></code> at <code class="docutils literal notranslate"><span class="pre">uv1</span></code>,
+concatenates their feature vectors in that order, and evaluates an
+appearance MLP to obtain RGBA. The MLP must have four or five affine
+layers, hidden width eight, and LeakyReLU hidden activations. Gradients
+propagate to geometry, both UV sets and textures, opacity, background,
+weights, and biases.</p>
 <p><code class="docutils literal notranslate"><span class="pre">rgb_activation</span></code> defaults to <code class="docutils literal notranslate"><span class="pre">&quot;shifted_relu&quot;</span></code>, which computes
 <code class="docutils literal notranslate"><span class="pre">max(x</span> <span class="pre">+</span> <span class="pre">0.5,</span> <span class="pre">0)</span></code>. It also accepts <code class="docutils literal notranslate"><span class="pre">&quot;shifted_identity&quot;</span></code> (<code class="docutils literal notranslate"><span class="pre">x</span> <span class="pre">+</span> <span class="pre">0.5</span></code>),
 <code class="docutils literal notranslate"><span class="pre">&quot;sigmoid&quot;</span></code> (<code class="docutils literal notranslate"><span class="pre">sigmoid(x)</span></code>), and <code class="docutils literal notranslate"><span class="pre">&quot;shifted_clamp&quot;</span></code>
@@ -871,7 +850,8 @@ opacity, background, weights, and biases.</p>
 exponentiation), and <code class="docutils literal notranslate"><span class="pre">&quot;shifted_clamp&quot;</span></code>.
 The shifts make a zero-centered MLP output represent a useful mid-range
 value. Activation follows feature filtering and MLP evaluation.</p>
-<p>Triangle/tile pairs are stably sorted by ascending mean vertex depth.
+<p>Triangles are composited in ascending mean camera-depth order, with face
+index breaking ties.
 This approximates per-pixel ordering; intersecting or depth-crossing
 triangles may composite in the wrong order. There is no hard z-buffer.
 Hard top-left coverage and clamped interpolated
@@ -956,7 +936,7 @@ triangle-center depth used for sorting.</p>
 geometry and opacity. Median differentiates the selected fragment’s
 depth, with no smooth opacity gradient through its discrete selection.
 Ordering and the foreground-mean validity test are also discrete.
-Native boundary gradients include the chosen depth output when
+Boundary gradients include the chosen depth output when
 <code class="docutils literal notranslate"><span class="pre">edge_gradients=True</span></code>; reference implementations retain only smooth
 derivatives with coverage fixed.</p>
 </p>

@@ -1459,24 +1459,19 @@
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Render depth-sorted transparent textured triangles.</span>
 
-<span class="sd">    CUDA inference uses a fused 4x4-tiled renderer. Triangle/tile pairs are</span>
-<span class="sd">    sorted by a stable 64-bit ``(batch/tile, center depth)`` key, and each pixel</span>
-<span class="sd">    performs perspective-correct texture sampling and front-to-back compositing</span>
-<span class="sd">    without a materialized fragment buffer. Mean-depth order is approximate:</span>
-<span class="sd">    intersecting or depth-crossing triangles can need different orders at</span>
-<span class="sd">    different pixels.</span>
+<span class="sd">    Triangles are composited front-to-back in stable mean-camera-depth order,</span>
+<span class="sd">    with face index breaking ties. Interpolation is perspective-correct.</span>
+<span class="sd">    Intersecting or depth-crossing triangles can composite in the wrong order;</span>
+<span class="sd">    per-pixel sorting is not supported.</span>
 
-<span class="sd">    CUDA backward traverses the same tile list in reverse and differentiates</span>
-<span class="sd">    compositing, texture sampling, perspective-correct interpolation, and</span>
-<span class="sd">    opacity. Coverage follows DRTK&#39;s hard top-left rule. Transparent silhouette</span>
-<span class="sd">    gradients are enabled by default; this adds a rasterized</span>
-<span class="sd">    boundary estimator to X/Y vertex gradients without changing forward images.</span>
-<span class="sd">    Ordinary shared mesh edges and zero-opacity edge traces are suppressed.</span>
-<span class="sd">    Set ``transmittance_epsilon`` only for inference: nonzero values</span>
-<span class="sd">    permit early ray termination and therefore define a discrete approximation.</span>
+<span class="sd">    Gradients propagate through texture sampling, interpolation, opacity, and</span>
+<span class="sd">    compositing. Visibility-boundary gradients are enabled by default through</span>
+<span class="sd">    ``edge_gradients=True``. Ordinary shared tessellation edges and zero-alpha</span>
+<span class="sd">    borders contribute no boundary term. Set ``transmittance_epsilon`` only</span>
+<span class="sd">    for inference: nonzero values permit early termination.</span>
 
-<span class="sd">    This optimized entry point requires CUDA. Use</span>
-<span class="sd">    :func:`render_transparent_ref` for the CPU correctness implementation.</span>
+<span class="sd">    This function requires CUDA. :func:`render_transparent_ref` is available</span>
+<span class="sd">    for CPU use and supports smooth gradients only.</span>
 
 <span class="sd">    Args:</span>
 <span class="sd">        v: Screen-space vertices ``[N, V, 3]``. X/Y use DRTK pixel coordinates</span>
@@ -1546,7 +1541,7 @@
 <span class="sd">        geometry and opacity. Median differentiates the selected fragment&#39;s</span>
 <span class="sd">        depth, with no smooth opacity gradient through its discrete selection.</span>
 <span class="sd">        Ordering and the foreground-mean validity test are also discrete.</span>
-<span class="sd">        Native boundary gradients include the chosen depth output when</span>
+<span class="sd">        Boundary gradients include the chosen depth output when</span>
 <span class="sd">        ``edge_gradients=True``; reference implementations retain only smooth</span>
 <span class="sd">        derivatives with coverage fixed.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -1619,14 +1614,10 @@
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Render transparent triangles from one neural feature texture.</span>
 
-<span class="sd">    The fused CUDA kernel samples ``texture`` at each covered fragment&#39;s</span>
-<span class="sd">    perspective-correct interpolated ``uv``, evaluates a small appearance MLP,</span>
-<span class="sd">    and immediately composites the resulting RGBA front-to-back. It does not</span>
-<span class="sd">    materialize a fragment buffer. The MLP has exactly four or five affine</span>
-<span class="sd">    layers, hidden width eight, and LeakyReLU hidden activations. CUDA backward</span>
-<span class="sd">    recomputes the sampled features and MLP intermediates per fragment and</span>
-<span class="sd">    differentiates texture sampling, the MLP, interpolation, compositing,</span>
-<span class="sd">    vertex position/depth, UV, opacity, background, weights, and biases.</span>
+<span class="sd">    Samples ``texture`` at each fragment&#39;s interpolated ``uv`` and evaluates</span>
+<span class="sd">    an appearance MLP to obtain RGBA. The MLP must have four or five affine</span>
+<span class="sd">    layers, hidden width eight, and LeakyReLU hidden activations. Gradients</span>
+<span class="sd">    propagate to geometry, UVs, texture, opacity, background, weights, and biases.</span>
 
 <span class="sd">    ``rgb_activation`` defaults to ``&quot;shifted_relu&quot;``, which computes</span>
 <span class="sd">    ``max(x + 0.5, 0)``. It also accepts ``&quot;shifted_identity&quot;`` (``x + 0.5``),</span>
@@ -1639,7 +1630,8 @@
 <span class="sd">    The shifts make a zero-centered MLP output represent a useful mid-range</span>
 <span class="sd">    value. Activation follows feature filtering and MLP evaluation.</span>
 
-<span class="sd">    Triangle/tile pairs are stably sorted by ascending mean vertex depth.</span>
+<span class="sd">    Triangles are composited in ascending mean camera-depth order, with face</span>
+<span class="sd">    index breaking ties.</span>
 <span class="sd">    This approximates per-pixel ordering; intersecting or depth-crossing</span>
 <span class="sd">    triangles may composite in the wrong order. There is no hard z-buffer.</span>
 <span class="sd">    Hard top-left coverage and clamped interpolated</span>
@@ -1719,7 +1711,7 @@
 <span class="sd">        geometry and opacity. Median differentiates the selected fragment&#39;s</span>
 <span class="sd">        depth, with no smooth opacity gradient through its discrete selection.</span>
 <span class="sd">        Ordering and the foreground-mean validity test are also discrete.</span>
-<span class="sd">        Native boundary gradients include the chosen depth output when</span>
+<span class="sd">        Boundary gradients include the chosen depth output when</span>
 <span class="sd">        ``edge_gradients=True``; reference implementations retain only smooth</span>
 <span class="sd">        derivatives with coverage fixed.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
@@ -1782,16 +1774,12 @@
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Render transparent triangles from two neural feature textures.</span>
 
-<span class="sd">    The fused CUDA kernel samples ``texture0`` at each covered fragment&#39;s</span>
-<span class="sd">    perspective-correct interpolated ``uv0`` and ``texture1`` at ``uv1``. It</span>
-<span class="sd">    concatenates the feature vectors in that order, evaluates a small</span>
-<span class="sd">    appearance MLP, and immediately composites the resulting RGBA</span>
-<span class="sd">    front-to-back without materializing a fragment buffer. The MLP has exactly</span>
-<span class="sd">    four or five affine layers, hidden width eight, and LeakyReLU hidden</span>
-<span class="sd">    activations. CUDA backward recomputes the sampled features and MLP</span>
-<span class="sd">    intermediates per fragment and differentiates both texture samples, the</span>
-<span class="sd">    MLP, interpolation, compositing, vertex position/depth, both UV sets,</span>
-<span class="sd">    opacity, background, weights, and biases.</span>
+<span class="sd">    Samples ``texture0`` at interpolated ``uv0`` and ``texture1`` at ``uv1``,</span>
+<span class="sd">    concatenates their feature vectors in that order, and evaluates an</span>
+<span class="sd">    appearance MLP to obtain RGBA. The MLP must have four or five affine</span>
+<span class="sd">    layers, hidden width eight, and LeakyReLU hidden activations. Gradients</span>
+<span class="sd">    propagate to geometry, both UV sets and textures, opacity, background,</span>
+<span class="sd">    weights, and biases.</span>
 
 <span class="sd">    ``rgb_activation`` defaults to ``&quot;shifted_relu&quot;``, which computes</span>
 <span class="sd">    ``max(x + 0.5, 0)``. It also accepts ``&quot;shifted_identity&quot;`` (``x + 0.5``),</span>
@@ -1804,7 +1792,8 @@
 <span class="sd">    The shifts make a zero-centered MLP output represent a useful mid-range</span>
 <span class="sd">    value. Activation follows feature filtering and MLP evaluation.</span>
 
-<span class="sd">    Triangle/tile pairs are stably sorted by ascending mean vertex depth.</span>
+<span class="sd">    Triangles are composited in ascending mean camera-depth order, with face</span>
+<span class="sd">    index breaking ties.</span>
 <span class="sd">    This approximates per-pixel ordering; intersecting or depth-crossing</span>
 <span class="sd">    triangles may composite in the wrong order. There is no hard z-buffer.</span>
 <span class="sd">    Hard top-left coverage and clamped interpolated</span>
@@ -1892,7 +1881,7 @@
 <span class="sd">        geometry and opacity. Median differentiates the selected fragment&#39;s</span>
 <span class="sd">        depth, with no smooth opacity gradient through its discrete selection.</span>
 <span class="sd">        Ordering and the foreground-mean validity test are also discrete.</span>
-<span class="sd">        Native boundary gradients include the chosen depth output when</span>
+<span class="sd">        Boundary gradients include the chosen depth output when</span>
 <span class="sd">        ``edge_gradients=True``; reference implementations retain only smooth</span>
 <span class="sd">        derivatives with coverage fixed.</span>
 <span class="sd">    &quot;&quot;&quot;</span>

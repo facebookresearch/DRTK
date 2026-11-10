@@ -49,7 +49,7 @@
     <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="drtk.interpolate" href="interpolate.html" />
+    <link rel="next" title="drtk.source_features" href="source_features.html" />
     <link rel="prev" title="drtk.transparent_render" href="transparent_render.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
@@ -344,6 +344,7 @@
 <li class="toctree-l1"><a class="reference internal" href="render.html">drtk.render</a></li>
 <li class="toctree-l1"><a class="reference internal" href="transparent_render.html">drtk.transparent_render</a></li>
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">drtk.pixel_grid_mesh</a></li>
+<li class="toctree-l1"><a class="reference internal" href="source_features.html">drtk.source_features</a></li>
 <li class="toctree-l1"><a class="reference internal" href="interpolate.html">drtk.interpolate</a></li>
 <li class="toctree-l1"><a class="reference internal" href="filter2d.html">drtk.filter2d</a></li>
 <li class="toctree-l1"><a class="reference internal" href="edge_grad_estimator.html">drtk.edge_grad_estimator</a></li>
@@ -425,7 +426,7 @@
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table">
 <tbody>
 <tr class="row-odd"><td><p><a class="reference internal" href="#drtk.pixel_grid_mesh" title="drtk.pixel_grid_mesh"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pixel_grid_mesh</span></code></a></p></td>
-<td><p>Build a displaced pixel-cell mesh with native CUDA forward/backward.</p></td>
+<td><p>Build a displaced pixel-cell mesh with optional cuts and feathered borders.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#drtk.bernoulli_topology_samples" title="drtk.bernoulli_topology_samples"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bernoulli_topology_samples</span></code></a></p></td>
 <td><p>Sample two correlated hard topologies for the ARM estimator.</p></td>
@@ -448,9 +449,8 @@ a rendered optimization example.</p>
 <dl class="py function">
 <dt class="sig sig-object py" id="drtk.pixel_grid_mesh">
 <span class="sig-prename descclassname"><span class="pre">drtk.</span></span><span class="sig-name descname"><span class="pre">pixel_grid_mesh</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">depth_z</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">displacement_xyz</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">intrinsics</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alive</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">join_right</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">join_down</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">diagonal</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">feather_width</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_metadata</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/drtk/pixel_grid_mesh.html#pixel_grid_mesh"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#drtk.pixel_grid_mesh" title="Link to this definition">#</a></dt>
-<dd><p>Build a displaced pixel-cell mesh with native CUDA forward/backward.</p>
-<p>This is the default implementation. It supports float32/float64 CUDA
-tensors and first-order gradients.</p>
+<dd><p>Build a displaced pixel-cell mesh with optional cuts and feathered borders.</p>
+<p>Supports float32/float64 CUDA tensors and first-order gradients.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -487,9 +487,7 @@ None. No optional tuple slot is omitted.</p>
 </dl>
 <p>All tensors must share device; floating inputs must share dtype. Inputs
 must be finite, depths/widths valid, and displaced vertices in front of the
-source camera. One small device-to-host count transfer allocates compact
-output tensors; this is not a CUDA-graph static API. There is no per-cell
-host work or tensor-expression geometry backward.</p>
+source camera. CUDA graph capture is unsupported.</p>
 <p>See <a class="reference internal" href="#drtk.pixel_grid_mesh_ref" title="drtk.pixel_grid_mesh_ref"><code class="xref py py-func docutils literal notranslate"><span class="pre">pixel_grid_mesh_ref()</span></code></a> for the tensor reference implementation.
 Vertex/face storage order may differ; use stable face IDs when comparing
 geometry.</p>
@@ -563,8 +561,7 @@ the underlying correlated samples for custom estimators.</p>
 <span class="sig-prename descclassname"><span class="pre">drtk.</span></span><span class="sig-name descname"><span class="pre">pixel_grid_mesh_ref</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">depth_z</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">displacement_xyz</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">intrinsics</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alive</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">join_right</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">join_down</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">diagonal</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">feather_width</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_metadata</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/drtk/pixel_grid_mesh.html#pixel_grid_mesh_ref"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#drtk.pixel_grid_mesh_ref" title="Link to this definition">#</a></dt>
 <dd><p>Tensor reference for <a class="reference internal" href="#drtk.pixel_grid_mesh" title="drtk.pixel_grid_mesh"><code class="xref py py-func docutils literal notranslate"><span class="pre">pixel_grid_mesh()</span></code></a>, supporting CPU and CUDA.</p>
 <p>See <a class="reference internal" href="#drtk.pixel_grid_mesh" title="drtk.pixel_grid_mesh"><code class="xref py py-func docutils literal notranslate"><span class="pre">pixel_grid_mesh()</span></code></a> for the complete argument and return-value
-contract. This implementation uses tensor operations for correctness
-comparisons; the public function uses native CUDA forward/backward.</p>
+contract.</p>
 </dd></dl>
 
 </section>

@@ -60,7 +60,7 @@ and per-edge tensors:
    :language: python
    :pyobject: Scene.topology
 
-The native builder returns a fixed tuple. Its vertices already include
+The builder returns a fixed tuple. Its vertices already include
 displacement; ``vt0`` holds original texture coordinates, while ``vt1``
 projects the displaced geometry back into the source image. This example
 uses ``vt0`` to keep the original texture attached to the material:

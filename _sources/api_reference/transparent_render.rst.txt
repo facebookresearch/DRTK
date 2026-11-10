@@ -33,8 +33,8 @@ MLP input may contain up to 32 channels.
 
 Independent UV sets do not provide automatic visibility or provenance gating.
 When combining original-source features with features sampled at a displaced
-location, the caller must gate samples that belong to another surface and
-provide the appearance model with the required validity information. For
+location, use :func:`source_feature_stencil` and :func:`sample_feature_stencil`
+to account for occlusion and supply confidence to the appearance model. For
 example, a hidden chest surface must not consume features from a hand that
 occludes its current projection. Topology and component ownership remain
 upstream responsibilities.
@@ -62,7 +62,7 @@ for sorting. Define foreground weights, accumulated depth, and opacity as
    S=\sum_i T_i\alpha_i z_i,\qquad
    A=\sum_i T_i\alpha_i.
 
-All six public native/reference functions accept these depth modes:
+All rendering functions and their reference counterparts accept these depth modes:
 
 .. list-table::
    :header-rows: 1
@@ -93,15 +93,14 @@ opacity. A very distant background produces stronger depth-loss gradients at
 opacity changes and silhouettes.
 
 Foreground mean defaults to ``depth_alpha_threshold=1e-6``. Pixels at or below
-that threshold return background depth with zero smooth depth gradient; the unsafe
-division is never evaluated. Foreground alpha is accumulated from fragment
-weights directly, avoiding cancellation in ``1 - transmittance`` near zero.
+that threshold return background depth with zero smooth depth gradient,
+avoiding division by very small opacity.
 
 Expected, accumulated, and valid foreground-mean depth have smooth geometry
 and opacity gradients while coverage and ordering are fixed. Median has only
 the selected fragment's smooth depth gradient: its threshold decision does
 not provide a smooth opacity derivative. Mean-depth validity is also a hard
-decision. The native silhouette estimator includes the selected depth mode,
+decision. The silhouette estimator includes the selected depth mode,
 including median; it does not differentiate depth-order swaps or median
 selection changes caused by opacity alone.
 
@@ -136,15 +135,7 @@ Only vertex X/Y gradients receive this extra term. There are no derivatives
 of per-triangle ordering, topology, triangle intersections, or clipping at the
 image boundary. Separate coincident vertices remain separate geometry; callers
 should share indices where they intend a continuous, jointly moving edge.
-The pure-PyTorch references remain oracles for smooth/interior derivatives;
-the boundary estimator is validated against compositing identities and
-area-integrated references, not infinitesimal differences of hard coverage.
-
-All edge discovery and queries run on CUDA during geometry backward. Shared
-edges and zero material-opacity boundaries are removed before expensive
-queries. Sparse queries reuse the saved tile lists and replay shading only at
-boundary pixel pairs. No per-pixel sorting or fragment buffer is added, and
-inference and appearance-only differentiation do not run this work.
+The reference functions support smooth/interior derivatives only.
 
 Appearance activations
 ----------------------
@@ -194,12 +185,10 @@ conversion used by Instant-NGP-style volume models. Its raw input is capped at
 float32 can still round the resulting opacity to exactly one; the fragment
 alpha cap below handles that case before compositing.
 
-Fragment alpha is clamped internally below one before compositing. This fixed
-numeric safeguard prevents division by zero in reverse compositing and is
-not a material parameter. It is applied after the appearance alpha and
-interpolated vertex opacity are multiplied. Backward saves transmittance as a
-scaled product separately from output alpha, so gradients remain valid when
-output alpha rounds to one or an unscaled product underflows.
+Final fragment alpha is capped slightly below one after multiplying
+appearance alpha by interpolated vertex opacity. This fixed numerical limit
+is not a material parameter. Gradients remain defined even when the returned
+image alpha rounds to one.
 
 Appearance, material-opacity, and upper safety clamps use a unit subgradient
 at an exact endpoint and zero outside the interval. This is an explicit DRTK

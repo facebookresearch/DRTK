@@ -95,7 +95,7 @@ Gradient scope
 --------------
 
 Gradients to vertex positions include smooth shading and compositing
-derivatives. The native CUDA renderers also enable a silhouette-gradient
+derivatives. The renderers also enable a silhouette-gradient
 estimator by default through ``edge_gradients=True``. It handles visible
 coverage boundaries, including nonzero-opacity contours; ordinary shared
 tessellation edges and zero-alpha outer boundaries contribute no extra jump.

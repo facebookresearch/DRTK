@@ -351,6 +351,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Computing Gradients and Fitting</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="DRTK_Tutorial_pixel_grid_mesh.html">Learning pixel-grid geometry and topology</a></li>
+<li class="toctree-l1"><a class="reference internal" href="DRTK_Tutorial_source_features.html">Keep source features on their surface</a></li>
 <li class="toctree-l1"><a class="reference internal" href="DRTK_Tutorial_hand_fitting.html">Single image hand fitting</a></li>
 </ul>
 </div>
@@ -503,7 +504,7 @@ the same geometry, sorting, and compositing model.</p>
 <section id="gradient-scope">
 <h2>Gradient scope<a class="headerlink" href="#gradient-scope" title="Link to this heading">#</a></h2>
 <p>Gradients to vertex positions include smooth shading and compositing
-derivatives. The native CUDA renderers also enable a silhouette-gradient
+derivatives. The renderers also enable a silhouette-gradient
 estimator by default through <code class="docutils literal notranslate"><span class="pre">edge_gradients=True</span></code>. It handles visible
 coverage boundaries, including nonzero-opacity contours; ordinary shared
 tessellation edges and zero-alpha outer boundaries contribute no extra jump.</p>

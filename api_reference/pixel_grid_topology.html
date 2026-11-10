@@ -345,6 +345,7 @@
 <li class="toctree-l1"><a class="reference internal" href="render.html">drtk.render</a></li>
 <li class="toctree-l1"><a class="reference internal" href="transparent_render.html">drtk.transparent_render</a></li>
 <li class="toctree-l1"><a class="reference internal" href="pixel_grid_mesh.html">drtk.pixel_grid_mesh</a></li>
+<li class="toctree-l1"><a class="reference internal" href="source_features.html">drtk.source_features</a></li>
 <li class="toctree-l1"><a class="reference internal" href="interpolate.html">drtk.interpolate</a></li>
 <li class="toctree-l1"><a class="reference internal" href="filter2d.html">drtk.filter2d</a></li>
 <li class="toctree-l1"><a class="reference internal" href="edge_grad_estimator.html">drtk.edge_grad_estimator</a></li>
@@ -490,12 +491,11 @@ become <code class="docutils literal notranslate"><span class="pre">None</span><
 </tbody>
 </table>
 </div>
-<p>The first implementation operates on one grid per call. Call it per example
+<p>The function operates on one grid per call. Call it per example
 for a ragged batch; do not treat different examples as one connected grid.
 Floating inputs share float32/float64 dtype and device; hard decisions are bool.
 Depth, K, displacement, and widths must be finite and geometrically valid. The
-displaced surface must remain in front of the source camera. Metadata/shape
-validation is at the API boundary, not repeated in pixel loops.</p>
+displaced surface must remain in front of the source camera.</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
 <tr class="row-odd"><th class="head"><p>Output</p></th>
@@ -529,17 +529,15 @@ validation is at the API boundary, not repeated in pixel loops.</p>
 </div>
 <p>Faces are emitted in increasing stable-ID order, including strips. Removing
 unrelated cells preserves relative tie order for the renderer’s equal-depth
-triangles. Native and reference implementations use the same order.</p>
+triangles. The reference function uses the same order.</p>
 <p><code class="docutils literal notranslate"><span class="pre">vertex_opacity</span></code> defines the boundary fade. Pass it as
 <code class="docutils literal notranslate"><span class="pre">opacity=vertex_opacity</span></code> to the transparent renderer to multiply the appearance
 alpha. None means an all-one multiplier.</p>
 <p>Project <code class="docutils literal notranslate"><span class="pre">v</span></code> into the desired target camera before rendering: the transparent
-renderer accepts target pixel XY and camera Z, not source-camera XYZ. Both UVs
-use the existing 2D interpolation; no homogeneous/projective-UV extension is
-introduced in this version. Exact projective resampling is deliberately deferred
-because the triangles are small. Source visibility/provenance gating remains
-the caller’s responsibility; a reprojected UV alone does not establish that the
-source feature belongs to this surface.</p>
+renderer accepts target pixel XY and camera Z, not source-camera XYZ. Both UVs use 2D interpolation. A reprojected UV alone does not establish
+that the source feature belongs to this surface. Use
+<a class="reference internal" href="source_features.html"><span class="std std-doc">source-feature sampling</span></a> to account for occlusion when
+transferring features to the deformed mesh.</p>
 </section>
 <section id="pixel-and-camera-convention">
 <h2>Pixel and camera convention<a class="headerlink" href="#pixel-and-camera-convention" title="Link to this heading">#</a></h2>
@@ -547,9 +545,8 @@ source feature belongs to this surface.</p>
 (x±0.5,y±0.5). Normalized texture UV is ((x+0.5)/W,(y+0.5)/H), without a vertical
 flip. A K resized by sx,sy needs fx’=sx·fx and cx’=sx·(cx+0.5)−0.5, and likewise
 for Y. The same convention must be used when resizing the source image and its camera.</p>
-<p>Camera Z and camera-space displacement are sufficient. There is no inverse-depth
-plane fitting in this implementation. World/placement transforms remain outside
-the builder.</p>
+<p>Depth is camera Z; displacement is expressed in the same camera frame.
+Apply world and placement transforms after building the mesh.</p>
 </section>
 <section id="cuts-and-corner-sharing">
 <h2>Cuts and corner sharing<a class="headerlink" href="#cuts-and-corner-sharing" title="Link to this heading">#</a></h2>
@@ -610,7 +607,7 @@ render gradients. The zero-alpha outer contour contributes no artificial
 coverage jump to the existing edge estimator.</p>
 <p>This is a <strong>local extrusion</strong>, not global polygon offset/Boolean surgery.
 Large widths, acute crack tips, nearby opposing boundaries, and folded geometry
-can cause strip overlap. The initial implementation does not claim to eliminate
+can cause strip overlap. The builder does not eliminate
 those intersections or compensate their alpha. Keep strips narrow; test the
 zero-feather baseline. Global overlap resolution and learned width policies are
 separate work. Miter/bevel switching is also discrete.</p>
@@ -651,18 +648,13 @@ deterministic function of the sampled bits. Do not replace it with a detached
 logit-dependent repair. A cut with no rendering consequence has zero expected
 loss gradient; nearby views, geometry evidence and initialization matter.</p>
 </section>
-<section id="native-implementation-and-limitations">
-<h2>Native implementation and limitations<a class="headerlink" href="#native-implementation-and-limitations" title="Link to this heading">#</a></h2>
-<p><code class="docutils literal notranslate"><span class="pre">pixel_grid_mesh</span></code> uses a native CUDA extension for topology realization, corner
-fitting, output compaction, triangulation, feather construction, and backward.
-<code class="docutils literal notranslate"><span class="pre">pixel_grid_mesh_ref</span></code> provides a tensor implementation for CPU/CUDA correctness
-comparisons. The default path does not silently fall back to that implementation.</p>
-<p>Native corner fans contain at most four cells. GPU prefix scans compute compact
-vertex and triangle offsets. One small count transfer determines allocation
-sizes; the native path is therefore not CUDA-graph static. Backward differentiates
-positions, source UV reprojection, and strip geometry into depth, displacement,
-intrinsics, and width. First-order gradients are supported; floating-point atomic
-accumulation can differ in its last bits between runs.</p>
+<section id="supported-inputs-and-limitations">
+<h2>Supported inputs and limitations<a class="headerlink" href="#supported-inputs-and-limitations" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">pixel_grid_mesh</span></code> accepts float32/float64 CUDA tensors. Its reference counterpart
+also supports CPU tensors. CUDA graph capture is unsupported. First-order
+gradients propagate from positions, reprojected UVs, and feather geometry to
+depth, displacement, intrinsics, and feather width. Backward is not guaranteed
+to be bitwise deterministic.</p>
 <p>The ARM estimator can have high variance on large grids. Increasing the pair
 count trades additional evaluations for lower sampling variance. Geometry
 regularization, loss design, optimization schedules, and convergence remain the
@@ -671,13 +663,6 @@ masking evaluation by predicted visibility can hide missing geometry.</p>
 <p>The renderer’s per-triangle ordering and analytic continuous gradients are
 unchanged. The builder does not add per-pixel depth sorting, global feather
 intersection repair, or a geometry-validity constraint.</p>
-</section>
-<section id="validation">
-<h2>Validation<a class="headerlink" href="#validation" title="Link to this heading">#</a></h2>
-<p>The regression suite covers an independent local-topology oracle, cut tips and boundary cases,
-native/reference geometry and gradients, finite differences, feathering, empty
-meshes, stable face ordering, and exact expected-rendered-loss gradients for the
-stochastic helper.</p>
 </section>
 <section id="references">
 <h2>References<a class="headerlink" href="#references" title="Link to this heading">#</a></h2>
@@ -719,8 +704,7 @@ Networks</a>.</p></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#closed-form-displaced-corners-and-diagonals">Closed-form displaced corners and diagonals</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#optional-boundary-feathering">Optional boundary feathering</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#stochastic-topology-objective">Stochastic topology objective</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#native-implementation-and-limitations">Native implementation and limitations</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#validation">Validation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#supported-inputs-and-limitations">Supported inputs and limitations</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#references">References</a></li>
 </ul>
   </nav></div>
