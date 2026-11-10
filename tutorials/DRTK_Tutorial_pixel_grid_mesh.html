@@ -51,7 +51,7 @@
     <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
-    <link rel="next" title="Keep source features on their surface" href="DRTK_Tutorial_source_features.html" />
+    <link rel="next" title="Sampling features with source visibility" href="DRTK_Tutorial_source_features.html" />
     <link rel="prev" title="Rendering meshes" href="DRTK_Tutorial_rendering_meshes.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
@@ -353,7 +353,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Computing Gradients and Fitting</span></p>
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">Learning pixel-grid geometry and topology</a></li>
-<li class="toctree-l1"><a class="reference internal" href="DRTK_Tutorial_source_features.html">Keep source features on their surface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="DRTK_Tutorial_source_features.html">Sampling features with source visibility</a></li>
 <li class="toctree-l1"><a class="reference internal" href="DRTK_Tutorial_hand_fitting.html">Single image hand fitting</a></li>
 </ul>
 </div>
@@ -438,13 +438,13 @@ The second row shows a viewpoint not used for training.</span><a class="headerli
 with corners on source-pixel boundaries. The fixed texture mixes broad color
 variation with a grid and dots, making deformation visible in both smooth
 regions and fine detail.</p>
-<p>For a small, readable example, five logits control groups of cells or edges:
+<p>Five logits control groups of cells or edges:
 three candidate patches can be present or absent, and two candidate seams can
 be joined or separated. The target removes two patches and opens the vertical
 seam; it keeps the third patch and the horizontal seam connected.
 The mesh builder itself accepts a decision for every cell and neighbor pair.
-Grouping decisions here keeps the stochastic optimization small enough to
-inspect directly.</p>
+These grouped decisions make the topology probabilities easy to follow
+during optimization.</p>
 <p>Geometry uses eighteen coefficients: six fixed spatial basis functions for
 each of X, Y, and Z displacement. The depth map, camera intrinsics, texture,
 diagonals, and feather width stay fixed. All geometry coefficients and topology
@@ -509,8 +509,7 @@ and a fixed RGB texture with <code class="docutils literal notranslate"><span cl
 \operatorname{MSE}(C, C^\star)
 + 0.25\,\operatorname{MSE}(A, A^\star),\]</div>
 <p>where <span class="math notranslate nohighlight">\(C\)</span> is premultiplied color and <span class="math notranslate nohighlight">\(A\)</span> is accumulated alpha.
-The target mesh only generates these supervision images. Its vertex positions,
-alive labels, and join labels are not losses supplied to the optimizer.
+Training is supervised by the color and alpha images from the three views.
 The dark background in the figures is added for display after rendering.
 The renderer also returns depth; this example discards it and keeps the
 RGB/alpha objective shown above. See <a class="reference internal" href="../api_reference/transparent_render.html"><span class="doc">drtk.transparent_render</span></a>
@@ -567,9 +566,7 @@ uses the complete loss helper directly.</p>
   <source src="../_static/pixel_grid_mesh_demo.mp4" type="video/mp4">
   <p><a href="../_static/pixel_grid_mesh_demo.mp4">Download the optimization video.</a></p>
 </video><p>The video shows saved optimizer states, with the current probabilities and
-the hard mesh obtained by thresholding them at 0.5. The final camera motion
-changes only the viewpoint. No parameters are interpolated between recorded
-states.</p>
+the hard mesh obtained by thresholding them at 0.5. The final camera motion shows the fitted mesh from several viewpoints.</p>
 <figure class="align-default" id="id3">
 <a class="reference internal image-reference" href="../_images/pixel_grid_mesh_demo_learning.png"><img alt="Rendered-loss curve and the five topology probabilities over optimization iterations" src="../_images/pixel_grid_mesh_demo_learning.png" style="width: 100%;" />
 </a>
@@ -580,11 +577,9 @@ loss. The two quantities need not decrease monotonically together.</span><a clas
 </figcaption>
 </figure>
 <p>The saved run recovers the five intended hard decisions and substantially
-reduces rendered error, with a small residual geometric mismatch. This is a
-controlled example with grouped decisions and a smooth deformation basis;
-it does not establish convergence for unrestricted per-cell topology and
-geometry. More decisions can increase estimator variance, and geometry can
-sometimes compensate for an incorrect topology.</p>
+reduces rendered error, with a small residual geometric mismatch. This example uses grouped decisions and a smooth deformation basis. Larger
+problems can have higher estimator variance, and geometry can sometimes
+compensate for an incorrect topology.</p>
 </section>
 <section id="run-the-example">
 <h2>Run the example<a class="headerlink" href="#run-the-example" title="Link to this heading">#</a></h2>

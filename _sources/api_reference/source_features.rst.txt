@@ -11,44 +11,54 @@ drtk.source_features
     source_feature_stencil_ref
     sample_feature_stencil_ref
 
-Sample source-image features onto a deformed surface while respecting
-occlusion, cuts, and local surface ownership. Gradients propagate to the
-source features, receiving surface, and occluding geometry.
+Sample image features at points on a mesh, weighted by their visibility from
+the source camera. The outputs are a feature vector and visibility confidence
+for each point. Gradients propagate to features, surface positions, and
+occluding geometry.
 
-See :doc:`../tutorials/DRTK_Tutorial_source_features` for a rendered example,
-an optimization visualization, and the complete runnable script.
+See :doc:`../tutorials/DRTK_Tutorial_source_features` for an example.
 
-Two reusable operations
------------------------
+Sampling features
+-----------------
 
-``source_feature_stencil`` computes four texel indices and four weights per
-surface query. ``sample_feature_stencil`` applies them to arbitrary-channel
-feature maps. Reuse the same stencil across feature banks on the same grid,
-within the same geometry evaluation. Rebuild it after changing geometry,
-topology, opacity, or the source camera.
+:func:`source_feature_stencil` computes the four source texels and weights
+for each surface query. :func:`sample_feature_stencil` gathers their features:
 
-Queries are attached to a face by **3D barycentric coordinates**. A floating
-point depth comparison cannot disambiguate two overlapping surfaces. Each tap
-instead follows the query's local surface through indexed manifold neighbors.
-Open boundaries, cuts, projected folds, and nonmanifold ambiguity stop that
-continuation. Global connected-component identity is insufficient: one
-connected mesh can occlude itself.
+.. code-block:: python
 
-For receiver face :math:`r`, source visibility is the transmittance of the
-faces preceding it in the transparent renderer's stable mean-depth/face-index
-order:
+   indices, weights, _, _ = source_feature_stencil(
+       v_pix, faces, query_faces, query_barycentrics, height, width,
+       vertex_opacity=opacity,
+   )
+   sampled, confidence = sample_feature_stencil(features, indices, weights)
+
+A query is specified by a face ID and 3D barycentric coordinates. Each
+bilinear tap must lie on the query's local surface. The surface continues
+through shared manifold edges and ends at cuts, projected folds, and
+nonmanifold junctions. Occlusion is evaluated at each tap, including
+self-occlusion within a connected mesh.
+
+The same indices and weights can sample several feature maps with matching
+batch and spatial dimensions. Recompute them when the geometry, topology,
+material opacity, or source camera changes.
+
+Visibility and confidence
+-------------------------
+
+For a receiving face :math:`r`, visibility at source pixel :math:`p` is
 
 .. math::
 
    T_r(p)=\prod_{f\prec r}\left(1-\alpha_f(p)\right).
 
-The receiver's own opacity is excluded. Opacity is known geometric/material
-opacity, including feathering. It must be independent of an appearance
-network that consumes the sampled features; otherwise visibility would depend
-on its own output. There is no per-pixel depth sorting or differentiation
-through sort changes.
+Faces are ordered by mean camera-space vertex depth, with face index breaking
+ties, as in :doc:`transparent_render`. This approximates visibility for
+small triangles; intersecting or depth-crossing triangles can require a
+different order at different pixels. The receiving face's own opacity is
+excluded from the product.
 
-With bilinear coefficients :math:`b_{qj}` and source features :math:`F_j`,
+With bilinear coefficients :math:`b_{qj}` and source features :math:`F_j`, the
+sampling weights, feature sum, and confidence are
 
 .. math::
 
@@ -56,42 +66,38 @@ With bilinear coefficients :math:`b_{qj}` and source features :math:`F_j`,
    S_q=\sum_{j=1}^{4}w_{qj}F_j,\qquad
    c_q=\sum_{j=1}^{4}w_{qj}.
 
-The output is the **unnormalized feature sum and confidence**. There is no
-division by a small alpha/confidence. Feed both to the refinement model and
-preserve anchor features separately. Do not multiply :math:`S_q` by
-:math:`c_q` a second time.
+Invalid taps have zero weight. The feature sum is unnormalized: a fully
+hidden query returns zero features and zero confidence. For example, an
+existing surface feature :math:`A_q` can fill the missing contribution as
+:math:`S_q+(1-c_q)A_q`.
 
-An in-image tap keeps its index even when its weight is zero. This lets
-backward evaluate the feature value that would be revealed by a moving
-occlusion boundary. A zero-weight tap contributes nothing in forward.
+Use geometric or material opacity for visibility. If opacity is predicted
+from these same sampled features, the dependency is circular. Partial
+visibility supplies a confidence value; features already mixed by transparency
+or a neural receptive field remain mixed.
 
 Gradients
 ---------
 
-Source-visibility boundary gradients are enabled by default
-(``edge_gradients=True``). Do not wrap the result in :func:`edge_grad_estimator` again. Target-view transparent rendering
-has its own separate boundary gradient.
-
-The boundary signal measures the change in source features and confidence.
-For upstream gradients :math:`g_S,g_c`,
+Smooth derivatives propagate through projection, bilinear interpolation,
+material opacity, and feature values. Coverage boundaries use DRTK's edge
+estimator, enabled by ``edge_gradients=True``. For upstream feature and
+confidence gradients :math:`g_S,g_c`, its weight derivative is
 
 .. math::
 
    \frac{\partial L}{\partial w_{qj}}
    =\langle g_{S_q},F_j\rangle+g_{c_q}.
 
-This scalar adjoint multiplies the one-sided visibility change and is
-accumulated onto the boundary vertices. A heavy downstream MLP or transformer
-can therefore send a loss signal to the occluding geometry through normal
-``loss.backward()``. This is DRTK's local boundary-gradient estimator, not an
-exact derivative of the discrete hard rasterizer.
+The estimator combines this derivative with the visibility change across an
+edge to obtain a geometry gradient. In-image taps retain their indices even
+at zero weight, allowing this change to account for features revealed by
+boundary motion. Ordinary shared tessellation edges, zero-opacity occluders,
+and fully hidden edges contribute zero boundary jump.
 
-Smooth derivatives of projection, bilinear weights, and material opacity are
-computed separately. Ordinary shared tessellation edges do not introduce
-artificial gradients. A zero-opacity occluder has zero visibility jump;
-an edge completely hidden behind an opaque occluder also has zero jump.
-Receiver-domain boundaries are a distinct source of feature-admission changes.
-Exact opaque values are supported.
+Call ``loss.backward()`` on the downstream loss. Applying
+:func:`edge_grad_estimator` again would count the source boundary contribution
+twice. A target-view renderer computes its own boundary contribution.
 
 .. list-table::
    :header-rows: 1
@@ -100,43 +106,38 @@ Exact opaque values are supported.
    * - Quantity
      - Gradient
    * - Vertices, query barycentrics, source features, material opacity
-     - Smooth derivatives within a fixed visibility configuration.
-   * - Visibility/receiver-domain boundaries
-     - Integrated edge-gradient estimate to geometry.
-   * - Face IDs, connectivity, sort order, discrete local-walk branches
-     - No ordinary derivative; use sampled-topology loss estimation for topology logits.
+     - Smooth derivatives for fixed coverage and ordering.
+   * - Occlusion and receiving-surface boundaries
+     - Estimated geometry derivatives from boundary motion.
+   * - Face IDs, connectivity, ordering, and surface-continuation decisions
+     - Discrete. Use :func:`bernoulli_render_loss` for sampled topology, rebuilding the stencil for each sample.
    * - Second derivatives
      - Unsupported.
 
-The reference functions support CPU tensors and smooth gradients only;
-they do not provide visibility-boundary gradients.
+The reference functions support CPU tensors and smooth derivatives. The
+boundary estimator is available in :func:`source_feature_stencil`.
 
-Coordinates and supported inputs
---------------------------------
+Coordinates and data types
+--------------------------
 
-``v_pix`` uses source pixel XY and camera Z. Integer XY is a pixel center;
-there is no Y flip. For a query with 3D barycentrics :math:`\beta`,
+``v_pix`` contains source pixel XY and positive camera Z. Integer XY denotes
+pixel centers. For 3D barycentrics :math:`\beta`, a query projects to
 
 .. math::
 
    z_q=\sum_i\beta_i z_i,\qquad
    p_q=\frac{\sum_i\beta_i z_i p_i}{z_q}.
 
-Use the existing camera projection utilities before calling the stencil.
-When sampling a smaller feature map, scale the source intrinsics or projected
-coordinates with the half-pixel convention:
-``x_f = (x + 0.5) * W_f / W - 0.5``. Banks with different grids require
-different stencils. ``return_queries=True`` returns normalized UV compatible
-with ``grid_sample(..., align_corners=False)`` and camera Z.
+For a feature map resized from :math:`W\times H` to :math:`W_f\times H_f`,
+transform pixel coordinates as
+``x_f = (x + 0.5) * W_f / W - 0.5`` and similarly for Y.
+``return_queries=True`` returns normalized UV coordinates compatible with
+``grid_sample(..., align_corners=False)`` and camera Z.
 
-These operations require CUDA tensors. The stencil uses float32 geometry and
-weights. Sampling accepts float16, bfloat16, and float32 feature images,
-arbitrary channel counts, and strided inputs. Results are accumulated in
-float32. Backward is not guaranteed to be bitwise deterministic.
-
-``source_feature_stencil`` does not support CUDA graph capture. Reuse a stencil
-across same-grid feature banks, and rebuild it when geometry, topology,
-material opacity, or the source camera changes.
+The stencil requires float32 CUDA geometry and produces float32 weights.
+Sampling accepts float16, bfloat16, and float32 CUDA features, with arbitrary
+channel counts and strides. Accumulation uses float32. Backward may be
+nondeterministic. ``source_feature_stencil`` does not support CUDA graph capture.
 
 Functions
 ---------

@@ -8,7 +8,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>Keep source features on their surface &#8212; DRTK  documentation</title>
+    <title>Fitting geometry through source visibility &#8212; DRTK  documentation</title>
   
   
   
@@ -45,6 +45,8 @@
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/design-tabs.js?v=f930bc37"></script>
     <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script>window.MathJax = {"tex": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'tutorials/DRTK_Tutorial_source_features';</script>
     <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
     <link rel="index" title="Index" href="../genindex.html" />
@@ -351,7 +353,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Computing Gradients and Fitting</span></p>
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="DRTK_Tutorial_pixel_grid_mesh.html">Learning pixel-grid geometry and topology</a></li>
-<li class="toctree-l1 current active"><a class="current reference internal" href="#">Keep source features on their surface</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Fitting geometry through source visibility</a></li>
 <li class="toctree-l1"><a class="reference internal" href="DRTK_Tutorial_hand_fitting.html">Single image hand fitting</a></li>
 </ul>
 </div>
@@ -396,7 +398,7 @@
     
     <li class="breadcrumb-item"><a href="index.html" class="nav-link">Tutorials</a></li>
     
-    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Keep source features on their surface</span></li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Fitting geometry through source visibility</span></li>
   </ul>
 </nav>
 </div>
@@ -413,151 +415,137 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="keep-source-features-on-their-surface">
-<h1>Keep source features on their surface<a class="headerlink" href="#keep-source-features-on-their-surface" title="Link to this heading">#</a></h1>
-<p>A hand and a shirt can project to the same source pixel. Sampling that pixel
-for both surfaces paints the hand onto the shirt. The error becomes visible
-when a second camera exposes the previously hidden shirt.</p>
-<p>This tutorial uses a textured background surface and an overlapping hand-shaped
-mesh. It compares ordinary resampling with source-visible resampling, shows the
-confidence signal, and optimizes an occluding edge using the sampled features.</p>
-<figure class="align-default" id="id1">
-<a class="reference internal image-reference" href="../_images/source_features_demo_poster.png"><img alt="Source view, incorrectly transferred foreground features, visibility-aware features, and receiver confidence." src="../_images/source_features_demo_poster.png" style="width: 100%;" />
-</a>
-<figcaption>
-<p><span class="caption-text">Source visibility controls access to new image features. It keeps the
-hidden surface and its anchor features available for a different viewpoint.</span><a class="headerlink" href="#id1" title="Link to this image">#</a></p>
-</figcaption>
-</figure>
+  <section id="fitting-geometry-through-source-visibility">
+<h1>Fitting geometry through source visibility<a class="headerlink" href="#fitting-geometry-through-source-visibility" title="Link to this heading">#</a></h1>
+<p>This tutorial fits the position and shape of a blue polygon in front of a
+textured plane. The polygon determines which image features can be sampled
+onto the plane. When its boundary is in the wrong place, some samples contain
+the polygon’s color and others discard visible texture. A loss on these
+samples can move the occluding geometry into place.</p>
 <video controls playsinline preload="metadata" style="width:100%;height:auto"
   poster="../_static/source_features_demo_poster.png">
   <source src="../_static/source_features_demo.mp4" type="video/mp4">
   Your browser does not support HTML video.
-</video><p>The <a class="reference download internal" download="" href="../_downloads/08f4710424b5258aac3c8a15752ef440/source_features_demo.py"><code class="xref download docutils literal notranslate"><span class="pre">complete</span> <span class="pre">script</span></code></a> generates
-the figures, video, and numerical checks. The illustrative refinement step
-blends the samples with a known anchor texture; it is not a trained reconstruction model
-or a claim to recover unknown hidden appearance.</p>
-<section id="keep-anchor-and-reprojected-coordinates-distinct">
-<h2>1. Keep anchor and reprojected coordinates distinct<a class="headerlink" href="#keep-anchor-and-reprojected-coordinates-distinct" title="Link to this heading">#</a></h2>
-<p>An anchor feature belongs to the surface before deformation. A new source
-sample belongs to the current image location. They coincide only when the
-surface is still aligned and visible.</p>
-<p>The pixel-grid builder already provides both coordinates:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">v</span><span class="p">,</span> <span class="n">uv_anchor</span><span class="p">,</span> <span class="n">uv_reprojected</span><span class="p">,</span> <span class="n">faces</span><span class="p">,</span> <span class="n">opacity</span><span class="p">,</span> <span class="n">cell_ids</span><span class="p">,</span> <span class="n">face_ids</span> <span class="o">=</span> <span class="p">(</span>
-    <span class="n">drtk</span><span class="o">.</span><span class="n">pixel_grid_mesh</span><span class="p">(</span>
-        <span class="n">depth</span><span class="p">,</span> <span class="n">displacement</span><span class="p">,</span> <span class="n">intrinsics</span><span class="p">,</span>
-        <span class="n">alive</span><span class="p">,</span> <span class="n">join_right</span><span class="p">,</span> <span class="n">join_down</span><span class="p">,</span>
-        <span class="n">feather_width</span><span class="o">=</span><span class="n">feather_width</span><span class="p">,</span>
-        <span class="n">return_metadata</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-    <span class="p">)</span>
+</video><p>The fit starts from a smaller, displaced polygon. White dots mark its boundary
+vertices; the dashed contour marks the target. The camera and error color
+scale stay fixed. The curve compares the fit with a run that disables boundary
+gradients, starting from the same mesh.</p>
+<section id="scene-and-supervision">
+<h2>Scene and supervision<a class="headerlink" href="#scene-and-supervision" title="Link to this heading">#</a></h2>
+<p>The scene contains two opaque surfaces: a polygon at camera depth 1 and a
+plane at depth 2. RGB channels serve as the feature image. The polygon’s
+center and twenty boundary radii are optimized; its depth and the camera
+are fixed. Radii at ordered angles keep the boundary connected during fitting.</p>
+<p>This synthetic example generates a source image and target sampled features
+from the target mesh. Those feature values supply supervision for the fit.
+The rendered comparison panels visualize the geometry; the optimization loss
+is computed from the samples on the rear plane.</p>
+<figure class="align-default" id="id1">
+<a class="reference internal image-reference" href="../_images/source_features_sampling.png"><img alt="Source RGB image, sampled rear-plane features with an occluded region, and binary visibility confidence." src="../_images/source_features_sampling.png" style="width: 100%;" />
+</a>
+<figcaption>
+<p><span class="caption-text">Samples behind the opaque polygon have zero features and zero confidence.
+Visible samples retain the plane’s texture.</span><a class="headerlink" href="#id1" title="Link to this image">#</a></p>
+</figcaption>
+</figure>
+</section>
+<section id="surface-queries">
+<h2>Surface queries<a class="headerlink" href="#surface-queries" title="Link to this heading">#</a></h2>
+<p>Choose a face and 3D barycentric coordinates for each point where features
+will be sampled. Here, a regular grid of points lies on the rear plane.
+Project the mesh vertices into the source camera to obtain pixel XY and
+positive camera Z.</p>
+<p>For a mesh built with <a class="reference internal" href="../api_reference/pixel_grid_mesh.html#drtk.pixel_grid_mesh" title="drtk.pixel_grid_mesh"><code class="xref py py-func docutils literal notranslate"><span class="pre">drtk.pixel_grid_mesh()</span></code></a>, <code class="docutils literal notranslate"><span class="pre">v</span></code> contains the displaced
+camera-space positions and <code class="docutils literal notranslate"><span class="pre">uv_anchor</span></code> gives the original texture coordinates:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">v</span><span class="p">,</span> <span class="n">uv_anchor</span><span class="p">,</span> <span class="n">uv_reprojected</span><span class="p">,</span> <span class="n">faces</span><span class="p">,</span> <span class="n">opacity</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">drtk</span><span class="o">.</span><span class="n">pixel_grid_mesh</span><span class="p">(</span>
+    <span class="n">depth</span><span class="p">,</span> <span class="n">displacement</span><span class="p">,</span> <span class="n">intrinsics</span><span class="p">,</span>
+    <span class="n">alive</span><span class="p">,</span> <span class="n">join_right</span><span class="p">,</span> <span class="n">join_down</span><span class="p">,</span>
+    <span class="n">feather_width</span><span class="o">=</span><span class="n">feather_width</span><span class="p">,</span>
 <span class="p">)</span>
 </pre></div>
 </div>
-<p>Here <code class="docutils literal notranslate"><span class="pre">v</span></code> is displaced camera-space geometry. Project it into the source
-feature image before calling <code class="docutils literal notranslate"><span class="pre">source_feature_stencil</span></code>. Choose samples on
-the mesh by receiver face ID and <strong>3D barycentrics</strong>, rather than guessing
-ownership from a depth tolerance. A query at a shared crack tip must name the
-incident surface fan it belongs to.</p>
+<p>A query’s face identifies its local surface. This matters at cuts and shared
+crack tips, where coincident points may belong to different sides of the mesh.</p>
 </section>
-<section id="build-one-stencil-sample-several-feature-banks">
-<h2>2. Build one stencil, sample several feature banks<a class="headerlink" href="#build-one-stencil-sample-several-feature-banks" title="Link to this heading">#</a></h2>
+<section id="sampling">
+<h2>Sampling<a class="headerlink" href="#sampling" title="Link to this heading">#</a></h2>
+<p>Compute the sampling stencil from the projected geometry, then apply it to
+the feature image:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">indices</span><span class="p">,</span> <span class="n">weights</span><span class="p">,</span> <span class="n">source_uv</span><span class="p">,</span> <span class="n">source_z</span> <span class="o">=</span> <span class="n">drtk</span><span class="o">.</span><span class="n">source_feature_stencil</span><span class="p">(</span>
-    <span class="n">v_source_pixels</span><span class="p">,</span> <span class="n">faces</span><span class="p">,</span> <span class="n">receiver_faces</span><span class="p">,</span> <span class="n">receiver_barycentrics</span><span class="p">,</span>
+    <span class="n">v_source_pixels</span><span class="p">,</span> <span class="n">faces</span><span class="p">,</span> <span class="n">query_faces</span><span class="p">,</span> <span class="n">query_barycentrics</span><span class="p">,</span>
     <span class="n">feature_height</span><span class="p">,</span> <span class="n">feature_width</span><span class="p">,</span>
     <span class="n">vertex_opacity</span><span class="o">=</span><span class="n">opacity</span><span class="p">,</span>
     <span class="n">return_queries</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
 <span class="p">)</span>
 <span class="n">sampled</span><span class="p">,</span> <span class="n">confidence</span> <span class="o">=</span> <span class="n">drtk</span><span class="o">.</span><span class="n">sample_feature_stencil</span><span class="p">(</span>
-    <span class="n">dense_features</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="n">weights</span>
-<span class="p">)</span>
-<span class="n">sampled_rgb</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">drtk</span><span class="o">.</span><span class="n">sample_feature_stencil</span><span class="p">(</span>
-    <span class="n">source_rgb</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="n">weights</span>
+    <span class="n">features</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="n">weights</span>
 <span class="p">)</span>
 </pre></div>
 </div>
-<p>Both images must share the stencil’s grid and batch. The feature dimension can
-be much larger than the final tiny shader’s input. Visibility and local
-receiver traversal happen once, independent of channel count.</p>
-<p>Each bilinear tap is validated against the receiver’s local surface. Ordinary
-shared triangles are traversed; cuts and projected folds are not crossed. A
-foreground surface is still an occluder even if it is connected elsewhere to
-the receiving surface. Triangle order matches transparent rendering, with no
-per-pixel depth sort.</p>
+<p><code class="docutils literal notranslate"><span class="pre">sampled</span></code> has shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">C,</span> <span class="pre">Q)</span></code> and <code class="docutils literal notranslate"><span class="pre">confidence</span></code> has shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">1,</span> <span class="pre">Q)</span></code>.
+The weights combine bilinear interpolation with source transmittance. They
+also account for image boundaries and the receiving surface’s extent.
+Additional feature maps with the same batch and image dimensions can use
+<code class="docutils literal notranslate"><span class="pre">indices</span></code> and <code class="docutils literal notranslate"><span class="pre">weights</span></code> from this call.</p>
 </section>
-<section id="supply-confidence-to-the-server-model">
-<h2>3. Supply confidence to the server model<a class="headerlink" href="#supply-confidence-to-the-server-model" title="Link to this heading">#</a></h2>
-<p><code class="docutils literal notranslate"><span class="pre">sampled</span></code> is already visibility-weighted. A simple illustrative fusion is</p>
+<section id="fitting-the-boundary">
+<h2>Fitting the boundary<a class="headerlink" href="#fitting-the-boundary" title="Link to this heading">#</a></h2>
+<p>For sampled features <span class="math notranslate nohighlight">\(S_q(\theta)\)</span> and target samples <span class="math notranslate nohighlight">\(S_q^*\)</span>,
+the example minimizes</p>
+<div class="math notranslate nohighlight">
+\[L(\theta)=\frac{1}{CQ}\sum_{q=1}^{Q}
+\left\|S_q(\theta)-S_q^*\right\|_2^2,\]</div>
+<p>where <span class="math notranslate nohighlight">\(\theta\)</span> contains the polygon’s center and boundary radii.
+Recompute the stencil after every geometry update:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">optimizer</span><span class="o">.</span><span class="n">zero_grad</span><span class="p">()</span>
+<span class="n">v_source_pixels</span> <span class="o">=</span> <span class="n">make_vertices</span><span class="p">(</span><span class="n">center</span><span class="p">,</span> <span class="n">radii</span><span class="p">)</span>
+<span class="n">indices</span><span class="p">,</span> <span class="n">weights</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">drtk</span><span class="o">.</span><span class="n">source_feature_stencil</span><span class="p">(</span>
+    <span class="n">v_source_pixels</span><span class="p">,</span> <span class="n">faces</span><span class="p">,</span> <span class="n">query_faces</span><span class="p">,</span> <span class="n">query_barycentrics</span><span class="p">,</span> <span class="n">H</span><span class="p">,</span> <span class="n">W</span>
+<span class="p">)</span>
+<span class="n">sampled</span><span class="p">,</span> <span class="n">confidence</span> <span class="o">=</span> <span class="n">drtk</span><span class="o">.</span><span class="n">sample_feature_stencil</span><span class="p">(</span><span class="n">features</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="n">weights</span><span class="p">)</span>
+<span class="n">loss</span> <span class="o">=</span> <span class="p">(</span><span class="n">sampled</span> <span class="o">-</span> <span class="n">target_samples</span><span class="p">)</span><span class="o">.</span><span class="n">square</span><span class="p">()</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+<span class="n">loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
+<span class="n">optimizer</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>An opaque polygon’s visibility changes at its boundary. Smooth interpolation
+derivatives alone do not move this boundary, so the control run stays at its
+initial shape. DRTK’s boundary-motion estimator supplies the missing geometry
+gradient. It is enabled by default through <code class="docutils literal notranslate"><span class="pre">edge_gradients=True</span></code>.</p>
+<p>At 128 by 128 pixels, the example reduces sampled-feature MSE by about 97%
+over 240 Adam steps. A small residual remains near the rasterized boundary.
+The image does not constrain the polygon’s depth while its ordering is
+unchanged; this example therefore fits its projected shape.</p>
+<p>For topology optimization with <a class="reference internal" href="../api_reference/pixel_grid_mesh.html#drtk.bernoulli_render_loss" title="drtk.bernoulli_render_loss"><code class="xref py py-func docutils literal notranslate"><span class="pre">drtk.bernoulli_render_loss()</span></code></a>, construct
+the mesh and its stencil inside the loss callback so that each sampled
+topology has its own visibility.</p>
+</section>
+<section id="combining-observations">
+<h2>Combining observations<a class="headerlink" href="#combining-observations" title="Link to this heading">#</a></h2>
+<p>For applications that update features already stored on a surface, confidence
+can blend the new observations with existing features:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">refined</span> <span class="o">=</span> <span class="n">sampled</span> <span class="o">+</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="n">confidence</span><span class="p">)</span> <span class="o">*</span> <span class="n">anchor_features</span>
 </pre></div>
 </div>
-<p>For an entirely hidden sample, confidence and sampled features are zero, so
-the anchor is retained. The demo deliberately uses a known anchor to make
-incorrect feature transfer easy to see. In a learned system, replace this
-blend with a contextual MLP or transformer that receives anchor features,
-sampled features, confidence, and any useful geometric context.</p>
-<p>Do not multiply <code class="docutils literal notranslate"><span class="pre">sampled</span></code> by confidence again or divide it by a very small
-confidence. Zero feature values and missing features are different; keep the
-confidence input. The source image may already contain mixed features from a
-neural receptive field or transparency. Visibility is geometric confidence,
-not an unmixing operator.</p>
+<p><code class="docutils literal notranslate"><span class="pre">sampled</span></code> already includes the visibility weights. Where confidence is zero,
+the result is entirely the anchor feature. A learned refinement model can
+instead take anchor features, sampled features, confidence, and geometric
+context as inputs. Confidence lets it distinguish a missing observation from
+an observed feature value of zero. The resulting features can be stored on
+the mesh for rendering from other viewpoints.</p>
 </section>
-<section id="optimize-visibility-with-ordinary-backward">
-<h2>4. Optimize visibility with ordinary backward<a class="headerlink" href="#optimize-visibility-with-ordinary-backward" title="Link to this heading">#</a></h2>
-<p>The second experiment moves an opaque edge. With only smooth interpolation
-gradients, the occluder’s position receives no visibility gradient. With the
-default edge integration, a loss on the sampled features/confidence reaches
-the occluder through the stencil.</p>
-<figure class="align-default" id="id2">
-<a class="reference internal image-reference" href="../_images/source_features_edge_optimization.png"><img alt="Edge optimization with and without visibility boundary gradients, and the measured loss and edge position." src="../_images/source_features_edge_optimization.png" style="width: 100%;" />
-</a>
-<figcaption>
-<p><span class="caption-text">The feature loss supplies the boundary signal automatically. The discrete
-forward visibility remains hard; the backward pass estimates its boundary
-motion derivative.</span><a class="headerlink" href="#id2" title="Link to this image">#</a></p>
-</figcaption>
-</figure>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">indices</span><span class="p">,</span> <span class="n">weights</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">drtk</span><span class="o">.</span><span class="n">source_feature_stencil</span><span class="p">(</span>
-    <span class="n">v_source_pixels</span><span class="p">,</span> <span class="n">faces</span><span class="p">,</span> <span class="n">receiver_faces</span><span class="p">,</span> <span class="n">receiver_barycentrics</span><span class="p">,</span> <span class="n">H</span><span class="p">,</span> <span class="n">W</span>
-<span class="p">)</span>
-<span class="n">sampled</span><span class="p">,</span> <span class="n">confidence</span> <span class="o">=</span> <span class="n">drtk</span><span class="o">.</span><span class="n">sample_feature_stencil</span><span class="p">(</span><span class="n">features</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="n">weights</span><span class="p">)</span>
-<span class="n">prediction</span> <span class="o">=</span> <span class="n">server_model</span><span class="p">(</span><span class="n">anchor_features</span><span class="p">,</span> <span class="n">sampled</span><span class="p">,</span> <span class="n">confidence</span><span class="p">)</span>
-<span class="n">loss</span> <span class="o">=</span> <span class="n">downstream_loss</span><span class="p">(</span><span class="n">prediction</span><span class="p">)</span>
-<span class="n">loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
-</pre></div>
-</div>
-<p>Visibility gradients are enabled by default. Do not apply an additional
-edge-gradient wrapper to the samples. The final target-view renderer has
-its own distinct edge-gradient path.</p>
-<p>Hard topology remains discrete. For <code class="docutils literal notranslate"><span class="pre">bernoulli_render_loss</span></code>, the loss callback
-must build geometry and a fresh stencil for <strong>each</strong> sampled topology, including
-both members of the paired estimator. Reusing a detached stencil across samples
-would silently change the objective.</p>
-</section>
-<section id="keep-a-streamable-intermediate">
-<h2>5. Keep a streamable intermediate<a class="headerlink" href="#keep-a-streamable-intermediate" title="Link to this heading">#</a></h2>
-<p>Source visibility and the contextual model run on the server. Attach their
-final compact features to the mesh, with separate atlas addresses for surfaces
-that share a source projection. Then serialize that mesh, the features/UVs,
-feather opacity, and the declared coordinate-frame/shared-model information.</p>
-<p>The receiver only needs the final representation: project the mesh to its
-current camera, sample the prepared features, evaluate the tiny per-fragment
-MLP, and composite. It does not need the source image, visibility buffers, or
-the server network. No remeshing is required for this separation.</p>
-<p>DRTK provides the training primitives; the network protocol, feature codec, and corresponding
-device shader belong to the surrounding project.</p>
-</section>
-<section id="reproduce-the-tutorial">
-<h2>Reproduce the tutorial<a class="headerlink" href="#reproduce-the-tutorial" title="Link to this heading">#</a></h2>
-<p>Install DRTK with source-feature sampling support, plus Matplotlib and FFmpeg.
-A CUDA device is required. Then run:</p>
+<section id="run-the-example">
+<h2>Run the example<a class="headerlink" href="#run-the-example" title="Link to this heading">#</a></h2>
+<p>Download <a class="reference download internal" download="" href="../_downloads/08f4710424b5258aac3c8a15752ef440/source_features_demo.py"><code class="xref download docutils literal notranslate"><span class="pre">source_features_demo.py</span></code></a>.
+It requires a CUDA-enabled DRTK installation, Matplotlib, and FFmpeg.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>source_features_demo.py<span class="w"> </span>--output<span class="w"> </span>./source_features_demo
 </pre></div>
 </div>
-<p>The script saves PNG figures, an H.264 video, and JSON measurements. Its source
-contains the complete scene and optimization setup. It does not download a
-model or require project-specific assets.</p>
-<p>See <a class="reference internal" href="../api_reference/source_features.html"><span class="doc">drtk.source_features</span></a> for the complete shape, coordinate,
-precision, and differentiability contracts.</p>
+<p>The output directory contains the comparison figures, an H.264 video,
+per-step measurements, and saved boundary coordinates. The video records
+actual optimizer states, with a pause at the beginning and end.
+See <a class="reference internal" href="../api_reference/source_features.html"><span class="doc">drtk.source_features</span></a> for argument shapes, coordinate
+conventions, and gradient behavior.</p>
 </section>
 </section>
 
@@ -584,12 +572,12 @@ precision, and differentiability contracts.</p>
   </div>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#keep-anchor-and-reprojected-coordinates-distinct">1. Keep anchor and reprojected coordinates distinct</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#build-one-stencil-sample-several-feature-banks">2. Build one stencil, sample several feature banks</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#supply-confidence-to-the-server-model">3. Supply confidence to the server model</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#optimize-visibility-with-ordinary-backward">4. Optimize visibility with ordinary backward</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#keep-a-streamable-intermediate">5. Keep a streamable intermediate</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#reproduce-the-tutorial">Reproduce the tutorial</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#scene-and-supervision">Scene and supervision</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#surface-queries">Surface queries</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#sampling">Sampling</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#fitting-the-boundary">Fitting the boundary</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#combining-observations">Combining observations</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#run-the-example">Run the example</a></li>
 </ul>
   </nav></div>
 

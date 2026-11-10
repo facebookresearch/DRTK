@@ -1,5 +1,5 @@
 Optimizing transparent mesh layers over opaque geometry
-========================================================
+=======================================================
 
 Transparent surfaces require more than selecting the nearest triangle at each
 pixel. Every covered fragment may contribute to the image, and its contribution
@@ -46,9 +46,7 @@ Geometry and opacity fitting
 The initial middle and top geometry is distorted and both transparent layers
 have incorrect opacity. A color-and-alpha reconstruction objective is
 differentiated through texture sampling, perspective-correct interpolation,
-depth-sorted compositing, and the learned inputs. The optimized result closely
-approaches the target without changing topology, opaque rear geometry, or
-texture.
+depth-sorted compositing, and the learned inputs. The optimized result closely approaches the target.
 
 .. figure:: ../_static/transparent_render_demo_result.png
    :width: 100%
@@ -84,7 +82,7 @@ rendering:
 * **material opacity** is fixed at one for the rear mesh and independently
   interpolated from learned vertex values for both transparent meshes.
 
-The renderer accepts arbitrary triangle meshes rather than only regular grids.
+The renderer accepts arbitrary triangle meshes.
 Multiple overlapping meshes may share an atlas or use different atlas regions.
 For learned appearance, ``render_transparent_mlp`` samples one feature texture.
 ``render_transparent_mlp_two_textures`` instead samples ``texture0`` at ``uv0``

@@ -2,7 +2,7 @@
 :github_url: https://github.com/facebookresearch/DRTK
 
 Tutorials
-===================================
+=========
 
 .. toctree::
    :maxdepth: 4
@@ -90,8 +90,8 @@ Tutorials
 
     .. grid-item-card:: :doc:`DRTK_Tutorial_source_features`
 
-        Resample features without painting an occluder onto the surface behind it,
-        and optimize source visibility with automatic edge gradients.
+        Fit an occluding polygon's position and shape using a loss on
+        visibility-weighted image features.
 
         .. image:: ../_static/source_features_demo_poster.png
            :width: 400

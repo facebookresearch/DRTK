@@ -406,95 +406,91 @@
     <span class="n">edge_gradients</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
     <span class="n">return_queries</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]]:</span>
-<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Build a differentiable, source-visible bilinear sampling stencil.</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Compute bilinear sampling indices and visibility weights for mesh points.</span>
 
-<span class="sd">    A query is attached to a mesh face, rather than identified by a depth</span>
-<span class="sd">    tolerance. Each of its four source-image taps follows the receiver&#39;s local</span>
-<span class="sd">    surface through ordinary shared edges. Cuts, projected folds, and ambiguous</span>
-<span class="sd">    nonmanifold continuations stop that walk. The tap is weighted by the</span>
-<span class="sd">    transmittance of faces preceding its receiver in stable</span>
-<span class="sd">    ``(mean triangle camera Z, face index)`` order, matching the transparent</span>
-<span class="sd">    renderer. There is no per-pixel depth sort.</span>
+<span class="sd">    Each query is attached to a face by 3D barycentric coordinates. Its four</span>
+<span class="sd">    image taps follow the receiving surface through shared manifold edges,</span>
+<span class="sd">    stopping at cuts, projected folds, or nonmanifold junctions. Each valid</span>
+<span class="sd">    tap is weighted by transmittance from faces preceding its receiver in</span>
+<span class="sd">    ``(mean triangle camera Z, face index)`` order.</span>
 
-<span class="sd">    Use :func:`sample_feature_stencil` to apply the returned stencil to one or</span>
-<span class="sd">    several feature images on the same grid. Visibility gates feature access;</span>
-<span class="sd">    it does not remove hidden geometry or modify its rendering opacity.</span>
+<span class="sd">    Apply the result to a feature image with :func:`sample_feature_stencil`.</span>
+<span class="sd">    Feature maps with matching batch and spatial dimensions can share the</span>
+<span class="sd">    same stencil. Recompute it when geometry, topology, material opacity,</span>
+<span class="sd">    or the source camera changes.</span>
 
 <span class="sd">    Args:</span>
 <span class="sd">        v_pix (Tensor): Float32 CUDA vertices, ``(N, V, 3)``. XY are source</span>
-<span class="sd">            pixel coordinates and Z is positive camera depth. Integer XY</span>
-<span class="sd">            denotes pixel centers. Use the feature image&#39;s pixel grid, with</span>
-<span class="sd">            no implicit vertical flip.</span>
+<span class="sd">            pixel coordinates, with integer values at pixel centers. Z is</span>
+<span class="sd">            positive camera depth. Use the feature image&#39;s pixel grid.</span>
 <span class="sd">        vi (Tensor): Int32 CUDA faces, ``(F, 3)`` or ``(N, F, 3)``. Faces with</span>
 <span class="sd">            invalid indices, nonfinite vertices, nonpositive depth, or zero</span>
-<span class="sd">            projected area are ignored. Indexed edges define connectivity;</span>
-<span class="sd">            coordinate coincidence does not weld separate surfaces.</span>
-<span class="sd">        query_face_ids (Tensor): Int32 CUDA receiver face IDs, ``(N, Q)``.</span>
-<span class="sd">            ``-1`` denotes an unused query. A vertex query must name an incident</span>
-<span class="sd">            face in the intended local surface fan.</span>
+<span class="sd">            projected area are ignored. Shared indices define connectivity;</span>
+<span class="sd">            coincident vertices with separate indices remain separate.</span>
+<span class="sd">        query_face_ids (Tensor): Int32 CUDA receiving-face IDs, ``(N, Q)``.</span>
+<span class="sd">            ``-1`` denotes an unused query. At a shared vertex, choose an</span>
+<span class="sd">            incident face on the intended side of the surface.</span>
 <span class="sd">        query_barycentrics (Tensor): Float32 CUDA 3D barycentrics, ``(N, Q, 3)``.</span>
-<span class="sd">            They sum to one and are nonnegative; they are not screen-affine</span>
-<span class="sd">            barycentrics. Invalid queries produce zero outputs.</span>
+<span class="sd">            Entries must be nonnegative and sum to one. Invalid queries have</span>
+<span class="sd">            zero weights and diagnostics, with tap indices set to ``-1``.</span>
 <span class="sd">        height (int): Source feature-image height.</span>
 <span class="sd">        width (int): Source feature-image width.</span>
-<span class="sd">        vertex_opacity (Optional[Tensor]): Float32 CUDA known material/feather</span>
-<span class="sd">            opacity, ``(N, V)``. Values are clamped to ``[0, 1]``; default is</span>
-<span class="sd">            opaque. Exact opacity one fully blocks a tap. The receiver&#39;s own</span>
-<span class="sd">            opacity is excluded from its visibility. Do not derive this input</span>
-<span class="sd">            from an appearance network that consumes the same sampled features.</span>
-<span class="sd">        edge_gradients (bool): Add DRTK coverage-boundary gradient estimates</span>
-<span class="sd">            automatically, including gradients to occluding geometry. Default</span>
-<span class="sd">            is True. No separate :func:`edge_grad_estimator` call is needed.</span>
-<span class="sd">        return_queries (bool): Return normalized source UV and camera Z of</span>
-<span class="sd">            each query for diagnostics or other differentiable uses.</span>
+<span class="sd">        vertex_opacity (Optional[Tensor]): Float32 CUDA material opacity,</span>
+<span class="sd">            ``(N, V)``, clamped to ``[0, 1]``. Defaults to one. The receiving</span>
+<span class="sd">            face&#39;s own opacity is excluded from visibility. Opacity must be</span>
+<span class="sd">            available before sampling; predicting it from these same sampled</span>
+<span class="sd">            features creates a circular dependency.</span>
+<span class="sd">        edge_gradients (bool): Estimate geometry gradients at visibility and</span>
+<span class="sd">            receiving-surface boundaries. Default: True.</span>
+<span class="sd">        return_queries (bool): Return each query&#39;s projected UV and camera Z.</span>
+<span class="sd">            Default: False.</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        Tuple[Tensor, Tensor, Optional[Tensor], Optional[Tensor]]: Always</span>
+<span class="sd">        Tuple[Tensor, Tensor, Optional[Tensor], Optional[Tensor]]:</span>
 <span class="sd">        ``(tap_indices, tap_weights, query_uv, query_depth)``.</span>
 
-<span class="sd">        ``tap_indices`` is int32 ``(N, Q, 4)``, in top-left, top-right,</span>
-<span class="sd">        bottom-left, bottom-right order, with each index flattened as</span>
-<span class="sd">        ``y * width + x``. Out-of-image or unused-query taps have index ``-1``.</span>
-<span class="sd">        In-image taps retain their index even at zero weight, so backward can</span>
-<span class="sd">        evaluate the effect of revealing their features.</span>
+<span class="sd">        ``tap_indices`` is int32 ``(N, Q, 4)``, ordered top-left, top-right,</span>
+<span class="sd">        bottom-left, bottom-right. Each entry is flattened as ``y * width + x``.</span>
+<span class="sd">        Out-of-image and unused-query taps have index ``-1``. In-image indices</span>
+<span class="sd">        remain valid at zero weight to support boundary gradients.</span>
 
-<span class="sd">        ``tap_weights`` is float32 ``(N, Q, 4)``: bilinear weight times ordered</span>
-<span class="sd">        source transmittance, or zero when local receiver continuation fails.</span>
-<span class="sd">        Weights are not renormalized. ``query_uv`` is ``(N, Q, 2)`` in</span>
-<span class="sd">        ``align_corners=False`` normalized coordinates; ``query_depth`` is</span>
-<span class="sd">        ``(N, Q)`` camera Z. Both are None unless requested. Unused queries</span>
-<span class="sd">        have zero diagnostics.</span>
+<span class="sd">        ``tap_weights`` is float32 ``(N, Q, 4)``: bilinear coefficients times</span>
+<span class="sd">        source transmittance. Taps outside the receiving surface have zero</span>
+<span class="sd">        weight. The weights are unnormalized.</span>
+
+<span class="sd">        ``query_uv`` is ``(N, Q, 2)`` in normalized ``align_corners=False``</span>
+<span class="sd">        coordinates; ``query_depth`` is ``(N, Q)`` camera Z. Both are None</span>
+<span class="sd">        unless requested. Unused queries have zero diagnostics.</span>
 
 <span class="sd">    Gradients:</span>
 <span class="sd">        Smooth gradients reach vertices, query barycentrics, and material</span>
-<span class="sd">        opacity. Visibility boundaries use the same pixel-pair edge-motion</span>
-<span class="sd">        estimator as transparent rendering, adapted to the feature-weight</span>
-<span class="sd">        loss. Ordinary tessellation edges cancel; zero-alpha borders have</span>
-<span class="sd">        zero jump. Indices, topology, and ordering decisions are discrete.</span>
-<span class="sd">        For topology logits, use :func:`bernoulli_render_loss` and rebuild the</span>
-<span class="sd">        stencil separately for every sampled mesh. Only first derivatives</span>
-<span class="sd">        are supported. Backward is not guaranteed to be bitwise deterministic.</span>
+<span class="sd">        opacity. Coverage boundaries use DRTK&#39;s edge-motion estimator.</span>
+<span class="sd">        Ordinary tessellation edges and zero-opacity occluders have zero</span>
+<span class="sd">        boundary jump. An additional :func:`edge_grad_estimator` call would</span>
+<span class="sd">        count this contribution twice.</span>
+
+<span class="sd">        Face IDs, topology, and ordering are discrete. To optimize topology</span>
+<span class="sd">        logits, use :func:`bernoulli_render_loss` with a fresh stencil for each</span>
+<span class="sd">        sampled mesh. Only first derivatives are supported. Backward may be</span>
+<span class="sd">        nondeterministic.</span>
 
 <span class="sd">    Note:</span>
-<span class="sd">        This operation is CUDA-only; :func:`source_feature_stencil_ref` is a</span>
-<span class="sd">        CPU reference with smooth gradients only. Geometry and weights remain</span>
-<span class="sd">        float32 under autocast. CUDA graph capture is unsupported. Reuse a</span>
-<span class="sd">        stencil within one geometry evaluation; rebuild it after geometry,</span>
-<span class="sd">        topology, material opacity, or source-camera changes.</span>
+<span class="sd">        Geometry and weights remain float32 under autocast. CUDA graph capture</span>
+<span class="sd">        is unsupported. :func:`source_feature_stencil_ref` supports CPU inputs</span>
+<span class="sd">        and smooth derivatives.</span>
 
-<span class="sd">        Filtering validity per tap prevents geometric feature leakage, but</span>
-<span class="sd">        cannot undo mixing already present in a feature extractor&#39;s receptive</span>
-<span class="sd">        field. Fractional visibility is confidence, not transparency unmixing.</span>
+<span class="sd">        Visibility weights describe geometric access to the source image.</span>
+<span class="sd">        Features mixed by transparency or a feature extractor&#39;s receptive</span>
+<span class="sd">        field remain mixed.</span>
 
 <span class="sd">    Example::</span>
 
 <span class="sd">        indices, weights, _, _ = source_feature_stencil(</span>
-<span class="sd">            v_source_pixels, faces, receiver_faces, receiver_bary, H, W</span>
+<span class="sd">            v_pix, faces, query_faces, query_barycentrics, H, W</span>
 <span class="sd">        )</span>
 <span class="sd">        sampled, confidence = sample_feature_stencil(features, indices, weights)</span>
-<span class="sd">        refined = server_model(anchor_features, sampled, confidence)</span>
-<span class="sd">        loss = render_loss(refined, mesh)</span>
-<span class="sd">        loss.backward()  # source-visibility edge gradients are automatic</span>
+<span class="sd">        prediction = model(anchor_features, sampled, confidence)</span>
+<span class="sd">        loss_fn(prediction, target).backward()</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">vi</span><span class="p">,</span> <span class="n">opacity</span> <span class="o">=</span> <span class="n">_prepare</span><span class="p">(</span>
         <span class="n">v_pix</span><span class="p">,</span>
@@ -531,21 +527,19 @@
 <span class="k">def</span><span class="w"> </span><span class="nf">sample_feature_stencil</span><span class="p">(</span>
     <span class="n">feature_image</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">tap_indices</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">tap_weights</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
-<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Apply a source-visible stencil to an arbitrary-channel feature image.</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Sample image features using a visibility-weighted bilinear stencil.</span>
 
-<span class="sd">    For source texels :math:`F_j` and stencil weights :math:`w_{qj}`, returns</span>
-<span class="sd">    :math:`S_q=\sum_j w_{qj}F_j` and</span>
-<span class="sd">    :math:`c_q=\sum_j w_{qj}`. The feature sum is deliberately unnormalized:</span>
-<span class="sd">    no division by small confidence occurs. Feed both outputs to the model;</span>
-<span class="sd">    do not multiply S by c again. Preserve anchor features separately for</span>
-<span class="sd">    source-occluded surfaces.</span>
+<span class="sd">    For texel features :math:`F_j` and weights :math:`w_{qj}`, returns</span>
+<span class="sd">    :math:`S_q=\sum_j w_{qj}F_j` and confidence</span>
+<span class="sd">    :math:`c_q=\sum_j w_{qj}`. The feature sum is unnormalized. For example,</span>
+<span class="sd">    ``sampled + (1 - confidence) * anchor`` blends the observations with an</span>
+<span class="sd">    existing surface feature where visibility is incomplete.</span>
 
 <span class="sd">    Args:</span>
 <span class="sd">        feature_image (Tensor): CUDA ``(N, C, H, W)``, float16, bfloat16, or</span>
 <span class="sd">            float32. Arbitrary nonnegative strides, including channels-last</span>
-<span class="sd">            and sliced images, are supported.</span>
-<span class="sd">            The grid and batch must match the stencil. There is no tiny-MLP</span>
-<span class="sd">            channel limit on this server-side operation.</span>
+<span class="sd">            and sliced images, are supported. The grid and batch must match</span>
+<span class="sd">            the stencil.</span>
 <span class="sd">        tap_indices (Tensor): Int32 CUDA ``(N, Q, 4)`` from</span>
 <span class="sd">            :func:`source_feature_stencil`. ``-1`` and out-of-range indices</span>
 <span class="sd">            contribute zero. Indices have no gradient.</span>
@@ -556,12 +550,11 @@
 <span class="sd">        Tuple[Tensor, Tensor]: ``(sampled_features, confidence)``. Samples have</span>
 <span class="sd">        shape ``(N, C, Q)`` and the image dtype, with float32 accumulation.</span>
 <span class="sd">        Confidence is float32 ``(N, 1, Q)``. Gradients reach the image and</span>
-<span class="sd">        weights, including zero weights with valid indices, and thus reach</span>
-<span class="sd">        visibility geometry through :func:`source_feature_stencil`.</span>
+<span class="sd">        weights, including zero weights with valid indices.</span>
 
 <span class="sd">    Note:</span>
-<span class="sd">        Only first derivatives are supported. Backward is not guaranteed to be</span>
-<span class="sd">        bitwise deterministic. The reference helper supports CPU and float64.</span>
+<span class="sd">        Only first derivatives are supported. Backward may be nondeterministic.</span>
+<span class="sd">        :func:`sample_feature_stencil_ref` supports CPU and float64 inputs.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">_check_sampler</span><span class="p">(</span><span class="n">feature_image</span><span class="p">,</span> <span class="n">tap_indices</span><span class="p">,</span> <span class="n">tap_weights</span><span class="p">,</span> <span class="n">native</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
     <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span>

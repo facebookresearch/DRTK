@@ -463,16 +463,12 @@ small per-fragment appearance network, while
 <code class="docutils literal notranslate"><span class="pre">render_transparent_mlp_two_textures</span></code> samples two textures at independent
 <code class="docutils literal notranslate"><span class="pre">uv0</span></code> and <code class="docutils literal notranslate"><span class="pre">uv1</span></code> coordinates and concatenates their features. The combined
 MLP input may contain up to 32 channels.</p>
-<p>Independent UV sets do not provide automatic visibility or provenance gating.
-When combining original-source features with features sampled at a displaced
-location, use <a class="reference internal" href="source_features.html#drtk.source_feature_stencil" title="drtk.source_feature_stencil"><code class="xref py py-func docutils literal notranslate"><span class="pre">source_feature_stencil()</span></code></a> and <a class="reference internal" href="source_features.html#drtk.sample_feature_stencil" title="drtk.sample_feature_stencil"><code class="xref py py-func docutils literal notranslate"><span class="pre">sample_feature_stencil()</span></code></a>
-to account for occlusion and supply confidence to the appearance model. For
-example, a hidden chest surface must not consume features from a hand that
-occludes its current projection. Topology and component ownership remain
-upstream responsibilities.</p>
+<p>When constructing textures from source images, use
+<a class="reference internal" href="source_features.html#drtk.source_feature_stencil" title="drtk.source_feature_stencil"><code class="xref py py-func docutils literal notranslate"><span class="pre">source_feature_stencil()</span></code></a> and <a class="reference internal" href="source_features.html#drtk.sample_feature_stencil" title="drtk.sample_feature_stencil"><code class="xref py py-func docutils literal notranslate"><span class="pre">sample_feature_stencil()</span></code></a> to account
+for occlusion. The rendering functions sample the supplied texture values
+at their UV coordinates.</p>
 <p>All variants support nearest, bilinear, and bicubic filtering together with
-zeros, border, and reflection padding. Texture coordinates consistently use
-<code class="docutils literal notranslate"><span class="pre">align_corners=False</span></code> semantics; this is deliberately not configurable.
+zeros, border, and reflection padding. Texture coordinates use <code class="docutils literal notranslate"><span class="pre">align_corners=False</span></code> semantics.
 They differentiate compositing, perspective-correct interpolation, texture
 sampling, vertex opacity, and interior vertex motion. Triangle topology and
 depth ordering remain discrete. All CUDA entry points add transparent

@@ -428,10 +428,10 @@
 <div class="pst-scrollable-table-container"><table class="autosummary longtable table">
 <tbody>
 <tr class="row-odd"><td><p><a class="reference internal" href="#drtk.source_feature_stencil" title="drtk.source_feature_stencil"><code class="xref py py-obj docutils literal notranslate"><span class="pre">source_feature_stencil</span></code></a></p></td>
-<td><p>Build a differentiable, source-visible bilinear sampling stencil.</p></td>
+<td><p>Compute bilinear sampling indices and visibility weights for mesh points.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#drtk.sample_feature_stencil" title="drtk.sample_feature_stencil"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sample_feature_stencil</span></code></a></p></td>
-<td><p>Apply a source-visible stencil to an arbitrary-channel feature image.</p></td>
+<td><p>Sample image features using a visibility-weighted bilinear stencil.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#drtk.source_feature_stencil_ref" title="drtk.source_feature_stencil_ref"><code class="xref py py-obj docutils literal notranslate"><span class="pre">source_feature_stencil_ref</span></code></a></p></td>
 <td><p>Reference for <a class="reference internal" href="#drtk.source_feature_stencil" title="drtk.source_feature_stencil"><code class="xref py py-func docutils literal notranslate"><span class="pre">source_feature_stencil()</span></code></a>, with smooth gradients only.</p></td>
@@ -442,68 +442,73 @@
 </tbody>
 </table>
 </div>
-<p>Sample source-image features onto a deformed surface while respecting
-occlusion, cuts, and local surface ownership. Gradients propagate to the
-source features, receiving surface, and occluding geometry.</p>
-<p>See <a class="reference internal" href="../tutorials/DRTK_Tutorial_source_features.html"><span class="doc">Keep source features on their surface</span></a> for a rendered example,
-an optimization visualization, and the complete runnable script.</p>
-<section id="two-reusable-operations">
-<h2>Two reusable operations<a class="headerlink" href="#two-reusable-operations" title="Link to this heading">#</a></h2>
-<p><code class="docutils literal notranslate"><span class="pre">source_feature_stencil</span></code> computes four texel indices and four weights per
-surface query. <code class="docutils literal notranslate"><span class="pre">sample_feature_stencil</span></code> applies them to arbitrary-channel
-feature maps. Reuse the same stencil across feature banks on the same grid,
-within the same geometry evaluation. Rebuild it after changing geometry,
-topology, opacity, or the source camera.</p>
-<p>Queries are attached to a face by <strong>3D barycentric coordinates</strong>. A floating
-point depth comparison cannot disambiguate two overlapping surfaces. Each tap
-instead follows the query’s local surface through indexed manifold neighbors.
-Open boundaries, cuts, projected folds, and nonmanifold ambiguity stop that
-continuation. Global connected-component identity is insufficient: one
-connected mesh can occlude itself.</p>
-<p>For receiver face <span class="math notranslate nohighlight">\(r\)</span>, source visibility is the transmittance of the
-faces preceding it in the transparent renderer’s stable mean-depth/face-index
-order:</p>
+<p>Sample image features at points on a mesh, weighted by their visibility from
+the source camera. The outputs are a feature vector and visibility confidence
+for each point. Gradients propagate to features, surface positions, and
+occluding geometry.</p>
+<p>See <a class="reference internal" href="../tutorials/DRTK_Tutorial_source_features.html"><span class="doc">Sampling features with source visibility</span></a> for an example.</p>
+<section id="sampling-features">
+<h2>Sampling features<a class="headerlink" href="#sampling-features" title="Link to this heading">#</a></h2>
+<p><a class="reference internal" href="#drtk.source_feature_stencil" title="drtk.source_feature_stencil"><code class="xref py py-func docutils literal notranslate"><span class="pre">source_feature_stencil()</span></code></a> computes the four source texels and weights
+for each surface query. <a class="reference internal" href="#drtk.sample_feature_stencil" title="drtk.sample_feature_stencil"><code class="xref py py-func docutils literal notranslate"><span class="pre">sample_feature_stencil()</span></code></a> gathers their features:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">indices</span><span class="p">,</span> <span class="n">weights</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">source_feature_stencil</span><span class="p">(</span>
+    <span class="n">v_pix</span><span class="p">,</span> <span class="n">faces</span><span class="p">,</span> <span class="n">query_faces</span><span class="p">,</span> <span class="n">query_barycentrics</span><span class="p">,</span> <span class="n">height</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span>
+    <span class="n">vertex_opacity</span><span class="o">=</span><span class="n">opacity</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">sampled</span><span class="p">,</span> <span class="n">confidence</span> <span class="o">=</span> <span class="n">sample_feature_stencil</span><span class="p">(</span><span class="n">features</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="n">weights</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>A query is specified by a face ID and 3D barycentric coordinates. Each
+bilinear tap must lie on the query’s local surface. The surface continues
+through shared manifold edges and ends at cuts, projected folds, and
+nonmanifold junctions. Occlusion is evaluated at each tap, including
+self-occlusion within a connected mesh.</p>
+<p>The same indices and weights can sample several feature maps with matching
+batch and spatial dimensions. Recompute them when the geometry, topology,
+material opacity, or source camera changes.</p>
+</section>
+<section id="visibility-and-confidence">
+<h2>Visibility and confidence<a class="headerlink" href="#visibility-and-confidence" title="Link to this heading">#</a></h2>
+<p>For a receiving face <span class="math notranslate nohighlight">\(r\)</span>, visibility at source pixel <span class="math notranslate nohighlight">\(p\)</span> is</p>
 <div class="math notranslate nohighlight">
 \[T_r(p)=\prod_{f\prec r}\left(1-\alpha_f(p)\right).\]</div>
-<p>The receiver’s own opacity is excluded. Opacity is known geometric/material
-opacity, including feathering. It must be independent of an appearance
-network that consumes the sampled features; otherwise visibility would depend
-on its own output. There is no per-pixel depth sorting or differentiation
-through sort changes.</p>
-<p>With bilinear coefficients <span class="math notranslate nohighlight">\(b_{qj}\)</span> and source features <span class="math notranslate nohighlight">\(F_j\)</span>,</p>
+<p>Faces are ordered by mean camera-space vertex depth, with face index breaking
+ties, as in <a class="reference internal" href="transparent_render.html"><span class="doc">drtk.transparent_render</span></a>. This approximates visibility for
+small triangles; intersecting or depth-crossing triangles can require a
+different order at different pixels. The receiving face’s own opacity is
+excluded from the product.</p>
+<p>With bilinear coefficients <span class="math notranslate nohighlight">\(b_{qj}\)</span> and source features <span class="math notranslate nohighlight">\(F_j\)</span>, the
+sampling weights, feature sum, and confidence are</p>
 <div class="math notranslate nohighlight">
 \[w_{qj}=b_{qj}T_{qj},\qquad
 S_q=\sum_{j=1}^{4}w_{qj}F_j,\qquad
 c_q=\sum_{j=1}^{4}w_{qj}.\]</div>
-<p>The output is the <strong>unnormalized feature sum and confidence</strong>. There is no
-division by a small alpha/confidence. Feed both to the refinement model and
-preserve anchor features separately. Do not multiply <span class="math notranslate nohighlight">\(S_q\)</span> by
-<span class="math notranslate nohighlight">\(c_q\)</span> a second time.</p>
-<p>An in-image tap keeps its index even when its weight is zero. This lets
-backward evaluate the feature value that would be revealed by a moving
-occlusion boundary. A zero-weight tap contributes nothing in forward.</p>
+<p>Invalid taps have zero weight. The feature sum is unnormalized: a fully
+hidden query returns zero features and zero confidence. For example, an
+existing surface feature <span class="math notranslate nohighlight">\(A_q\)</span> can fill the missing contribution as
+<span class="math notranslate nohighlight">\(S_q+(1-c_q)A_q\)</span>.</p>
+<p>Use geometric or material opacity for visibility. If opacity is predicted
+from these same sampled features, the dependency is circular. Partial
+visibility supplies a confidence value; features already mixed by transparency
+or a neural receptive field remain mixed.</p>
 </section>
 <section id="gradients">
 <h2>Gradients<a class="headerlink" href="#gradients" title="Link to this heading">#</a></h2>
-<p>Source-visibility boundary gradients are enabled by default
-(<code class="docutils literal notranslate"><span class="pre">edge_gradients=True</span></code>). Do not wrap the result in <a class="reference internal" href="edge_grad_estimator.html#drtk.edge_grad_estimator" title="drtk.edge_grad_estimator"><code class="xref py py-func docutils literal notranslate"><span class="pre">edge_grad_estimator()</span></code></a> again. Target-view transparent rendering
-has its own separate boundary gradient.</p>
-<p>The boundary signal measures the change in source features and confidence.
-For upstream gradients <span class="math notranslate nohighlight">\(g_S,g_c\)</span>,</p>
+<p>Smooth derivatives propagate through projection, bilinear interpolation,
+material opacity, and feature values. Coverage boundaries use DRTK’s edge
+estimator, enabled by <code class="docutils literal notranslate"><span class="pre">edge_gradients=True</span></code>. For upstream feature and
+confidence gradients <span class="math notranslate nohighlight">\(g_S,g_c\)</span>, its weight derivative is</p>
 <div class="math notranslate nohighlight">
 \[\frac{\partial L}{\partial w_{qj}}
 =\langle g_{S_q},F_j\rangle+g_{c_q}.\]</div>
-<p>This scalar adjoint multiplies the one-sided visibility change and is
-accumulated onto the boundary vertices. A heavy downstream MLP or transformer
-can therefore send a loss signal to the occluding geometry through normal
-<code class="docutils literal notranslate"><span class="pre">loss.backward()</span></code>. This is DRTK’s local boundary-gradient estimator, not an
-exact derivative of the discrete hard rasterizer.</p>
-<p>Smooth derivatives of projection, bilinear weights, and material opacity are
-computed separately. Ordinary shared tessellation edges do not introduce
-artificial gradients. A zero-opacity occluder has zero visibility jump;
-an edge completely hidden behind an opaque occluder also has zero jump.
-Receiver-domain boundaries are a distinct source of feature-admission changes.
-Exact opaque values are supported.</p>
+<p>The estimator combines this derivative with the visibility change across an
+edge to obtain a geometry gradient. In-image taps retain their indices even
+at zero weight, allowing this change to account for features revealed by
+boundary motion. Ordinary shared tessellation edges, zero-opacity occluders,
+and fully hidden edges contribute zero boundary jump.</p>
+<p>Call <code class="docutils literal notranslate"><span class="pre">loss.backward()</span></code> on the downstream loss. Applying
+<a class="reference internal" href="edge_grad_estimator.html#drtk.edge_grad_estimator" title="drtk.edge_grad_estimator"><code class="xref py py-func docutils literal notranslate"><span class="pre">edge_grad_estimator()</span></code></a> again would count the source boundary contribution
+twice. A target-view renderer computes its own boundary contribution.</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <colgroup>
 <col style="width: 42.0%" />
@@ -516,13 +521,13 @@ Exact opaque values are supported.</p>
 </thead>
 <tbody>
 <tr class="row-even"><td><p>Vertices, query barycentrics, source features, material opacity</p></td>
-<td><p>Smooth derivatives within a fixed visibility configuration.</p></td>
+<td><p>Smooth derivatives for fixed coverage and ordering.</p></td>
 </tr>
-<tr class="row-odd"><td><p>Visibility/receiver-domain boundaries</p></td>
-<td><p>Integrated edge-gradient estimate to geometry.</p></td>
+<tr class="row-odd"><td><p>Occlusion and receiving-surface boundaries</p></td>
+<td><p>Estimated geometry derivatives from boundary motion.</p></td>
 </tr>
-<tr class="row-even"><td><p>Face IDs, connectivity, sort order, discrete local-walk branches</p></td>
-<td><p>No ordinary derivative; use sampled-topology loss estimation for topology logits.</p></td>
+<tr class="row-even"><td><p>Face IDs, connectivity, ordering, and surface-continuation decisions</p></td>
+<td><p>Discrete. Use <a class="reference internal" href="pixel_grid_mesh.html#drtk.bernoulli_render_loss" title="drtk.bernoulli_render_loss"><code class="xref py py-func docutils literal notranslate"><span class="pre">bernoulli_render_loss()</span></code></a> for sampled topology, rebuilding the stencil for each sample.</p></td>
 </tr>
 <tr class="row-odd"><td><p>Second derivatives</p></td>
 <td><p>Unsupported.</p></td>
@@ -530,127 +535,116 @@ Exact opaque values are supported.</p>
 </tbody>
 </table>
 </div>
-<p>The reference functions support CPU tensors and smooth gradients only;
-they do not provide visibility-boundary gradients.</p>
+<p>The reference functions support CPU tensors and smooth derivatives. The
+boundary estimator is available in <a class="reference internal" href="#drtk.source_feature_stencil" title="drtk.source_feature_stencil"><code class="xref py py-func docutils literal notranslate"><span class="pre">source_feature_stencil()</span></code></a>.</p>
 </section>
-<section id="coordinates-and-supported-inputs">
-<h2>Coordinates and supported inputs<a class="headerlink" href="#coordinates-and-supported-inputs" title="Link to this heading">#</a></h2>
-<p><code class="docutils literal notranslate"><span class="pre">v_pix</span></code> uses source pixel XY and camera Z. Integer XY is a pixel center;
-there is no Y flip. For a query with 3D barycentrics <span class="math notranslate nohighlight">\(\beta\)</span>,</p>
+<section id="coordinates-and-data-types">
+<h2>Coordinates and data types<a class="headerlink" href="#coordinates-and-data-types" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">v_pix</span></code> contains source pixel XY and positive camera Z. Integer XY denotes
+pixel centers. For 3D barycentrics <span class="math notranslate nohighlight">\(\beta\)</span>, a query projects to</p>
 <div class="math notranslate nohighlight">
 \[z_q=\sum_i\beta_i z_i,\qquad
 p_q=\frac{\sum_i\beta_i z_i p_i}{z_q}.\]</div>
-<p>Use the existing camera projection utilities before calling the stencil.
-When sampling a smaller feature map, scale the source intrinsics or projected
-coordinates with the half-pixel convention:
-<code class="docutils literal notranslate"><span class="pre">x_f</span> <span class="pre">=</span> <span class="pre">(x</span> <span class="pre">+</span> <span class="pre">0.5)</span> <span class="pre">*</span> <span class="pre">W_f</span> <span class="pre">/</span> <span class="pre">W</span> <span class="pre">-</span> <span class="pre">0.5</span></code>. Banks with different grids require
-different stencils. <code class="docutils literal notranslate"><span class="pre">return_queries=True</span></code> returns normalized UV compatible
-with <code class="docutils literal notranslate"><span class="pre">grid_sample(...,</span> <span class="pre">align_corners=False)</span></code> and camera Z.</p>
-<p>These operations require CUDA tensors. The stencil uses float32 geometry and
-weights. Sampling accepts float16, bfloat16, and float32 feature images,
-arbitrary channel counts, and strided inputs. Results are accumulated in
-float32. Backward is not guaranteed to be bitwise deterministic.</p>
-<p><code class="docutils literal notranslate"><span class="pre">source_feature_stencil</span></code> does not support CUDA graph capture. Reuse a stencil
-across same-grid feature banks, and rebuild it when geometry, topology,
-material opacity, or the source camera changes.</p>
+<p>For a feature map resized from <span class="math notranslate nohighlight">\(W\times H\)</span> to <span class="math notranslate nohighlight">\(W_f\times H_f\)</span>,
+transform pixel coordinates as
+<code class="docutils literal notranslate"><span class="pre">x_f</span> <span class="pre">=</span> <span class="pre">(x</span> <span class="pre">+</span> <span class="pre">0.5)</span> <span class="pre">*</span> <span class="pre">W_f</span> <span class="pre">/</span> <span class="pre">W</span> <span class="pre">-</span> <span class="pre">0.5</span></code> and similarly for Y.
+<code class="docutils literal notranslate"><span class="pre">return_queries=True</span></code> returns normalized UV coordinates compatible with
+<code class="docutils literal notranslate"><span class="pre">grid_sample(...,</span> <span class="pre">align_corners=False)</span></code> and camera Z.</p>
+<p>The stencil requires float32 CUDA geometry and produces float32 weights.
+Sampling accepts float16, bfloat16, and float32 CUDA features, with arbitrary
+channel counts and strides. Accumulation uses float32. Backward may be
+nondeterministic. <code class="docutils literal notranslate"><span class="pre">source_feature_stencil</span></code> does not support CUDA graph capture.</p>
 </section>
 <section id="functions">
 <h2>Functions<a class="headerlink" href="#functions" title="Link to this heading">#</a></h2>
 <dl class="py function">
 <dt class="sig sig-object py" id="drtk.source_feature_stencil">
 <span class="sig-prename descclassname"><span class="pre">drtk.</span></span><span class="sig-name descname"><span class="pre">source_feature_stencil</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v_pix</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vi</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">query_face_ids</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">query_barycentrics</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">height</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">width</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">vertex_opacity</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">edge_gradients</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_queries</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/drtk/source_features.html#source_feature_stencil"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#drtk.source_feature_stencil" title="Link to this definition">#</a></dt>
-<dd><p>Build a differentiable, source-visible bilinear sampling stencil.</p>
-<p>A query is attached to a mesh face, rather than identified by a depth
-tolerance. Each of its four source-image taps follows the receiver’s local
-surface through ordinary shared edges. Cuts, projected folds, and ambiguous
-nonmanifold continuations stop that walk. The tap is weighted by the
-transmittance of faces preceding its receiver in stable
-<code class="docutils literal notranslate"><span class="pre">(mean</span> <span class="pre">triangle</span> <span class="pre">camera</span> <span class="pre">Z,</span> <span class="pre">face</span> <span class="pre">index)</span></code> order, matching the transparent
-renderer. There is no per-pixel depth sort.</p>
-<p>Use <a class="reference internal" href="#drtk.sample_feature_stencil" title="drtk.sample_feature_stencil"><code class="xref py py-func docutils literal notranslate"><span class="pre">sample_feature_stencil()</span></code></a> to apply the returned stencil to one or
-several feature images on the same grid. Visibility gates feature access;
-it does not remove hidden geometry or modify its rendering opacity.</p>
+<dd><p>Compute bilinear sampling indices and visibility weights for mesh points.</p>
+<p>Each query is attached to a face by 3D barycentric coordinates. Its four
+image taps follow the receiving surface through shared manifold edges,
+stopping at cuts, projected folds, or nonmanifold junctions. Each valid
+tap is weighted by transmittance from faces preceding its receiver in
+<code class="docutils literal notranslate"><span class="pre">(mean</span> <span class="pre">triangle</span> <span class="pre">camera</span> <span class="pre">Z,</span> <span class="pre">face</span> <span class="pre">index)</span></code> order.</p>
+<p>Apply the result to a feature image with <a class="reference internal" href="#drtk.sample_feature_stencil" title="drtk.sample_feature_stencil"><code class="xref py py-func docutils literal notranslate"><span class="pre">sample_feature_stencil()</span></code></a>.
+Feature maps with matching batch and spatial dimensions can share the
+same stencil. Recompute it when geometry, topology, material opacity,
+or the source camera changes.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>v_pix</strong> (<em>Tensor</em>) – Float32 CUDA vertices, <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">V,</span> <span class="pre">3)</span></code>. XY are source
-pixel coordinates and Z is positive camera depth. Integer XY
-denotes pixel centers. Use the feature image’s pixel grid, with
-no implicit vertical flip.</p></li>
+pixel coordinates, with integer values at pixel centers. Z is
+positive camera depth. Use the feature image’s pixel grid.</p></li>
 <li><p><strong>vi</strong> (<em>Tensor</em>) – Int32 CUDA faces, <code class="docutils literal notranslate"><span class="pre">(F,</span> <span class="pre">3)</span></code> or <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">F,</span> <span class="pre">3)</span></code>. Faces with
 invalid indices, nonfinite vertices, nonpositive depth, or zero
-projected area are ignored. Indexed edges define connectivity;
-coordinate coincidence does not weld separate surfaces.</p></li>
-<li><p><strong>query_face_ids</strong> (<em>Tensor</em>) – Int32 CUDA receiver face IDs, <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">Q)</span></code>.
-<code class="docutils literal notranslate"><span class="pre">-1</span></code> denotes an unused query. A vertex query must name an incident
-face in the intended local surface fan.</p></li>
+projected area are ignored. Shared indices define connectivity;
+coincident vertices with separate indices remain separate.</p></li>
+<li><p><strong>query_face_ids</strong> (<em>Tensor</em>) – Int32 CUDA receiving-face IDs, <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">Q)</span></code>.
+<code class="docutils literal notranslate"><span class="pre">-1</span></code> denotes an unused query. At a shared vertex, choose an
+incident face on the intended side of the surface.</p></li>
 <li><p><strong>query_barycentrics</strong> (<em>Tensor</em>) – Float32 CUDA 3D barycentrics, <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">Q,</span> <span class="pre">3)</span></code>.
-They sum to one and are nonnegative; they are not screen-affine
-barycentrics. Invalid queries produce zero outputs.</p></li>
+Entries must be nonnegative and sum to one. Invalid queries have
+zero weights and diagnostics, with tap indices set to <code class="docutils literal notranslate"><span class="pre">-1</span></code>.</p></li>
 <li><p><strong>height</strong> (<em>int</em>) – Source feature-image height.</p></li>
 <li><p><strong>width</strong> (<em>int</em>) – Source feature-image width.</p></li>
-<li><p><strong>vertex_opacity</strong> (<em>Optional</em><em>[</em><em>Tensor</em><em>]</em>) – Float32 CUDA known material/feather
-opacity, <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">V)</span></code>. Values are clamped to <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">1]</span></code>; default is
-opaque. Exact opacity one fully blocks a tap. The receiver’s own
-opacity is excluded from its visibility. Do not derive this input
-from an appearance network that consumes the same sampled features.</p></li>
-<li><p><strong>edge_gradients</strong> (<em>bool</em>) – Add DRTK coverage-boundary gradient estimates
-automatically, including gradients to occluding geometry. Default
-is True. No separate <a class="reference internal" href="edge_grad_estimator.html#drtk.edge_grad_estimator" title="drtk.edge_grad_estimator"><code class="xref py py-func docutils literal notranslate"><span class="pre">edge_grad_estimator()</span></code></a> call is needed.</p></li>
-<li><p><strong>return_queries</strong> (<em>bool</em>) – Return normalized source UV and camera Z of
-each query for diagnostics or other differentiable uses.</p></li>
+<li><p><strong>vertex_opacity</strong> (<em>Optional</em><em>[</em><em>Tensor</em><em>]</em>) – Float32 CUDA material opacity,
+<code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">V)</span></code>, clamped to <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">1]</span></code>. Defaults to one. The receiving
+face’s own opacity is excluded from visibility. Opacity must be
+available before sampling; predicting it from these same sampled
+features creates a circular dependency.</p></li>
+<li><p><strong>edge_gradients</strong> (<em>bool</em>) – Estimate geometry gradients at visibility and
+receiving-surface boundaries. Default: True.</p></li>
+<li><p><strong>return_queries</strong> (<em>bool</em>) – Return each query’s projected UV and camera Z.
+Default: False.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p><p>Always
-<code class="docutils literal notranslate"><span class="pre">(tap_indices,</span> <span class="pre">tap_weights,</span> <span class="pre">query_uv,</span> <span class="pre">query_depth)</span></code>.</p>
-<p><code class="docutils literal notranslate"><span class="pre">tap_indices</span></code> is int32 <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">Q,</span> <span class="pre">4)</span></code>, in top-left, top-right,
-bottom-left, bottom-right order, with each index flattened as
-<code class="docutils literal notranslate"><span class="pre">y</span> <span class="pre">*</span> <span class="pre">width</span> <span class="pre">+</span> <span class="pre">x</span></code>. Out-of-image or unused-query taps have index <code class="docutils literal notranslate"><span class="pre">-1</span></code>.
-In-image taps retain their index even at zero weight, so backward can
-evaluate the effect of revealing their features.</p>
-<p><code class="docutils literal notranslate"><span class="pre">tap_weights</span></code> is float32 <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">Q,</span> <span class="pre">4)</span></code>: bilinear weight times ordered
-source transmittance, or zero when local receiver continuation fails.
-Weights are not renormalized. <code class="docutils literal notranslate"><span class="pre">query_uv</span></code> is <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">Q,</span> <span class="pre">2)</span></code> in
-<code class="docutils literal notranslate"><span class="pre">align_corners=False</span></code> normalized coordinates; <code class="docutils literal notranslate"><span class="pre">query_depth</span></code> is
-<code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">Q)</span></code> camera Z. Both are None unless requested. Unused queries
-have zero diagnostics.</p>
+<dd class="field-even"><p><p><code class="docutils literal notranslate"><span class="pre">(tap_indices,</span> <span class="pre">tap_weights,</span> <span class="pre">query_uv,</span> <span class="pre">query_depth)</span></code>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">tap_indices</span></code> is int32 <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">Q,</span> <span class="pre">4)</span></code>, ordered top-left, top-right,
+bottom-left, bottom-right. Each entry is flattened as <code class="docutils literal notranslate"><span class="pre">y</span> <span class="pre">*</span> <span class="pre">width</span> <span class="pre">+</span> <span class="pre">x</span></code>.
+Out-of-image and unused-query taps have index <code class="docutils literal notranslate"><span class="pre">-1</span></code>. In-image indices
+remain valid at zero weight to support boundary gradients.</p>
+<p><code class="docutils literal notranslate"><span class="pre">tap_weights</span></code> is float32 <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">Q,</span> <span class="pre">4)</span></code>: bilinear coefficients times
+source transmittance. Taps outside the receiving surface have zero
+weight. The weights are unnormalized.</p>
+<p><code class="docutils literal notranslate"><span class="pre">query_uv</span></code> is <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">Q,</span> <span class="pre">2)</span></code> in normalized <code class="docutils literal notranslate"><span class="pre">align_corners=False</span></code>
+coordinates; <code class="docutils literal notranslate"><span class="pre">query_depth</span></code> is <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">Q)</span></code> camera Z. Both are None
+unless requested. Unused queries have zero diagnostics.</p>
 </p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p>Tuple[Tensor, Tensor, Optional[Tensor], Optional[Tensor]]</p>
 </dd>
 </dl>
-<dl class="simple">
+<dl>
 <dt>Gradients:</dt><dd><p>Smooth gradients reach vertices, query barycentrics, and material
-opacity. Visibility boundaries use the same pixel-pair edge-motion
-estimator as transparent rendering, adapted to the feature-weight
-loss. Ordinary tessellation edges cancel; zero-alpha borders have
-zero jump. Indices, topology, and ordering decisions are discrete.
-For topology logits, use <a class="reference internal" href="pixel_grid_mesh.html#drtk.bernoulli_render_loss" title="drtk.bernoulli_render_loss"><code class="xref py py-func docutils literal notranslate"><span class="pre">bernoulli_render_loss()</span></code></a> and rebuild the
-stencil separately for every sampled mesh. Only first derivatives
-are supported. Backward is not guaranteed to be bitwise deterministic.</p>
+opacity. Coverage boundaries use DRTK’s edge-motion estimator.
+Ordinary tessellation edges and zero-opacity occluders have zero
+boundary jump. An additional <a class="reference internal" href="edge_grad_estimator.html#drtk.edge_grad_estimator" title="drtk.edge_grad_estimator"><code class="xref py py-func docutils literal notranslate"><span class="pre">edge_grad_estimator()</span></code></a> call would
+count this contribution twice.</p>
+<p>Face IDs, topology, and ordering are discrete. To optimize topology
+logits, use <a class="reference internal" href="pixel_grid_mesh.html#drtk.bernoulli_render_loss" title="drtk.bernoulli_render_loss"><code class="xref py py-func docutils literal notranslate"><span class="pre">bernoulli_render_loss()</span></code></a> with a fresh stencil for each
+sampled mesh. Only first derivatives are supported. Backward may be
+nondeterministic.</p>
 </dd>
 </dl>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>This operation is CUDA-only; <a class="reference internal" href="#drtk.source_feature_stencil_ref" title="drtk.source_feature_stencil_ref"><code class="xref py py-func docutils literal notranslate"><span class="pre">source_feature_stencil_ref()</span></code></a> is a
-CPU reference with smooth gradients only. Geometry and weights remain
-float32 under autocast. CUDA graph capture is unsupported. Reuse a
-stencil within one geometry evaluation; rebuild it after geometry,
-topology, material opacity, or source-camera changes.</p>
-<p>Filtering validity per tap prevents geometric feature leakage, but
-cannot undo mixing already present in a feature extractor’s receptive
-field. Fractional visibility is confidence, not transparency unmixing.</p>
+<p>Geometry and weights remain float32 under autocast. CUDA graph capture
+is unsupported. <a class="reference internal" href="#drtk.source_feature_stencil_ref" title="drtk.source_feature_stencil_ref"><code class="xref py py-func docutils literal notranslate"><span class="pre">source_feature_stencil_ref()</span></code></a> supports CPU inputs
+and smooth derivatives.</p>
+<p>Visibility weights describe geometric access to the source image.
+Features mixed by transparency or a feature extractor’s receptive
+field remain mixed.</p>
 </div>
 <p>Example:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">indices</span><span class="p">,</span> <span class="n">weights</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">source_feature_stencil</span><span class="p">(</span>
-    <span class="n">v_source_pixels</span><span class="p">,</span> <span class="n">faces</span><span class="p">,</span> <span class="n">receiver_faces</span><span class="p">,</span> <span class="n">receiver_bary</span><span class="p">,</span> <span class="n">H</span><span class="p">,</span> <span class="n">W</span>
+    <span class="n">v_pix</span><span class="p">,</span> <span class="n">faces</span><span class="p">,</span> <span class="n">query_faces</span><span class="p">,</span> <span class="n">query_barycentrics</span><span class="p">,</span> <span class="n">H</span><span class="p">,</span> <span class="n">W</span>
 <span class="p">)</span>
 <span class="n">sampled</span><span class="p">,</span> <span class="n">confidence</span> <span class="o">=</span> <span class="n">sample_feature_stencil</span><span class="p">(</span><span class="n">features</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="n">weights</span><span class="p">)</span>
-<span class="n">refined</span> <span class="o">=</span> <span class="n">server_model</span><span class="p">(</span><span class="n">anchor_features</span><span class="p">,</span> <span class="n">sampled</span><span class="p">,</span> <span class="n">confidence</span><span class="p">)</span>
-<span class="n">loss</span> <span class="o">=</span> <span class="n">render_loss</span><span class="p">(</span><span class="n">refined</span><span class="p">,</span> <span class="n">mesh</span><span class="p">)</span>
-<span class="n">loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>  <span class="c1"># source-visibility edge gradients are automatic</span>
+<span class="n">prediction</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">anchor_features</span><span class="p">,</span> <span class="n">sampled</span><span class="p">,</span> <span class="n">confidence</span><span class="p">)</span>
+<span class="n">loss_fn</span><span class="p">(</span><span class="n">prediction</span><span class="p">,</span> <span class="n">target</span><span class="p">)</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
 </pre></div>
 </div>
 </dd></dl>
@@ -658,21 +652,19 @@ field. Fractional visibility is confidence, not transparency unmixing.</p>
 <dl class="py function">
 <dt class="sig sig-object py" id="drtk.sample_feature_stencil">
 <span class="sig-prename descclassname"><span class="pre">drtk.</span></span><span class="sig-name descname"><span class="pre">sample_feature_stencil</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">feature_image</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tap_indices</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tap_weights</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/drtk/source_features.html#sample_feature_stencil"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#drtk.sample_feature_stencil" title="Link to this definition">#</a></dt>
-<dd><p>Apply a source-visible stencil to an arbitrary-channel feature image.</p>
-<p>For source texels <span class="math notranslate nohighlight">\(F_j\)</span> and stencil weights <span class="math notranslate nohighlight">\(w_{qj}\)</span>, returns
-<span class="math notranslate nohighlight">\(S_q=\sum_j w_{qj}F_j\)</span> and
-<span class="math notranslate nohighlight">\(c_q=\sum_j w_{qj}\)</span>. The feature sum is deliberately unnormalized:
-no division by small confidence occurs. Feed both outputs to the model;
-do not multiply S by c again. Preserve anchor features separately for
-source-occluded surfaces.</p>
+<dd><p>Sample image features using a visibility-weighted bilinear stencil.</p>
+<p>For texel features <span class="math notranslate nohighlight">\(F_j\)</span> and weights <span class="math notranslate nohighlight">\(w_{qj}\)</span>, returns
+<span class="math notranslate nohighlight">\(S_q=\sum_j w_{qj}F_j\)</span> and confidence
+<span class="math notranslate nohighlight">\(c_q=\sum_j w_{qj}\)</span>. The feature sum is unnormalized. For example,
+<code class="docutils literal notranslate"><span class="pre">sampled</span> <span class="pre">+</span> <span class="pre">(1</span> <span class="pre">-</span> <span class="pre">confidence)</span> <span class="pre">*</span> <span class="pre">anchor</span></code> blends the observations with an
+existing surface feature where visibility is incomplete.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>feature_image</strong> (<em>Tensor</em>) – CUDA <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">C,</span> <span class="pre">H,</span> <span class="pre">W)</span></code>, float16, bfloat16, or
 float32. Arbitrary nonnegative strides, including channels-last
-and sliced images, are supported.
-The grid and batch must match the stencil. There is no tiny-MLP
-channel limit on this server-side operation.</p></li>
+and sliced images, are supported. The grid and batch must match
+the stencil.</p></li>
 <li><p><strong>tap_indices</strong> (<em>Tensor</em>) – Int32 CUDA <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">Q,</span> <span class="pre">4)</span></code> from
 <a class="reference internal" href="#drtk.source_feature_stencil" title="drtk.source_feature_stencil"><code class="xref py py-func docutils literal notranslate"><span class="pre">source_feature_stencil()</span></code></a>. <code class="docutils literal notranslate"><span class="pre">-1</span></code> and out-of-range indices
 contribute zero. Indices have no gradient.</p></li>
@@ -684,8 +676,7 @@ contribute zero. Indices have no gradient.</p></li>
 <dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">(sampled_features,</span> <span class="pre">confidence)</span></code>. Samples have
 shape <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">C,</span> <span class="pre">Q)</span></code> and the image dtype, with float32 accumulation.
 Confidence is float32 <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">1,</span> <span class="pre">Q)</span></code>. Gradients reach the image and
-weights, including zero weights with valid indices, and thus reach
-visibility geometry through <a class="reference internal" href="#drtk.source_feature_stencil" title="drtk.source_feature_stencil"><code class="xref py py-func docutils literal notranslate"><span class="pre">source_feature_stencil()</span></code></a>.</p>
+weights, including zero weights with valid indices.</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p>Tuple[Tensor, Tensor]</p>
@@ -693,8 +684,8 @@ visibility geometry through <a class="reference internal" href="#drtk.source_fea
 </dl>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>Only first derivatives are supported. Backward is not guaranteed to be
-bitwise deterministic. The reference helper supports CPU and float64.</p>
+<p>Only first derivatives are supported. Backward may be nondeterministic.
+<a class="reference internal" href="#drtk.sample_feature_stencil_ref" title="drtk.sample_feature_stencil_ref"><code class="xref py py-func docutils literal notranslate"><span class="pre">sample_feature_stencil_ref()</span></code></a> supports CPU and float64 inputs.</p>
 </div>
 </dd></dl>
 
@@ -736,9 +727,10 @@ bitwise deterministic. The reference helper supports CPU and float64.</p>
   </div>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#two-reusable-operations">Two reusable operations</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#sampling-features">Sampling features</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#visibility-and-confidence">Visibility and confidence</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#gradients">Gradients</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#coordinates-and-supported-inputs">Coordinates and supported inputs</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#coordinates-and-data-types">Coordinates and data types</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#functions">Functions</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.source_feature_stencil"><code class="docutils literal notranslate"><span class="pre">source_feature_stencil()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.sample_feature_stencil"><code class="docutils literal notranslate"><span class="pre">sample_feature_stencil()</span></code></a></li>

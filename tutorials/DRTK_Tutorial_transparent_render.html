@@ -351,7 +351,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Computing Gradients and Fitting</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="DRTK_Tutorial_pixel_grid_mesh.html">Learning pixel-grid geometry and topology</a></li>
-<li class="toctree-l1"><a class="reference internal" href="DRTK_Tutorial_source_features.html">Keep source features on their surface</a></li>
+<li class="toctree-l1"><a class="reference internal" href="DRTK_Tutorial_source_features.html">Sampling features with source visibility</a></li>
 <li class="toctree-l1"><a class="reference internal" href="DRTK_Tutorial_hand_fitting.html">Single image hand fitting</a></li>
 </ul>
 </div>
@@ -456,9 +456,7 @@ ReLU-density alpha. Neural appearance models instead shift the ReLU inputs by
 <p>The initial middle and top geometry is distorted and both transparent layers
 have incorrect opacity. A color-and-alpha reconstruction objective is
 differentiated through texture sampling, perspective-correct interpolation,
-depth-sorted compositing, and the learned inputs. The optimized result closely
-approaches the target without changing topology, opaque rear geometry, or
-texture.</p>
+depth-sorted compositing, and the learned inputs. The optimized result closely approaches the target.</p>
 <figure class="align-default" id="id2">
 <a class="reference internal image-reference" href="../_images/transparent_render_demo_result.png"><img alt="Initial, target, and optimized renders of two transparent meshes over an opaque mesh and checkerboard" src="../_images/transparent_render_demo_result.png" style="width: 100%;" />
 </a>
@@ -494,7 +492,7 @@ rendering:</p>
 <li><p><strong>material opacity</strong> is fixed at one for the rear mesh and independently
 interpolated from learned vertex values for both transparent meshes.</p></li>
 </ul>
-<p>The renderer accepts arbitrary triangle meshes rather than only regular grids.
+<p>The renderer accepts arbitrary triangle meshes.
 Multiple overlapping meshes may share an atlas or use different atlas regions.
 For learned appearance, <code class="docutils literal notranslate"><span class="pre">render_transparent_mlp</span></code> samples one feature texture.
 <code class="docutils literal notranslate"><span class="pre">render_transparent_mlp_two_textures</span></code> instead samples <code class="docutils literal notranslate"><span class="pre">texture0</span></code> at <code class="docutils literal notranslate"><span class="pre">uv0</span></code>

@@ -31,17 +31,13 @@ small per-fragment appearance network, while
 ``uv0`` and ``uv1`` coordinates and concatenates their features. The combined
 MLP input may contain up to 32 channels.
 
-Independent UV sets do not provide automatic visibility or provenance gating.
-When combining original-source features with features sampled at a displaced
-location, use :func:`source_feature_stencil` and :func:`sample_feature_stencil`
-to account for occlusion and supply confidence to the appearance model. For
-example, a hidden chest surface must not consume features from a hand that
-occludes its current projection. Topology and component ownership remain
-upstream responsibilities.
+When constructing textures from source images, use
+:func:`source_feature_stencil` and :func:`sample_feature_stencil` to account
+for occlusion. The rendering functions sample the supplied texture values
+at their UV coordinates.
 
 All variants support nearest, bilinear, and bicubic filtering together with
-zeros, border, and reflection padding. Texture coordinates consistently use
-``align_corners=False`` semantics; this is deliberately not configurable.
+zeros, border, and reflection padding. Texture coordinates use ``align_corners=False`` semantics.
 They differentiate compositing, perspective-correct interpolation, texture
 sampling, vertex opacity, and interior vertex motion. Triangle topology and
 depth ordering remain discrete. All CUDA entry points add transparent

@@ -427,11 +427,9 @@
 <p>The mesh builder creates a triangle mesh from a regular grid of <strong>cells centered on
 source-image pixels</strong>. Each live cell contributes a quad whose initial corners
 are at pixel corners. Neighbor affinities determine which corner vertices are
-shared. Geometry construction is independent of the model producing its inputs:
-prediction heads, task losses, and camera-placement policies remain with the caller.</p>
-<p>The differentiable training objective is the expected loss of sampled hard
-meshes. It is not a derivative of triangle indices and is not the loss of an
-averaged rendered image. At inference, construct one deterministic hard mesh.</p>
+shared.</p>
+<p>Training minimizes the expected rendered loss of sampled meshes. At inference,
+construct one deterministic mesh from the predicted decisions.</p>
 <p>For function signatures, see <a class="reference internal" href="pixel_grid_mesh.html"><span class="std std-doc">the module reference</span></a>.
 The <a class="reference internal" href="../tutorials/DRTK_Tutorial_pixel_grid_mesh.html"><span class="std std-doc">optimization tutorial</span></a>
 shows how to use these pieces together.</p>
@@ -446,8 +444,7 @@ shows how to use these pieces together.</p>
 <span class="p">)</span>
 </pre></div>
 </div>
-<p>The return value is always a plain <strong>seven-element tuple</strong>. Optional entries
-become <code class="docutils literal notranslate"><span class="pre">None</span></code>; they are never omitted and do not change position.</p>
+<p>The function returns seven elements. Optional outputs are <code class="docutils literal notranslate"><span class="pre">None</span></code> when disabled.</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
 <tr class="row-odd"><th class="head"><p>Input</p></th>
@@ -492,7 +489,7 @@ become <code class="docutils literal notranslate"><span class="pre">None</span><
 </table>
 </div>
 <p>The function operates on one grid per call. Call it per example
-for a ragged batch; do not treat different examples as one connected grid.
+for a ragged batch.
 Floating inputs share float32/float64 dtype and device; hard decisions are bool.
 Depth, K, displacement, and widths must be finite and geometrically valid. The
 displaced surface must remain in front of the source camera.</p>
@@ -534,8 +531,8 @@ triangles. The reference function uses the same order.</p>
 <code class="docutils literal notranslate"><span class="pre">opacity=vertex_opacity</span></code> to the transparent renderer to multiply the appearance
 alpha. None means an all-one multiplier.</p>
 <p>Project <code class="docutils literal notranslate"><span class="pre">v</span></code> into the desired target camera before rendering: the transparent
-renderer accepts target pixel XY and camera Z, not source-camera XYZ. Both UVs use 2D interpolation. A reprojected UV alone does not establish
-that the source feature belongs to this surface. Use
+renderer accepts target pixel XY and camera Z. Both UVs use 2D interpolation.
+Use
 <a class="reference internal" href="source_features.html"><span class="std std-doc">source-feature sampling</span></a> to account for occlusion when
 transferring features to the deformed mesh.</p>
 </section>
@@ -563,10 +560,7 @@ iterative endpoint-pruning algorithm that would erase a two-edge chain.</p>
 each lattice corner. Give each fan one shared vertex. Diagonally touching but
 unconnected cells remain separate. Connections elsewhere in the mesh never
 weld a local cut. An open fan can contain all four incident cells: its two
-boundary edges share one <strong>crack-tip vertex</strong>. That tip is intentional; do not
-force an additional cut or duplicate the tip. Interior cuts with both tips on
-one edge are already removed by the isolated-cut rule; no extra midpoint
-vertices are introduced to represent them.</p>
+boundary edges share one <strong>crack-tip vertex</strong>. Interior cuts with both tips on one edge are removed by the isolated-cut rule.</p>
 <p>Cut realization depends only on sampled bits. The effective probability
 that an edge is cut is therefore not simply its raw Bernoulli probability.
 Training differentiates the distribution of proposals followed by this exact
@@ -580,18 +574,14 @@ deterministic realization.</p>
 <p>For a corner fan S, use its least-squares fit</p>
 <div class="math notranslate nohighlight">
 \[V_{q,S}=\frac{1}{|S|}\sum_{c\in S}Y_{cq}.\]</div>
-<p>No averaging crosses a cut except the intentionally shared tip. This is local
-and closed form, with ordinary autograd through depth, displacement and K.
-The displacement is a <strong>proposal</strong>, not an exact constraint on every final
-cell center after welding. Exact independent centers would require extra center
-vertices or a coupled solve; neither is part of this contract.</p>
+<p>The average is confined to each fan, including its shared crack tip.
+Gradients propagate through depth, displacement, and K.
+Averaging the shared corners can shift a cell center away from its individual
+displacement proposal.</p>
 <p>Each live quad emits two triangles. Automatic diagonal choice compares the two
 diagonal midpoints to the requested displaced cell center in 3D, choosing the
-smaller squared error and TL–BR on a tie. This is a geometric heuristic, not a
-claim of optimal rendered tessellation. The decision itself is discrete. Pass
-explicit sampled diagonal bits to learn it from rendered loss. No soft overlay
-of both triangulations is rendered. Degenerate/folded predictions are not
-repaired into a different shape; geometry regularization belongs to the caller.</p>
+smaller squared error and TL–BR on a tie. The decision is discrete. Pass sampled diagonal bits to learn it from
+rendered loss. Regularize the predicted geometry to avoid degeneracies and folds.</p>
 </section>
 <section id="optional-boundary-feathering">
 <h2>Optional boundary feathering<a class="headerlink" href="#optional-boundary-feathering" title="Link to this heading">#</a></h2>
@@ -605,12 +595,9 @@ vertices remain one. Linear interpolation gives the fade across each strip.</p>
 positions. The network supplies only width. Geometry and width receive ordinary
 render gradients. The zero-alpha outer contour contributes no artificial
 coverage jump to the existing edge estimator.</p>
-<p>This is a <strong>local extrusion</strong>, not global polygon offset/Boolean surgery.
-Large widths, acute crack tips, nearby opposing boundaries, and folded geometry
-can cause strip overlap. The builder does not eliminate
-those intersections or compensate their alpha. Keep strips narrow; test the
-zero-feather baseline. Global overlap resolution and learned width policies are
-separate work. Miter/bevel switching is also discrete.</p>
+<p>Large widths, acute crack tips, nearby opposing boundaries, and folded
+geometry can cause the extruded strips to overlap and accumulate opacity.
+Keep strips narrow. Switching between miter and bevel joins is discrete.</p>
 </section>
 <section id="stochastic-topology-objective">
 <h2>Stochastic topology objective<a class="headerlink" href="#stochastic-topology-objective" title="Link to this heading">#</a></h2>
@@ -633,19 +620,15 @@ z⁺=1[u&gt;1−p] and z⁻=1[u&lt;p]. Its logit estimate is</p>
 <p>The callback unpacks hard bits, calls the mesh builder and renderer, and returns
 a scalar loss. Each pair uses two renders. The returned value is the mean of
 their losses. Its surrogate backward supplies ARM to the logits and preserves
-ordinary continuous gradients from both evaluations. Detach the loss difference
-inside the score term, not the ordinary rendered losses. If a callback has other
-randomness, keep it fixed within a pair or make it independent of the topology
-sampling. No visibility-dependent loss mask may silently discard the error of
-deleted geometry. Target validity and loss normalization must not be controlled
-by predicted alive bits.</p>
-<p>Average <strong>losses</strong>, not images: E[L(I)] and L(E[I]) can have opposite gradients.
-The latter can reward an unrealizable mixture of topologies. Likewise, a fixed
-hard mesh cannot acquire these gradients merely by returning differentiable
-positions alongside integer triangle indices.</p>
+ordinary continuous gradients from both evaluations. If the callback has other randomness, keep it fixed within a pair or
+independent of topology sampling. Define target validity and loss normalization
+independently of predicted alive bits, so missing geometry contributes to the loss.</p>
+<p>Averaging losses, E[L(I)], and evaluating the loss of an averaged image,
+L(E[I]), optimize different objectives. The latter can reward a mixture of
+topologies that cannot be represented by a single mesh.</p>
 <p>The estimator remains valid after isolated-cut cleanup because cleanup is a
-deterministic function of the sampled bits. Do not replace it with a detached
-logit-dependent repair. A cut with no rendering consequence has zero expected
+deterministic function of the sampled bits. A cut with no rendering consequence
+has zero expected
 loss gradient; nearby views, geometry evidence and initialization matter.</p>
 </section>
 <section id="supported-inputs-and-limitations">
@@ -660,9 +643,6 @@ count trades additional evaluations for lower sampling variance. Geometry
 regularization, loss design, optimization schedules, and convergence remain the
 caller’s responsibility. Absent cells must still contribute to the image loss;
 masking evaluation by predicted visibility can hide missing geometry.</p>
-<p>The renderer’s per-triangle ordering and analytic continuous gradients are
-unchanged. The builder does not add per-pixel depth sorting, global feather
-intersection repair, or a geometry-validity constraint.</p>
 </section>
 <section id="references">
 <h2>References<a class="headerlink" href="#references" title="Link to this heading">#</a></h2>
