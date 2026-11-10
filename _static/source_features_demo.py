@@ -223,33 +223,32 @@ def fit(scene, steps, edge):
         radii = (logr @ scene.basis).exp()
         field = scene.field(centers, radii, alpha, edge)
         loss = (field - target).square().mean()
-        if step % max(4, steps // 150) == 0 or step == steps:
-            row = {
-                "step": step,
-                "loss": float(loss.detach()),
-                "center_error": float(
-                    (centers - scene.target_centers).square().mean().sqrt().detach()
-                ),
-                "radius_error": float(
-                    ((radii - scene.target_radii) * scene.object_scale[:, None])
-                    .square()
-                    .mean()
-                    .sqrt()
-                    .detach()
-                ),
-                "opacity": alpha.detach().cpu().tolist(),
+        row = {
+            "step": step,
+            "loss": float(loss.detach()),
+            "center_error": float(
+                (centers - scene.target_centers).square().mean().sqrt().detach()
+            ),
+            "radius_error": float(
+                ((radii - scene.target_radii) * scene.object_scale[:, None])
+                .square()
+                .mean()
+                .sqrt()
+                .detach()
+            ),
+            "opacity": alpha.detach().cpu().tolist(),
+        }
+        history.append(row)
+        snapshots.append(
+            {
+                "field": field.detach().cpu().numpy(),
+                "centers": centers.detach().cpu().numpy().copy(),
+                "radii": radii.detach().cpu().numpy().copy(),
+                "alpha": alpha.detach().cpu().numpy().copy(),
             }
-            history.append(row)
-            snapshots.append(
-                {
-                    "field": field.detach().cpu().numpy(),
-                    "centers": centers.detach().cpu().numpy().copy(),
-                    "radii": radii.detach().cpu().numpy().copy(),
-                    "alpha": alpha.detach().cpu().numpy().copy(),
-                }
-            )
-            if step % 100 == 0:
-                print(edge, row, round(time.monotonic() - t, 2), flush=True)
+        )
+        if step % 100 == 0:
+            print(edge, row, round(time.monotonic() - t, 2), flush=True)
         if step < steps:
             loss.backward()
             opt.step()
@@ -841,7 +840,7 @@ def write_video(output, histories, snapshots, images, target, fps):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=Path("source_features_demo"))
-    parser.add_argument("--steps", type=int, default=1200)
+    parser.add_argument("--steps", type=int, default=300)
     parser.add_argument("--size", type=int, default=1024)
     parser.add_argument("--resolution", type=int, default=512)
     parser.add_argument("--fps", type=int, default=12)

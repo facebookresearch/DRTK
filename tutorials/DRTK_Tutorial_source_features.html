@@ -542,7 +542,7 @@ adjust the opacities in this scene but leave the geometry unchanged.</p>
 <p>The fit uses projected Adam steps: after each update, opacities are clamped
 to the valid interval. This permits an exactly opaque surface at
 <span class="math notranslate nohighlight">\(\alpha=1\)</span>, as well as partially transmitting surfaces. With boundary
-gradients, 1,200 steps recover opacities close to 1.0, 0.8, and 0.3 and align all
+gradients, 300 steps recover opacities close to 1.0, 0.8, and 0.3 and align all
 three shadow maps. The smooth-gradient control adjusts opacity but retains
 the initial shape and position. The finite shadow grid limits geometric precision: matching its samples does not imply a unique reconstruction of
 an arbitrary object. Multiple lights constrain more shape directions than
@@ -572,7 +572,8 @@ It requires a CUDA-enabled DRTK installation, Matplotlib, and FFmpeg.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>source_features_demo.py<span class="w"> </span>--output<span class="w"> </span>./source_features_demo
 </pre></div>
 </div>
-<p>The output contains a 1920×1600 optimization video, shadow illustration,
+<p>The output contains a 1920×1600 optimization video showing every iteration,
+a shadow illustration,
 snapshots, measurements, and saved geometry and UV transmittance fields.
 Scene views render at 768×1024, light views at 1024×1024, and receiver maps at
 512×512. See
