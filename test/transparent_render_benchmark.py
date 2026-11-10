@@ -14,6 +14,8 @@ measurements use the public operators' native C++ autograd nodes and reuse the
 saved sorted tile lists. Transparent boundary gradients are enabled by
 default; pass --no-edge-gradients to measure smooth backward alone. The
 benchmark does not depend on private kernel entry points.
+Depth is computed in every forward pass. Pass --depth-loss to include its
+gradient in backward measurements, and --depth-mode to select its definition.
 """
 
 import argparse
@@ -29,6 +31,12 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--resolution", type=int, default=128)
     parser.add_argument("--layers", type=int, choices=(4, 5), default=4)
     parser.add_argument("--feature-channels-per-texture", type=int, default=4)
+    parser.add_argument(
+        "--depth-mode",
+        choices=("expected", "accumulated", "foreground_mean", "median"),
+        default="expected",
+    )
+    parser.add_argument("--depth-loss", action="store_true")
     parser.add_argument(
         "--edge-gradients", action=argparse.BooleanOptionalAction, default=True
     )
@@ -179,6 +187,7 @@ def main() -> None:
             args.resolution,
             opacity=opacity,
             background=background,
+            depth_mode=args.depth_mode,
         )
 
     def render_with_mlp_forward() -> Any:
@@ -195,6 +204,7 @@ def main() -> None:
             args.resolution,
             opacity=opacity,
             background=background,
+            depth_mode=args.depth_mode,
         )
 
     texture_grad_inputs = [
@@ -211,10 +221,14 @@ def main() -> None:
         opacity=texture_grad_inputs[3],
         edge_gradients=args.edge_gradients,
         background=texture_grad_inputs[4],
+        depth_mode=args.depth_mode,
     )
     texture_grad_outputs = (
         th.randn_like(texture_grad_output[0]),
         th.randn_like(texture_grad_output[1]),
+        th.randn_like(texture_grad_output[2])
+        if args.depth_loss
+        else th.zeros_like(texture_grad_output[2]),
     )
 
     def render_with_texture_backward() -> Any:
@@ -260,10 +274,14 @@ def main() -> None:
         opacity=mlp_base_grad_inputs[5],
         edge_gradients=args.edge_gradients,
         background=mlp_base_grad_inputs[6],
+        depth_mode=args.depth_mode,
     )
     mlp_grad_outputs = (
         th.randn_like(mlp_grad_output[0]),
         th.randn_like(mlp_grad_output[1]),
+        th.randn_like(mlp_grad_output[2])
+        if args.depth_loss
+        else th.zeros_like(mlp_grad_output[2]),
     )
 
     def render_with_mlp_backward() -> Any:
@@ -279,6 +297,8 @@ def main() -> None:
     result: Dict[str, Any] = {
         "gpu": th.cuda.get_device_name(),
         "edge_gradients": args.edge_gradients,
+        "depth_mode": args.depth_mode,
+        "depth_loss": args.depth_loss,
         "torch": th.__version__,
         "resolution": args.resolution,
         "vertices": vertex_count,

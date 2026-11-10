@@ -11,6 +11,8 @@
 #include <torch/extension.h>
 #endif
 
+#include <cmath>
+#include <limits>
 #include <vector>
 
 #include "transparent_render_kernel.h"
@@ -18,6 +20,29 @@
 namespace {
 
 using torch::autograd::tensor_list;
+
+TransparentDepthOptions depth_options(int64_t mode, double background, double alpha_threshold) {
+  TORCH_CHECK(mode >= 0 && mode <= 3, "transparent render: invalid depth mode");
+  TORCH_CHECK(
+      std::isfinite(static_cast<float>(background)) && background > 0.0,
+      "transparent render: background depth must be positive and finite in float32");
+  TORCH_CHECK(
+      std::isfinite(static_cast<float>(alpha_threshold)) &&
+          static_cast<float>(alpha_threshold) >= std::numeric_limits<float>::min() &&
+          alpha_threshold < 1.0,
+      "transparent render: depth alpha threshold must be positive and less than one in float32");
+  return {
+      static_cast<TransparentDepthMode>(mode),
+      static_cast<float>(background),
+      static_cast<float>(alpha_threshold)};
+}
+
+TransparentDepthOptions saved_depth_options(torch::autograd::AutogradContext* ctx) {
+  return depth_options(
+      ctx->saved_data["depth_mode"].toInt(),
+      ctx->saved_data["background_depth"].toDouble(),
+      ctx->saved_data["depth_alpha_threshold"].toDouble());
+}
 
 tensor_list render_with_texture(
     const torch::Tensor& v,
@@ -33,7 +58,10 @@ tensor_list render_with_texture(
     double transmittance_epsilon,
     int64_t rgb_activation,
     int64_t alpha_activation,
-    bool edge_gradients) {
+    bool edge_gradients,
+    int64_t depth_mode,
+    double background_depth,
+    double depth_alpha_threshold) {
   static auto op = torch::Dispatcher::singleton()
                        .findSchemaOrThrow("transparent_render_ext::render_with_texture", "")
                        .typed<decltype(render_with_texture)>();
@@ -51,7 +79,10 @@ tensor_list render_with_texture(
       transmittance_epsilon,
       rgb_activation,
       alpha_activation,
-      edge_gradients);
+      edge_gradients,
+      depth_mode,
+      background_depth,
+      depth_alpha_threshold);
 }
 
 tensor_list render_with_mlp(
@@ -73,7 +104,10 @@ tensor_list render_with_mlp(
     double transmittance_epsilon,
     int64_t rgb_activation,
     int64_t alpha_activation,
-    bool edge_gradients) {
+    bool edge_gradients,
+    int64_t depth_mode,
+    double background_depth,
+    double depth_alpha_threshold) {
   static auto op = torch::Dispatcher::singleton()
                        .findSchemaOrThrow("transparent_render_ext::render_with_mlp", "")
                        .typed<decltype(render_with_mlp)>();
@@ -96,7 +130,10 @@ tensor_list render_with_mlp(
       transmittance_epsilon,
       rgb_activation,
       alpha_activation,
-      edge_gradients);
+      edge_gradients,
+      depth_mode,
+      background_depth,
+      depth_alpha_threshold);
 }
 
 tensor_list render_with_texture_cuda(
@@ -113,7 +150,10 @@ tensor_list render_with_texture_cuda(
     double transmittance_epsilon,
     int64_t rgb_activation,
     int64_t alpha_activation,
-    bool edge_gradients) {
+    bool edge_gradients,
+    int64_t depth_mode,
+    double background_depth,
+    double depth_alpha_threshold) {
   auto outputs = transparent_render_with_texture_cuda_forward(
       v,
       vi,
@@ -128,8 +168,9 @@ tensor_list render_with_texture_cuda(
       transmittance_epsilon,
       rgb_activation,
       alpha_activation,
+      depth_options(depth_mode, background_depth, depth_alpha_threshold),
       false);
-  outputs.resize(2);
+  outputs.resize(3);
   return outputs;
 }
 
@@ -152,7 +193,10 @@ tensor_list render_with_mlp_cuda(
     double transmittance_epsilon,
     int64_t rgb_activation,
     int64_t alpha_activation,
-    bool edge_gradients) {
+    bool edge_gradients,
+    int64_t depth_mode,
+    double background_depth,
+    double depth_alpha_threshold) {
   auto outputs = transparent_render_with_mlp_cuda_forward(
       v,
       vi,
@@ -172,8 +216,9 @@ tensor_list render_with_mlp_cuda(
       transmittance_epsilon,
       rgb_activation,
       alpha_activation,
+      depth_options(depth_mode, background_depth, depth_alpha_threshold),
       false);
-  outputs.resize(2);
+  outputs.resize(3);
   return outputs;
 }
 
@@ -191,7 +236,10 @@ tensor_list render_with_texture_cpu(
     double /*transmittance_epsilon*/,
     int64_t /*rgb_activation*/,
     int64_t /*alpha_activation*/,
-    bool /*edge_gradients*/) {
+    bool /*edge_gradients*/,
+    int64_t /*depth_mode*/,
+    double /*background_depth*/,
+    double /*depth_alpha_threshold*/) {
   TORCH_CHECK(
       false,
       "transparent render: render_with_texture requires CUDA; "
@@ -217,7 +265,10 @@ tensor_list render_with_mlp_cpu(
     double /*transmittance_epsilon*/,
     int64_t /*rgb_activation*/,
     int64_t /*alpha_activation*/,
-    bool /*edge_gradients*/) {
+    bool /*edge_gradients*/,
+    int64_t /*depth_mode*/,
+    double /*background_depth*/,
+    double /*depth_alpha_threshold*/) {
   TORCH_CHECK(
       false,
       "transparent render: render_with_mlp requires CUDA; "
@@ -291,7 +342,10 @@ class RenderWithTextureFunction : public torch::autograd::Function<RenderWithTex
       double transmittance_epsilon,
       int64_t rgb_activation,
       int64_t alpha_activation,
-      bool edge_gradients) {
+      bool edge_gradients,
+      int64_t depth_mode,
+      double background_depth,
+      double depth_alpha_threshold) {
     TORCH_CHECK(
         v.is_cuda(),
         "transparent render: render_with_texture requires CUDA; "
@@ -309,15 +363,31 @@ class RenderWithTextureFunction : public torch::autograd::Function<RenderWithTex
         padding_mode,
         transmittance_epsilon,
         rgb_activation,
-        alpha_activation);
+        alpha_activation,
+        depth_options(depth_mode, background_depth, depth_alpha_threshold));
     ctx->save_for_backward(
-        {v, vi, uv, texture, opacity, background, outputs[2], outputs[3], outputs[4], outputs[5]});
+        {v,
+         vi,
+         uv,
+         texture,
+         opacity,
+         background,
+         outputs[3],
+         outputs[4],
+         outputs[5],
+         outputs[6],
+         outputs[1],
+         outputs[2],
+         outputs[7]});
     ctx->saved_data["interpolation_mode"] = interpolation_mode;
     ctx->saved_data["padding_mode"] = padding_mode;
     ctx->saved_data["rgb_activation"] = rgb_activation;
     ctx->saved_data["alpha_activation"] = alpha_activation;
+    ctx->saved_data["depth_mode"] = depth_mode;
+    ctx->saved_data["background_depth"] = background_depth;
+    ctx->saved_data["depth_alpha_threshold"] = depth_alpha_threshold;
     ctx->saved_data["edge_gradients"] = edge_gradients && v.requires_grad();
-    return {outputs[0], outputs[1]};
+    return {outputs[0], outputs[1], outputs[2]};
   }
 
   static tensor_list backward(torch::autograd::AutogradContext* ctx, tensor_list grad_outputs) {
@@ -339,6 +409,11 @@ class RenderWithTextureFunction : public torch::autograd::Function<RenderWithTex
         ctx->saved_data["padding_mode"].toInt(),
         ctx->saved_data["rgb_activation"].toInt(),
         ctx->saved_data["alpha_activation"].toInt(),
+        saved[10],
+        saved[11],
+        saved[12],
+        grad_outputs[2].contiguous(),
+        saved_depth_options(ctx),
         ctx->saved_data["edge_gradients"].toBool() && ctx->needs_input_grad(0));
     return {
         grads[0],
@@ -347,6 +422,9 @@ class RenderWithTextureFunction : public torch::autograd::Function<RenderWithTex
         grads[2],
         grads[3],
         grads[4],
+        torch::Tensor(),
+        torch::Tensor(),
+        torch::Tensor(),
         torch::Tensor(),
         torch::Tensor(),
         torch::Tensor(),
@@ -380,7 +458,10 @@ class RenderWithMlpFunction : public torch::autograd::Function<RenderWithMlpFunc
       double transmittance_epsilon,
       int64_t rgb_activation,
       int64_t alpha_activation,
-      bool edge_gradients) {
+      bool edge_gradients,
+      int64_t depth_mode,
+      double background_depth,
+      double depth_alpha_threshold) {
     TORCH_CHECK(
         v.is_cuda(),
         "transparent render: render_with_mlp requires CUDA; "
@@ -403,14 +484,24 @@ class RenderWithMlpFunction : public torch::autograd::Function<RenderWithMlpFunc
         padding_mode,
         transmittance_epsilon,
         rgb_activation,
-        alpha_activation);
+        alpha_activation,
+        depth_options(depth_mode, background_depth, depth_alpha_threshold));
 
     std::vector<torch::Tensor> saved{v, vi, uv, reference_uv, texture, reference_texture};
-    saved.reserve(12 + weights.size() + biases.size());
+    saved.reserve(15 + weights.size() + biases.size());
     saved.insert(saved.end(), weights.begin(), weights.end());
     saved.insert(saved.end(), biases.begin(), biases.end());
     saved.insert(
-        saved.end(), {opacity, background, outputs[2], outputs[3], outputs[4], outputs[5]});
+        saved.end(),
+        {opacity,
+         background,
+         outputs[3],
+         outputs[4],
+         outputs[5],
+         outputs[6],
+         outputs[1],
+         outputs[2],
+         outputs[7]});
     ctx->save_for_backward(saved);
     ctx->saved_data["layer_count"] = static_cast<int64_t>(weights.size());
     ctx->saved_data["negative_slope"] = negative_slope;
@@ -418,8 +509,11 @@ class RenderWithMlpFunction : public torch::autograd::Function<RenderWithMlpFunc
     ctx->saved_data["padding_mode"] = padding_mode;
     ctx->saved_data["rgb_activation"] = rgb_activation;
     ctx->saved_data["alpha_activation"] = alpha_activation;
+    ctx->saved_data["depth_mode"] = depth_mode;
+    ctx->saved_data["background_depth"] = background_depth;
+    ctx->saved_data["depth_alpha_threshold"] = depth_alpha_threshold;
     ctx->saved_data["edge_gradients"] = edge_gradients && v.requires_grad();
-    return {outputs[0], outputs[1]};
+    return {outputs[0], outputs[1], outputs[2]};
   }
 
   static tensor_list backward(torch::autograd::AutogradContext* ctx, tensor_list grad_outputs) {
@@ -456,16 +550,21 @@ class RenderWithMlpFunction : public torch::autograd::Function<RenderWithMlpFunc
         ctx->saved_data["padding_mode"].toInt(),
         ctx->saved_data["rgb_activation"].toInt(),
         ctx->saved_data["alpha_activation"].toInt(),
+        saved[saved_transmittance_exponent_index + 1],
+        saved[saved_transmittance_exponent_index + 2],
+        saved[saved_transmittance_exponent_index + 3],
+        grad_outputs[2].contiguous(),
+        saved_depth_options(ctx),
         ctx->saved_data["edge_gradients"].toBool() && ctx->needs_input_grad(0));
 
     tensor_list result{grads[0], torch::Tensor(), grads[1], grads[2], grads[3], grads[4]};
-    result.reserve(17 + 2 * layer_count);
+    result.reserve(20 + 2 * layer_count);
     result.insert(result.end(), grads.begin() + 7, grads.begin() + 7 + layer_count);
     result.insert(
         result.end(), grads.begin() + 7 + layer_count, grads.begin() + 7 + 2 * layer_count);
     result.push_back(grads[5]);
     result.push_back(grads[6]);
-    result.insert(result.end(), 9, torch::Tensor());
+    result.insert(result.end(), 12, torch::Tensor());
     return result;
   }
 };
@@ -484,7 +583,10 @@ tensor_list render_with_texture_autograd(
     double transmittance_epsilon,
     int64_t rgb_activation,
     int64_t alpha_activation,
-    bool edge_gradients) {
+    bool edge_gradients,
+    int64_t depth_mode,
+    double background_depth,
+    double depth_alpha_threshold) {
   if (!render_with_texture_requires_grad(v, uv, texture, opacity, background)) {
     return render_with_texture_cuda(
         v,
@@ -500,7 +602,10 @@ tensor_list render_with_texture_autograd(
         transmittance_epsilon,
         rgb_activation,
         alpha_activation,
-        edge_gradients);
+        edge_gradients,
+        depth_mode,
+        background_depth,
+        depth_alpha_threshold);
   }
   check_backward_compositing_options(transmittance_epsilon, "render_with_texture");
   return RenderWithTextureFunction::apply(
@@ -517,7 +622,10 @@ tensor_list render_with_texture_autograd(
       transmittance_epsilon,
       rgb_activation,
       alpha_activation,
-      edge_gradients);
+      edge_gradients,
+      depth_mode,
+      background_depth,
+      depth_alpha_threshold);
 }
 
 tensor_list render_with_mlp_autograd(
@@ -539,7 +647,10 @@ tensor_list render_with_mlp_autograd(
     double transmittance_epsilon,
     int64_t rgb_activation,
     int64_t alpha_activation,
-    bool edge_gradients) {
+    bool edge_gradients,
+    int64_t depth_mode,
+    double background_depth,
+    double depth_alpha_threshold) {
   if (!render_with_mlp_requires_grad(
           v, uv, reference_uv, texture, reference_texture, weights, biases, opacity, background)) {
     return render_with_mlp_cuda(
@@ -561,7 +672,10 @@ tensor_list render_with_mlp_autograd(
         transmittance_epsilon,
         rgb_activation,
         alpha_activation,
-        edge_gradients);
+        edge_gradients,
+        depth_mode,
+        background_depth,
+        depth_alpha_threshold);
   }
   check_backward_compositing_options(transmittance_epsilon, "render_with_mlp");
   return RenderWithMlpFunction::apply(
@@ -583,7 +697,10 @@ tensor_list render_with_mlp_autograd(
       transmittance_epsilon,
       rgb_activation,
       alpha_activation,
-      edge_gradients);
+      edge_gradients,
+      depth_mode,
+      background_depth,
+      depth_alpha_threshold);
 }
 
 tensor_list render_with_texture_autocast(
@@ -600,7 +717,10 @@ tensor_list render_with_texture_autocast(
     double transmittance_epsilon,
     int64_t rgb_activation,
     int64_t alpha_activation,
-    bool edge_gradients) {
+    bool edge_gradients,
+    int64_t depth_mode,
+    double background_depth,
+    double depth_alpha_threshold) {
   c10::impl::ExcludeDispatchKeyGuard no_autocast(c10::DispatchKey::Autocast);
   return render_with_texture(
       at::autocast::cached_cast(torch::kFloat32, v),
@@ -616,7 +736,10 @@ tensor_list render_with_texture_autocast(
       transmittance_epsilon,
       rgb_activation,
       alpha_activation,
-      edge_gradients);
+      edge_gradients,
+      depth_mode,
+      background_depth,
+      depth_alpha_threshold);
 }
 
 tensor_list render_with_mlp_autocast(
@@ -638,7 +761,10 @@ tensor_list render_with_mlp_autocast(
     double transmittance_epsilon,
     int64_t rgb_activation,
     int64_t alpha_activation,
-    bool edge_gradients) {
+    bool edge_gradients,
+    int64_t depth_mode,
+    double background_depth,
+    double depth_alpha_threshold) {
   c10::impl::ExcludeDispatchKeyGuard no_autocast(c10::DispatchKey::Autocast);
   std::vector<torch::Tensor> cast_weights;
   std::vector<torch::Tensor> cast_biases;
@@ -669,7 +795,10 @@ tensor_list render_with_mlp_autocast(
       transmittance_epsilon,
       rgb_activation,
       alpha_activation,
-      edge_gradients);
+      edge_gradients,
+      depth_mode,
+      background_depth,
+      depth_alpha_threshold);
 }
 
 } // namespace
@@ -682,13 +811,15 @@ TORCH_LIBRARY(transparent_render_ext, m) {
   m.def(
       "render_with_texture(Tensor v, Tensor vi, Tensor uv, Tensor texture, Tensor opacity, "
       "Tensor background, int height, int width, int interpolation_mode, int padding_mode, "
-      "float transmittance_epsilon, int rgb_activation, int alpha_activation, bool edge_gradients=True) -> Tensor[]");
+      "float transmittance_epsilon, int rgb_activation, int alpha_activation, bool edge_gradients=True, "
+      "int depth_mode=0, float background_depth=1000., float depth_alpha_threshold=1.e-6) -> Tensor[]");
   m.def(
       "render_with_mlp(Tensor v, Tensor vi, Tensor uv0, Tensor uv1, Tensor texture0, "
       "Tensor texture1, Tensor[] weights, Tensor[] biases, Tensor opacity, "
       "Tensor background, int height, int width, float negative_slope, "
       "int interpolation_mode, int padding_mode, float transmittance_epsilon, "
-      "int rgb_activation, int alpha_activation, bool edge_gradients=True) -> Tensor[]");
+      "int rgb_activation, int alpha_activation, bool edge_gradients=True, "
+      "int depth_mode=0, float background_depth=1000., float depth_alpha_threshold=1.e-6) -> Tensor[]");
 }
 
 TORCH_LIBRARY_IMPL(transparent_render_ext, Autograd, m) {

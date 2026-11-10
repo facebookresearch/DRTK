@@ -28,6 +28,7 @@ independent of the installed PyTorch build. ReLU retains zero gradient at zero,
 including the lower bound on final fragment alpha.
 """
 
+import math
 from typing import Callable, cast, Dict, List, Optional, Tuple
 
 import torch as th
@@ -64,6 +65,9 @@ _RenderWithTexture = Callable[
         int,
         int,
         bool,
+        int,
+        float,
+        float,
     ],
     List[th.Tensor],
 ]
@@ -76,6 +80,58 @@ _render_with_mlp = cast(
     _RenderWithMlp,
     getattr(th.ops.transparent_render_ext, "render_with_mlp", None),
 )
+
+
+_DEPTH_MODES: Dict[str, int] = {
+    "expected": 0,
+    "accumulated": 1,
+    "foreground_mean": 2,
+    "median": 3,
+}
+
+
+def _validate_depth_options(
+    depth_mode: str, background_depth: float, depth_alpha_threshold: float
+) -> int:
+    if depth_mode not in _DEPTH_MODES:
+        raise ValueError(f"transparent render: unknown depth_mode {depth_mode!r}")
+    if (
+        not math.isfinite(background_depth)
+        or not 0.0 < background_depth <= 3.4028234663852886e38
+    ):
+        raise ValueError(
+            "transparent render: background_depth must be positive and finite in float32"
+        )
+    if (
+        not math.isfinite(depth_alpha_threshold)
+        or not 1.1754943508222875e-38 <= depth_alpha_threshold < 1.0
+    ):
+        raise ValueError(
+            "transparent render: depth_alpha_threshold must be positive and less than one in float32"
+        )
+    return _DEPTH_MODES[depth_mode]
+
+
+def _reference_depth(
+    weighted: th.Tensor,
+    alpha: th.Tensor,
+    transmittance: th.Tensor,
+    median: th.Tensor,
+    depth_mode: str,
+    background_depth: float,
+    depth_alpha_threshold: float,
+) -> th.Tensor:
+    if depth_mode == "expected":
+        return weighted + transmittance * background_depth
+    if depth_mode == "accumulated":
+        return weighted
+    if depth_mode == "median":
+        return median
+    valid = alpha > depth_alpha_threshold
+    denominator = th.where(valid, alpha, th.ones_like(alpha))
+    return th.where(
+        valid, weighted / denominator, th.full_like(weighted, background_depth)
+    )
 
 
 _MLP_WIDTH: int = 8
@@ -553,7 +609,11 @@ def render_transparent_ref(
     padding_mode: str = "border",
     rgb_activation: str = "relu",
     alpha_activation: str = "relu_density",
-) -> Tuple[th.Tensor, th.Tensor]:
+    *,
+    depth_mode: str = "expected",
+    background_depth: float = 1000.0,
+    depth_alpha_threshold: float = 1.0e-6,
+) -> Tuple[th.Tensor, th.Tensor, th.Tensor]:
     """Pure-PyTorch correctness reference for :func:`render_transparent`.
 
     See the main function for the argument and return-value contract.
@@ -562,6 +622,7 @@ def render_transparent_ref(
     CUDA entry point's silhouette-gradient estimator or early termination.
     """
 
+    _validate_depth_options(depth_mode, background_depth, depth_alpha_threshold)
     _validate_common(v, vi, height, width)
     _validate_sampling_options(mode, padding_mode)
     _validate_texture_activation_options(rgb_activation, alpha_activation)
@@ -579,6 +640,7 @@ def render_transparent_ref(
     grid = _pixel_grid(height, width, v)
     colors: List[th.Tensor] = []
     alphas: List[th.Tensor] = []
+    depths: List[th.Tensor] = []
 
     for batch_index in range(batch_size):
         faces = _faces_for_batch(vi, batch_index, batch_size)
@@ -597,6 +659,10 @@ def render_transparent_ref(
 
         transmittance = v.new_ones((height, width))
         color = v.new_zeros((3, height, width))
+        accumulated_alpha = v.new_zeros((height, width))
+        weighted_depth = v.new_zeros((height, width))
+        median_depth = v.new_full((height, width), background_depth)
+        median_selected = th.zeros((height, width), device=v.device, dtype=th.bool)
         for rank in range(faces.shape[0]):
             face_index = order[rank]
             face = faces[face_index]
@@ -623,14 +689,33 @@ def render_transparent_ref(
             )
             visibility = transmittance * fragment_alpha
             color = color + fragment_rgb * visibility[None]
+            fragment_depth = (bary * triangle[:, 2, None, None]).sum(dim=0)
+            accumulated_alpha = accumulated_alpha + visibility
+            if depth_mode == "median":
+                selected = ~median_selected & (accumulated_alpha >= 0.5)
+                median_depth = th.where(selected, fragment_depth, median_depth)
+                median_selected = median_selected | selected
+            else:
+                weighted_depth = weighted_depth + visibility * fragment_depth
             transmittance = transmittance * (1.0 - fragment_alpha)
 
         background_batch = _background_for_batch(background, batch_index, batch_size, v)
         color = color + background_batch[:, None, None] * transmittance[None]
         colors.append(color)
-        alphas.append((1.0 - transmittance)[None])
+        alphas.append(accumulated_alpha[None])
+        depths.append(
+            _reference_depth(
+                weighted_depth,
+                accumulated_alpha,
+                transmittance,
+                median_depth,
+                depth_mode,
+                background_depth,
+                depth_alpha_threshold,
+            )[None]
+        )
 
-    return th.stack(colors, dim=0), th.stack(alphas, dim=0)
+    return th.stack(colors, dim=0), th.stack(alphas, dim=0), th.stack(depths, dim=0)
 
 
 def render_transparent_mlp_ref(
@@ -649,7 +734,11 @@ def render_transparent_mlp_ref(
     padding_mode: str = "border",
     rgb_activation: str = "shifted_relu",
     alpha_activation: str = "shifted_relu_density",
-) -> Tuple[th.Tensor, th.Tensor]:
+    *,
+    depth_mode: str = "expected",
+    background_depth: float = 1000.0,
+    depth_alpha_threshold: float = 1.0e-6,
+) -> Tuple[th.Tensor, th.Tensor, th.Tensor]:
     """Pure-PyTorch correctness reference for :func:`render_transparent_mlp`.
 
     See the main function for the argument and return-value contract.
@@ -677,6 +766,9 @@ def render_transparent_mlp_ref(
         padding_mode,
         rgb_activation,
         alpha_activation,
+        depth_mode=depth_mode,
+        background_depth=background_depth,
+        depth_alpha_threshold=depth_alpha_threshold,
     )
 
 
@@ -698,7 +790,11 @@ def render_transparent_mlp_two_textures_ref(
     padding_mode: str = "border",
     rgb_activation: str = "shifted_relu",
     alpha_activation: str = "shifted_relu_density",
-) -> Tuple[th.Tensor, th.Tensor]:
+    *,
+    depth_mode: str = "expected",
+    background_depth: float = 1000.0,
+    depth_alpha_threshold: float = 1.0e-6,
+) -> Tuple[th.Tensor, th.Tensor, th.Tensor]:
     """Pure-PyTorch correctness reference for :func:`render_transparent_mlp_two_textures`.
 
     See the main function for the argument and return-value contract.
@@ -725,6 +821,9 @@ def render_transparent_mlp_two_textures_ref(
         padding_mode,
         rgb_activation,
         alpha_activation,
+        depth_mode=depth_mode,
+        background_depth=background_depth,
+        depth_alpha_threshold=depth_alpha_threshold,
     )
 
 
@@ -746,9 +845,14 @@ def _render_transparent_mlp_ref_impl(
     padding_mode: str = "border",
     rgb_activation: str = "shifted_relu",
     alpha_activation: str = "shifted_relu_density",
-) -> Tuple[th.Tensor, th.Tensor]:
+    *,
+    depth_mode: str = "expected",
+    background_depth: float = 1000.0,
+    depth_alpha_threshold: float = 1.0e-6,
+) -> Tuple[th.Tensor, th.Tensor, th.Tensor]:
     """Shared implementation for the one- and two-texture reference APIs."""
 
+    _validate_depth_options(depth_mode, background_depth, depth_alpha_threshold)
     _validate_common(v, vi, height, width)
     _validate_sampling_options(mode, padding_mode)
     _validate_mlp_activation_options(rgb_activation, alpha_activation)
@@ -761,6 +865,7 @@ def _render_transparent_mlp_ref_impl(
     grid = _pixel_grid(height, width, v)
     colors: List[th.Tensor] = []
     alphas: List[th.Tensor] = []
+    depths: List[th.Tensor] = []
 
     for batch_index in range(batch_size):
         faces = _faces_for_batch(vi, batch_index, batch_size)
@@ -785,6 +890,10 @@ def _render_transparent_mlp_ref_impl(
 
         transmittance = v.new_ones((height, width))
         color = v.new_zeros((3, height, width))
+        accumulated_alpha = v.new_zeros((height, width))
+        weighted_depth = v.new_zeros((height, width))
+        median_depth = v.new_full((height, width), background_depth)
+        median_selected = th.zeros((height, width), device=v.device, dtype=th.bool)
         for rank in range(faces.shape[0]):
             face_index = order[rank]
             face = faces[face_index]
@@ -827,14 +936,33 @@ def _render_transparent_mlp_ref_impl(
             )
             visibility = transmittance * fragment_alpha
             color = color + fragment_rgba[:3] * visibility[None]
+            fragment_depth = (bary * triangle[:, 2, None, None]).sum(dim=0)
+            accumulated_alpha = accumulated_alpha + visibility
+            if depth_mode == "median":
+                selected = ~median_selected & (accumulated_alpha >= 0.5)
+                median_depth = th.where(selected, fragment_depth, median_depth)
+                median_selected = median_selected | selected
+            else:
+                weighted_depth = weighted_depth + visibility * fragment_depth
             transmittance = transmittance * (1.0 - fragment_alpha)
 
         background_batch = _background_for_batch(background, batch_index, batch_size, v)
         color = color + background_batch[:, None, None] * transmittance[None]
         colors.append(color)
-        alphas.append((1.0 - transmittance)[None])
+        alphas.append(accumulated_alpha[None])
+        depths.append(
+            _reference_depth(
+                weighted_depth,
+                accumulated_alpha,
+                transmittance,
+                median_depth,
+                depth_mode,
+                background_depth,
+                depth_alpha_threshold,
+            )[None]
+        )
 
-    return th.stack(colors, dim=0), th.stack(alphas, dim=0)
+    return th.stack(colors, dim=0), th.stack(alphas, dim=0), th.stack(depths, dim=0)
 
 
 def _expand_cuda_faces(vi: th.Tensor, batch_size: int) -> th.Tensor:
@@ -935,7 +1063,11 @@ def render_transparent(
     rgb_activation: str = "relu",
     alpha_activation: str = "relu_density",
     edge_gradients: bool = True,
-) -> Tuple[th.Tensor, th.Tensor]:
+    *,
+    depth_mode: str = "expected",
+    background_depth: float = 1000.0,
+    depth_alpha_threshold: float = 1.0e-6,
+) -> Tuple[th.Tensor, th.Tensor, th.Tensor]:
     """Render depth-sorted transparent textured triangles.
 
     CUDA inference uses a fused 4x4-tiled renderer. Triangle/tile pairs are
@@ -994,11 +1126,45 @@ def render_transparent(
             suppressed; folded shared boundaries are composited as a bundle.
             The reference functions retain smooth/interior gradients only.
 
+        depth_mode: ``"expected"`` (default) composites camera-space Z with
+            an opaque background at ``background_depth``. ``"accumulated"``
+            returns only the foreground sum of ``transmittance * alpha * Z``.
+            ``"foreground_mean"`` divides that sum by foreground alpha only
+            above ``depth_alpha_threshold``; other pixels return background
+            depth with zero smooth depth gradient. ``"median"`` selects the first
+            fragment whose cumulative foreground alpha reaches 0.5, or the
+            background if no fragment does. All modes use the same stable
+            mean-triangle-depth order as RGB, without per-pixel sorting.
+        background_depth: Positive finite background camera Z, in the same
+            units as ``v[..., 2]``. Defaults to 1000. Set it to an appropriate
+            far depth for the scene; it is independent of RGB ``background``.
+            Infinity is not supported. A distant background increases the
+            depth-loss signal for opacity and silhouette changes.
+        depth_alpha_threshold: Minimum foreground alpha for a valid mean
+            depth. Defaults to 1e-6. The division is not evaluated through
+            small or zero alpha; invalid pixels have zero smooth depth gradient.
+            This threshold only affects ``"foreground_mean"``.
+
     Returns:
-        Premultiplied RGB and accumulated alpha with shapes ``[N, 3, H, W]``
-        and ``[N, 1, H, W]``. With a background, RGB is fully composited.
+        A tuple ``(rgb, alpha, depth)`` with shapes ``[N, 3, H, W]``,
+        ``[N, 1, H, W]``, and ``[N, 1, H, W]``. RGB is premultiplied unless
+        a background is supplied. Alpha always describes foreground opacity,
+        even when depth includes an opaque background. Fragment depth is
+        perspective-correct interpolated camera Z, not ray distance or the
+        triangle-center depth used for sorting.
+
+        Expected, accumulated, and valid foreground-mean depth differentiate
+        geometry and opacity. Median differentiates the selected fragment's
+        depth, with no smooth opacity gradient through its discrete selection.
+        Ordering and the foreground-mean validity test are also discrete.
+        Native boundary gradients include the chosen depth output when
+        ``edge_gradients=True``; reference implementations retain only smooth
+        derivatives with coverage fixed.
     """
 
+    depth_mode_enum = _validate_depth_options(
+        depth_mode, background_depth, depth_alpha_threshold
+    )
     _validate_common(v, vi, height, width)
     mode_enum, padding_mode_enum = _validate_sampling_options(mode, padding_mode)
     rgb_activation_enum, alpha_activation_enum = _validate_texture_activation_options(
@@ -1028,8 +1194,11 @@ def render_transparent(
         rgb_activation_enum,
         alpha_activation_enum,
         edge_gradients,
+        depth_mode_enum,
+        background_depth,
+        depth_alpha_threshold,
     )
-    return outputs[0], outputs[1]
+    return outputs[0], outputs[1], outputs[2]
 
 
 @th.compiler.disable
@@ -1051,7 +1220,11 @@ def render_transparent_mlp(
     rgb_activation: str = "shifted_relu",
     alpha_activation: str = "shifted_relu_density",
     edge_gradients: bool = True,
-) -> Tuple[th.Tensor, th.Tensor]:
+    *,
+    depth_mode: str = "expected",
+    background_depth: float = 1000.0,
+    depth_alpha_threshold: float = 1.0e-6,
+) -> Tuple[th.Tensor, th.Tensor, th.Tensor]:
     """Render transparent triangles from one neural feature texture.
 
     The fused CUDA kernel samples ``texture`` at each covered fragment's
@@ -1123,10 +1296,40 @@ def render_transparent_mlp(
             suppressed; folded shared boundaries are composited as a bundle.
             The reference functions retain smooth/interior gradients only.
 
+        depth_mode: ``"expected"`` (default) composites camera-space Z with
+            an opaque background at ``background_depth``. ``"accumulated"``
+            returns only the foreground sum of ``transmittance * alpha * Z``.
+            ``"foreground_mean"`` divides that sum by foreground alpha only
+            above ``depth_alpha_threshold``; other pixels return background
+            depth with zero smooth depth gradient. ``"median"`` selects the first
+            fragment whose cumulative foreground alpha reaches 0.5, or the
+            background if no fragment does. All modes use the same stable
+            mean-triangle-depth order as RGB, without per-pixel sorting.
+        background_depth: Positive finite background camera Z, in the same
+            units as ``v[..., 2]``. Defaults to 1000. Set it to an appropriate
+            far depth for the scene; it is independent of RGB ``background``.
+            Infinity is not supported. A distant background increases the
+            depth-loss signal for opacity and silhouette changes.
+        depth_alpha_threshold: Minimum foreground alpha for a valid mean
+            depth. Defaults to 1e-6. The division is not evaluated through
+            small or zero alpha; invalid pixels have zero smooth depth gradient.
+            This threshold only affects ``"foreground_mean"``.
+
     Returns:
-        Premultiplied RGB and accumulated alpha with shapes ``[N, 3, H, W]``
-        and ``[N, 1, H, W]``. If ``background`` is supplied, RGB contains the
-        fully composited color instead.
+        A tuple ``(rgb, alpha, depth)`` with shapes ``[N, 3, H, W]``,
+        ``[N, 1, H, W]``, and ``[N, 1, H, W]``. RGB is premultiplied unless
+        a background is supplied. Alpha always describes foreground opacity,
+        even when depth includes an opaque background. Fragment depth is
+        perspective-correct interpolated camera Z, not ray distance or the
+        triangle-center depth used for sorting.
+
+        Expected, accumulated, and valid foreground-mean depth differentiate
+        geometry and opacity. Median differentiates the selected fragment's
+        depth, with no smooth opacity gradient through its discrete selection.
+        Ordering and the foreground-mean validity test are also discrete.
+        Native boundary gradients include the chosen depth output when
+        ``edge_gradients=True``; reference implementations retain only smooth
+        derivatives with coverage fixed.
     """
 
     empty_texture = texture.new_empty((1, 0, 1, 1))
@@ -1150,6 +1353,9 @@ def render_transparent_mlp(
         rgb_activation,
         alpha_activation,
         edge_gradients,
+        depth_mode=depth_mode,
+        background_depth=background_depth,
+        depth_alpha_threshold=depth_alpha_threshold,
     )
 
 
@@ -1174,7 +1380,11 @@ def render_transparent_mlp_two_textures(
     rgb_activation: str = "shifted_relu",
     alpha_activation: str = "shifted_relu_density",
     edge_gradients: bool = True,
-) -> Tuple[th.Tensor, th.Tensor]:
+    *,
+    depth_mode: str = "expected",
+    background_depth: float = 1000.0,
+    depth_alpha_threshold: float = 1.0e-6,
+) -> Tuple[th.Tensor, th.Tensor, th.Tensor]:
     """Render transparent triangles from two neural feature textures.
 
     The fused CUDA kernel samples ``texture0`` at each covered fragment's
@@ -1256,10 +1466,40 @@ def render_transparent_mlp_two_textures(
             suppressed; folded shared boundaries are composited as a bundle.
             The reference functions retain smooth/interior gradients only.
 
+        depth_mode: ``"expected"`` (default) composites camera-space Z with
+            an opaque background at ``background_depth``. ``"accumulated"``
+            returns only the foreground sum of ``transmittance * alpha * Z``.
+            ``"foreground_mean"`` divides that sum by foreground alpha only
+            above ``depth_alpha_threshold``; other pixels return background
+            depth with zero smooth depth gradient. ``"median"`` selects the first
+            fragment whose cumulative foreground alpha reaches 0.5, or the
+            background if no fragment does. All modes use the same stable
+            mean-triangle-depth order as RGB, without per-pixel sorting.
+        background_depth: Positive finite background camera Z, in the same
+            units as ``v[..., 2]``. Defaults to 1000. Set it to an appropriate
+            far depth for the scene; it is independent of RGB ``background``.
+            Infinity is not supported. A distant background increases the
+            depth-loss signal for opacity and silhouette changes.
+        depth_alpha_threshold: Minimum foreground alpha for a valid mean
+            depth. Defaults to 1e-6. The division is not evaluated through
+            small or zero alpha; invalid pixels have zero smooth depth gradient.
+            This threshold only affects ``"foreground_mean"``.
+
     Returns:
-        Premultiplied RGB and accumulated alpha with shapes ``[N, 3, H, W]``
-        and ``[N, 1, H, W]``. If ``background`` is supplied, RGB contains the
-        fully composited color instead.
+        A tuple ``(rgb, alpha, depth)`` with shapes ``[N, 3, H, W]``,
+        ``[N, 1, H, W]``, and ``[N, 1, H, W]``. RGB is premultiplied unless
+        a background is supplied. Alpha always describes foreground opacity,
+        even when depth includes an opaque background. Fragment depth is
+        perspective-correct interpolated camera Z, not ray distance or the
+        triangle-center depth used for sorting.
+
+        Expected, accumulated, and valid foreground-mean depth differentiate
+        geometry and opacity. Median differentiates the selected fragment's
+        depth, with no smooth opacity gradient through its discrete selection.
+        Ordering and the foreground-mean validity test are also discrete.
+        Native boundary gradients include the chosen depth output when
+        ``edge_gradients=True``; reference implementations retain only smooth
+        derivatives with coverage fixed.
     """
 
     return _render_transparent_mlp_impl(
@@ -1282,6 +1522,9 @@ def render_transparent_mlp_two_textures(
         rgb_activation,
         alpha_activation,
         edge_gradients,
+        depth_mode=depth_mode,
+        background_depth=background_depth,
+        depth_alpha_threshold=depth_alpha_threshold,
     )
 
 
@@ -1306,9 +1549,16 @@ def _render_transparent_mlp_impl(
     rgb_activation: str = "shifted_relu",
     alpha_activation: str = "shifted_relu_density",
     edge_gradients: bool = True,
-) -> Tuple[th.Tensor, th.Tensor]:
+    *,
+    depth_mode: str = "expected",
+    background_depth: float = 1000.0,
+    depth_alpha_threshold: float = 1.0e-6,
+) -> Tuple[th.Tensor, th.Tensor, th.Tensor]:
     """Shared implementation for the one- and two-texture CUDA APIs."""
 
+    depth_mode_enum = _validate_depth_options(
+        depth_mode, background_depth, depth_alpha_threshold
+    )
     _validate_common(v, vi, height, width)
     _validate_mlp(texture0.shape[1] + texture1.shape[1], weights, biases)
     mode_enum, padding_mode_enum = _validate_sampling_options(mode, padding_mode)
@@ -1347,5 +1597,8 @@ def _render_transparent_mlp_impl(
         rgb_activation_enum,
         alpha_activation_enum,
         edge_gradients,
+        depth_mode_enum,
+        background_depth,
+        depth_alpha_threshold,
     )
-    return outputs[0], outputs[1]
+    return outputs[0], outputs[1], outputs[2]

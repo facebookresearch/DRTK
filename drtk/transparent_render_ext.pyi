@@ -22,6 +22,10 @@ def render_with_texture(
     transmittance_epsilon: float,
     rgb_activation: int,
     alpha_activation: int,
+    edge_gradients: bool = True,
+    depth_mode: int = 0,
+    background_depth: float = 1000.0,
+    depth_alpha_threshold: float = 1.0e-6,
 ) -> List[Tensor]: ...
 def render_with_mlp(
     v: Tensor,
@@ -42,4 +46,8 @@ def render_with_mlp(
     transmittance_epsilon: float,
     rgb_activation: int,
     alpha_activation: int,
+    edge_gradients: bool = True,
+    depth_mode: int = 0,
+    background_depth: float = 1000.0,
+    depth_alpha_threshold: float = 1.0e-6,
 ) -> List[Tensor]: ...

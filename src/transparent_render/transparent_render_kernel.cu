@@ -99,6 +99,41 @@ struct ScaledTransmittance {
   }
 };
 
+struct DepthAccumulator {
+  float weighted = 0.0f;
+  float alpha = 0.0f;
+  float median = 0.0f;
+  int32_t median_face = -1;
+
+  __device__ void
+  add(float transmittance, float opacity, float z, int32_t face, TransparentDepthMode mode) {
+    const float weight = transmittance * opacity;
+    alpha += weight;
+    if (mode == TransparentDepthMode::Median) {
+      if (median_face < 0 && alpha >= 0.5f) {
+        median = z;
+        median_face = face;
+      }
+    } else {
+      weighted += weight * z;
+    }
+  }
+
+  __device__ float value(float transmittance, const TransparentDepthOptions& options) const {
+    switch (options.mode) {
+      case TransparentDepthMode::Expected:
+        return weighted + transmittance * options.background;
+      case TransparentDepthMode::Accumulated:
+        return weighted;
+      case TransparentDepthMode::ForegroundMean:
+        return alpha > options.alpha_threshold ? weighted / alpha : options.background;
+      case TransparentDepthMode::Median:
+        return median_face >= 0 ? median : options.background;
+    }
+    return 0.0f;
+  }
+};
+
 struct TileBins {
   torch::Tensor offsets;
   torch::Tensor face_ids;
@@ -1621,27 +1656,119 @@ edge_side(const TriangleData& triangle, int32_t edge, int32_t first_vertex) {
       triangle.y[c] - triangle.y[a]);
 }
 
-// Find the next incident face in reverse forward order. Indexed manifold edges
-// have one or two incident faces; the loop also handles nonmanifold bundles.
+// Indexed manifold edges have one or two incident faces; the loop also
+// handles nonmanifold bundles without a per-edge fragment buffer.
+template <bool Reverse = true>
 __device__ int32_t next_boundary_face(
     const GeometryParams& geometry,
     const int32_t* edge_ids,
     int32_t begin,
     int32_t end,
-    uint64_t upper,
+    uint64_t bound,
     uint64_t& key) {
   int32_t result = -1;
-  key = 0;
+  key = Reverse ? 0 : UINT64_MAX;
   for (int32_t i = begin; i < end; ++i) {
     TriangleData triangle;
     load_triangle(geometry, edge_ids[i] / 3, triangle);
     const uint64_t candidate = triangle_order_key(triangle, edge_ids[i] / 3);
-    if (candidate < upper && (result < 0 || candidate > key)) {
+    const bool in_range = Reverse ? candidate < bound : candidate > bound;
+    const bool nearer = Reverse ? candidate > key : candidate < key;
+    if (in_range && (result < 0 || nearer)) {
       result = edge_ids[i];
       key = candidate;
     }
   }
   return result;
+}
+
+template <typename FragmentEvaluator>
+__device__ float boundary_depth_query(
+    const GeometryParams& geometry,
+    const FragmentEvaluator& evaluator,
+    int32_t n,
+    int32_t x,
+    int32_t y,
+    int32_t height,
+    int32_t width,
+    const int32_t* tile_offsets,
+    const int32_t* face_ids,
+    const int32_t* edge_ids,
+    int32_t begin,
+    int32_t end,
+    int32_t first_vertex,
+    float edge_alpha,
+    float edge_depth,
+    const TransparentDepthOptions& options) {
+  DepthAccumulator plus, minus;
+  float plus_transmittance = 1.0f, minus_transmittance = 1.0f;
+  const int32_t tile_width = (width + kTileSize - 1) / kTileSize;
+  const int32_t tile_height = (height + kTileSize - 1) / kTileSize;
+  const int32_t tile = n * tile_height * tile_width + (y / kTileSize) * tile_width + x / kTileSize;
+  int32_t actual = tile_offsets[tile];
+  const int32_t actual_end = tile_offsets[tile + 1];
+  uint64_t query_key;
+  int32_t query = next_boundary_face<false>(geometry, edge_ids, begin, end, 0, query_key);
+  while (actual < actual_end || query >= 0) {
+    TriangleData triangle;
+    uint64_t actual_key = UINT64_MAX;
+    if (actual < actual_end) {
+      load_triangle(geometry, face_ids[actual], triangle);
+      actual_key = triangle_order_key(triangle, face_ids[actual]);
+    }
+    if (query >= 0 && (actual >= actual_end || query_key <= actual_key)) {
+      if (actual < actual_end && query_key == actual_key) {
+        ++actual;
+      }
+      load_triangle(geometry, query / 3, triangle);
+      if (edge_side(triangle, query % 3, first_vertex) > 0.0f) {
+        plus.add(plus_transmittance, edge_alpha, edge_depth, query / 3, options.mode);
+        plus_transmittance *= 1.0f - edge_alpha;
+      } else {
+        minus.add(minus_transmittance, edge_alpha, edge_depth, query / 3, options.mode);
+        minus_transmittance *= 1.0f - edge_alpha;
+      }
+      query = next_boundary_face<false>(geometry, edge_ids, begin, end, query_key, query_key);
+      continue;
+    }
+    const int32_t face = face_ids[actual++];
+    const float area = cross2(
+        triangle.x[1] - triangle.x[0],
+        triangle.y[1] - triangle.y[0],
+        triangle.x[2] - triangle.x[0],
+        triangle.y[2] - triangle.y[0]);
+    float bary[3];
+    if (!hard_triangle_coverage(
+            triangle, static_cast<float>(x), static_cast<float>(y), area, bary)) {
+      continue;
+    }
+    float inverse_depth = 0.0f;
+#pragma unroll
+    for (int32_t c = 0; c < 3; ++c) {
+      bary[c] /= triangle.z[c];
+      inverse_depth += bary[c];
+    }
+    inverse_depth = clamp_away_from_zero(inverse_depth);
+    float material = 0.0f, z = 0.0f;
+#pragma unroll
+    for (int32_t c = 0; c < 3; ++c) {
+      bary[c] /= inverse_depth;
+      material += bary[c] * triangle.opacity[c];
+      z += bary[c] * triangle.z[c];
+    }
+    material = fminf(fmaxf(material, 0.0f), 1.0f);
+    if (material <= 0.0f) {
+      continue;
+    }
+    float rgb[3], alpha;
+    evaluator.evaluate(n, triangle, bary, rgb, alpha);
+    alpha = fminf(material * alpha, kAlphaMax);
+    plus.add(plus_transmittance, alpha, z, face, options.mode);
+    minus.add(minus_transmittance, alpha, z, face, options.mode);
+    plus_transmittance *= 1.0f - alpha;
+    minus_transmittance *= 1.0f - alpha;
+  }
+  return plus.value(plus_transmittance, options) - minus.value(minus_transmittance, options);
 }
 
 template <typename FragmentEvaluator>
@@ -1663,7 +1790,10 @@ __device__ float boundary_query(
     float edge_alpha,
     const float* background,
     const float* grad_color,
-    const float* grad_alpha) {
+    const float* grad_alpha,
+    const float* grad_depth,
+    const TransparentDepthOptions& depth_options,
+    float edge_depth) {
   const int64_t pixel = (static_cast<int64_t>(n) * height + y) * width + x;
   float g[3];
 #pragma unroll
@@ -1738,6 +1868,26 @@ __device__ float boundary_query(
     suffix = alpha * dot + (1.0f - alpha) * suffix;
     jump *= 1.0f - alpha;
   }
+  if (grad_depth[pixel] != 0.0f) {
+    jump += grad_depth[pixel] *
+        boundary_depth_query(
+                geometry,
+                evaluator,
+                n,
+                x,
+                y,
+                height,
+                width,
+                tile_offsets,
+                face_ids,
+                edge_ids,
+                begin,
+                end,
+                first_vertex,
+                edge_alpha,
+                edge_depth,
+                depth_options);
+  }
   return jump;
 }
 
@@ -1797,6 +1947,8 @@ __device__ void boundary_group_backward(
     const float* background,
     const float* grad_color,
     const float* grad_alpha,
+    const float* grad_depth,
+    TransparentDepthOptions depth_options,
     float* vertices_grad,
     int32_t group,
     int32_t lane) {
@@ -1895,7 +2047,10 @@ __device__ void boundary_group_backward(
           alpha,
           background,
           grad_color,
-          grad_alpha);
+          grad_alpha,
+          grad_depth,
+          depth_options,
+          bary[a] * triangle.z[a] + bary[b] * triangle.z[b]);
       const float jump1 = boundary_query(
           geometry,
           evaluator,
@@ -1914,7 +2069,10 @@ __device__ void boundary_group_backward(
           alpha,
           background,
           grad_color,
-          grad_alpha);
+          grad_alpha,
+          grad_depth,
+          depth_options,
+          bary[a] * triangle.z[a] + bary[b] * triangle.z[b]);
       const float sign = axis == 0 ? (dy > 0.0f ? 1.0f : -1.0f) : (dx > 0.0f ? -1.0f : 1.0f);
       const float force = 0.5f * sign * (jump0 + jump1);
       const int64_t vertex_a =
@@ -1943,6 +2101,8 @@ __global__ void boundary_backward_kernel(
     const float* background,
     const float* grad_color,
     const float* grad_alpha,
+    const float* grad_depth,
+    TransparentDepthOptions depth_options,
     float* vertices_grad) {
   const int32_t warp = (blockIdx.x * blockDim.x + threadIdx.x) / 32;
   const int32_t stride = gridDim.x * blockDim.x / 32;
@@ -1960,6 +2120,8 @@ __global__ void boundary_backward_kernel(
         background,
         grad_color,
         grad_alpha,
+        grad_depth,
+        depth_options,
         vertices_grad,
         active_groups[index],
         threadIdx.x % 32);
@@ -1979,6 +2141,8 @@ void launch_boundary_backward(
     const torch::Tensor& background,
     const torch::Tensor& grad_color,
     const torch::Tensor& grad_alpha,
+    const torch::Tensor& grad_depth,
+    const TransparentDepthOptions& depth_options,
     torch::Tensor& vertices_grad) {
   const int64_t count = vi.numel();
   if (count == 0) {
@@ -2054,6 +2218,8 @@ void launch_boundary_backward(
       background.data_ptr<float>(),
       grad_color.data_ptr<float>(),
       grad_alpha.data_ptr<float>(),
+      grad_depth.data_ptr<float>(),
+      depth_options,
       vertices_grad.data_ptr<float>());
   C10_CUDA_KERNEL_LAUNCH_CHECK();
 }
@@ -2072,6 +2238,9 @@ __global__ void render_tiles_kernel(
     const float* background,
     float* output_color,
     float* output_alpha,
+    float* output_depth,
+    int32_t* saved_median_face,
+    TransparentDepthOptions depth_options,
     float* saved_transmittance,
     int32_t* saved_transmittance_exponent) {
   const int32_t n = blockIdx.z;
@@ -2090,6 +2259,7 @@ __global__ void render_tiles_kernel(
   float transmittance = 1.0f;
   ScaledTransmittance backward_transmittance;
   float color[3] = {0.0f, 0.0f, 0.0f};
+  DepthAccumulator depth;
 
   const int32_t candidate_count = range_end - range_start;
   const int32_t batch_count = (candidate_count + kFacesPerBatch - 1) / kFacesPerBatch;
@@ -2153,6 +2323,13 @@ __global__ void render_tiles_kernel(
       for (int32_t channel = 0; channel < 3; ++channel) {
         color[channel] += visibility * fragment_rgb[channel];
       }
+      const float z = bary[0] * triangle.z[0] + bary[1] * triangle.z[1] + bary[2] * triangle.z[2];
+      depth.add(
+          transmittance,
+          alpha,
+          z,
+          sorted_face_ids[batch_start + face_in_batch],
+          depth_options.mode);
       transmittance *= 1.0f - alpha;
       if (saved_transmittance != nullptr) {
         backward_transmittance.multiply(1.0f - alpha);
@@ -2174,7 +2351,11 @@ __global__ void render_tiles_kernel(
            static_cast<int64_t>(y) * image_width + x] =
               color[channel] + transmittance * background[n * 3 + channel];
     }
-    output_alpha[pixel] = 1.0f - transmittance;
+    output_alpha[pixel] = depth.alpha;
+    output_depth[pixel] = depth.value(transmittance, depth_options);
+    if (saved_median_face != nullptr) {
+      saved_median_face[pixel] = depth.median_face;
+    }
     if (saved_transmittance != nullptr) {
       saved_transmittance[pixel] = backward_transmittance.mantissa;
       saved_transmittance_exponent[pixel] = backward_transmittance.exponent;
@@ -2197,6 +2378,11 @@ __global__ void render_tiles_backward_kernel(
     const int32_t* saved_transmittance_exponent,
     const float* grad_color,
     const float* grad_alpha,
+    const float* grad_depth,
+    const float* saved_alpha,
+    const float* saved_depth,
+    const int32_t* saved_median_face,
+    TransparentDepthOptions depth_options,
     float* vertices_grad,
     float* uv_grad,
     float* reference_uv_grad,
@@ -2232,6 +2418,9 @@ __global__ void render_tiles_backward_kernel(
   float color_grad[3] = {0.0f, 0.0f, 0.0f};
   ScaledTransmittance transmittance_after;
   float transmittance_grad_after = 0.0f;
+  float depth_grad = 0.0f;
+  float weighted_depth_grad = 0.0f;
+  int32_t median_face = -1;
   if (inside) {
 #pragma unroll
     for (int32_t channel = 0; channel < 3; ++channel) {
@@ -2239,11 +2428,26 @@ __global__ void render_tiles_backward_kernel(
           [(static_cast<int64_t>(n) * 3 + channel) * image_height * image_width +
            static_cast<int64_t>(y) * image_width + x];
     }
+    depth_grad = grad_depth[pixel];
+    float alpha_grad = grad_alpha[pixel];
+    if (depth_options.mode == TransparentDepthMode::ForegroundMean) {
+      const float alpha = saved_alpha[pixel];
+      if (alpha > depth_options.alpha_threshold) {
+        weighted_depth_grad = depth_grad / alpha;
+        alpha_grad -= weighted_depth_grad * saved_depth[pixel];
+      }
+    } else if (depth_options.mode == TransparentDepthMode::Median) {
+      median_face = saved_median_face[pixel];
+    } else {
+      weighted_depth_grad = depth_grad;
+    }
     transmittance_after.mantissa = saved_transmittance[pixel];
     transmittance_after.exponent = saved_transmittance_exponent[pixel];
     transmittance_grad_after = color_grad[0] * background[n * 3 + 0] +
-        color_grad[1] * background[n * 3 + 1] + color_grad[2] * background[n * 3 + 2] -
-        grad_alpha[pixel];
+        color_grad[1] * background[n * 3 + 1] + color_grad[2] * background[n * 3 + 2] - alpha_grad;
+    if (depth_options.mode == TransparentDepthMode::Expected) {
+      transmittance_grad_after += depth_grad * depth_options.background;
+    }
 #pragma unroll
     for (int32_t channel = 0; channel < 3; ++channel) {
       atomicAdd(
@@ -2307,8 +2511,14 @@ __global__ void render_tiles_backward_kernel(
         }
 
         const float transmittance_before = transmittance_after.divide(1.0f - alpha);
-        const float color_dot_grad = fragment_rgb[0] * color_grad[0] +
-            fragment_rgb[1] * color_grad[1] + fragment_rgb[2] * color_grad[2];
+        const float fragment_depth =
+            bary[0] * triangle.z[0] + bary[1] * triangle.z[1] + bary[2] * triangle.z[2];
+        const float fragment_depth_grad = depth_options.mode == TransparentDepthMode::Median
+            ? (sorted_face_ids[batch_start + face_in_batch] == median_face ? depth_grad : 0.0f)
+            : transmittance_before * alpha * weighted_depth_grad;
+        const float color_dot_grad = weighted_depth_grad * fragment_depth +
+            fragment_rgb[0] * color_grad[0] + fragment_rgb[1] * color_grad[1] +
+            fragment_rgb[2] * color_grad[2];
         const float alpha_grad = transmittance_before * (color_dot_grad - transmittance_grad_after);
         const float fragment_rgb_grad[3] = {
             transmittance_before * alpha * color_grad[0],
@@ -2336,7 +2546,8 @@ __global__ void render_tiles_backward_kernel(
             attribute_grad);
 #pragma unroll
         for (int32_t corner = 0; corner < 3; ++corner) {
-          attribute_grad.bary[corner] += material_opacity_grad * triangle.opacity[corner];
+          attribute_grad.bary[corner] += material_opacity_grad * triangle.opacity[corner] +
+              fragment_depth_grad * triangle.z[corner];
           const int64_t vertex =
               static_cast<int64_t>(n) * geometry.vertex_count + triangle.vertex_id[corner];
           atomicAdd(opacity_grad + vertex, material_opacity_grad * bary[corner]);
@@ -2350,7 +2561,10 @@ __global__ void render_tiles_backward_kernel(
 
         float x_grad[3] = {0.0f, 0.0f, 0.0f};
         float y_grad[3] = {0.0f, 0.0f, 0.0f};
-        float z_grad[3] = {0.0f, 0.0f, 0.0f};
+        float z_grad[3] = {
+            fragment_depth_grad * bary[0],
+            fragment_depth_grad * bary[1],
+            fragment_depth_grad * bary[2]};
         perspective_barycentric_backward(
             triangle,
             px,
@@ -2594,6 +2808,7 @@ std::vector<torch::Tensor> launch_render(
     int32_t image_width,
     float transmittance_epsilon,
     const FragmentEvaluator& fragment_evaluator,
+    const TransparentDepthOptions& depth_options,
     bool save_transmittance) {
   const c10::cuda::CUDAGuard device_guard(v.device());
   const int32_t batch_size = static_cast<int32_t>(v.size(0));
@@ -2605,6 +2820,10 @@ std::vector<torch::Tensor> launch_render(
 
   auto color = torch::empty({batch_size, 3, image_height, image_width}, v.options());
   auto alpha = torch::empty({batch_size, 1, image_height, image_width}, v.options());
+  auto depth = torch::empty_like(alpha);
+  auto median_face = save_transmittance && depth_options.mode == TransparentDepthMode::Median
+      ? torch::empty_like(alpha, alpha.options().dtype(torch::kInt32))
+      : torch::Tensor();
   auto saved_transmittance = save_transmittance ? torch::empty_like(alpha) : torch::Tensor();
   auto saved_transmittance_exponent = save_transmittance
       ? torch::empty_like(alpha, alpha.options().dtype(torch::kInt32))
@@ -2633,12 +2852,22 @@ std::vector<torch::Tensor> launch_render(
         background.data_ptr<float>(),
         color.data_ptr<float>(),
         alpha.data_ptr<float>(),
+        depth.data_ptr<float>(),
+        median_face.defined() ? median_face.data_ptr<int32_t>() : nullptr,
+        depth_options,
         save_transmittance ? saved_transmittance.data_ptr<float>() : nullptr,
         save_transmittance ? saved_transmittance_exponent.data_ptr<int32_t>() : nullptr);
     C10_CUDA_KERNEL_LAUNCH_CHECK();
   }
   return {
-      color, alpha, bins.offsets, bins.face_ids, saved_transmittance, saved_transmittance_exponent};
+      color,
+      alpha,
+      depth,
+      bins.offsets,
+      bins.face_ids,
+      saved_transmittance,
+      saved_transmittance_exponent,
+      median_face};
 }
 
 void check_texture(
@@ -2738,6 +2967,11 @@ std::vector<torch::Tensor> launch_render_backward(
     const torch::Tensor& grad_color,
     const torch::Tensor& grad_alpha,
     const FragmentEvaluator& fragment_evaluator,
+    const torch::Tensor& saved_alpha,
+    const torch::Tensor& saved_depth,
+    const torch::Tensor& saved_median_face,
+    const torch::Tensor& grad_depth,
+    const TransparentDepthOptions& depth_options,
     bool edge_gradients) {
   const c10::cuda::CUDAGuard device_guard(v.device());
   const int32_t batch_size = static_cast<int32_t>(v.size(0));
@@ -2783,6 +3017,11 @@ std::vector<torch::Tensor> launch_render_backward(
         saved_transmittance_exponent.data_ptr<int32_t>(),
         grad_color.data_ptr<float>(),
         grad_alpha.data_ptr<float>(),
+        grad_depth.data_ptr<float>(),
+        saved_alpha.data_ptr<float>(),
+        saved_depth.data_ptr<float>(),
+        saved_median_face.defined() ? saved_median_face.data_ptr<int32_t>() : nullptr,
+        depth_options,
         vertices_grad.data_ptr<float>(),
         uv_grad.data_ptr<float>(),
         reference_uv == nullptr ? nullptr : reference_uv_grad.data_ptr<float>(),
@@ -2802,6 +3041,8 @@ std::vector<torch::Tensor> launch_render_backward(
           background,
           grad_color,
           grad_alpha,
+          grad_depth,
+          depth_options,
           vertices_grad);
     }
   }
@@ -2824,6 +3065,7 @@ std::vector<torch::Tensor> transparent_render_with_texture_cuda_forward(
     double transmittance_epsilon,
     int64_t rgb_activation,
     int64_t alpha_activation,
+    const TransparentDepthOptions& depth_options,
     bool save_transmittance) {
   check_common_inputs(
       v,
@@ -2864,6 +3106,7 @@ std::vector<torch::Tensor> transparent_render_with_texture_cuda_forward(
       static_cast<int32_t>(width),
       static_cast<float>(transmittance_epsilon),
       fragment_evaluator,
+      depth_options,
       save_transmittance);
 }
 
@@ -2886,6 +3129,7 @@ std::vector<torch::Tensor> transparent_render_with_mlp_cuda_forward(
     double transmittance_epsilon,
     int64_t rgb_activation,
     int64_t alpha_activation,
+    const TransparentDepthOptions& depth_options,
     bool save_transmittance) {
   check_common_inputs(
       v,
@@ -2973,6 +3217,7 @@ std::vector<torch::Tensor> transparent_render_with_mlp_cuda_forward(
         static_cast<int32_t>(width),
         static_cast<float>(transmittance_epsilon),
         fragment_evaluator,
+        depth_options,
         save_transmittance);
   }
   MlpFragmentEvaluator<5> fragment_evaluator{
@@ -3000,6 +3245,7 @@ std::vector<torch::Tensor> transparent_render_with_mlp_cuda_forward(
       static_cast<int32_t>(width),
       static_cast<float>(transmittance_epsilon),
       fragment_evaluator,
+      depth_options,
       save_transmittance);
 }
 
@@ -3020,6 +3266,11 @@ std::vector<torch::Tensor> transparent_render_with_texture_cuda_backward(
     int64_t padding_mode,
     int64_t rgb_activation,
     int64_t alpha_activation,
+    const torch::Tensor& saved_alpha,
+    const torch::Tensor& saved_depth,
+    const torch::Tensor& saved_median_face,
+    const torch::Tensor& grad_depth,
+    const TransparentDepthOptions& depth_options,
     bool edge_gradients) {
   check_backward_inputs(
       v,
@@ -3068,6 +3319,11 @@ std::vector<torch::Tensor> transparent_render_with_texture_cuda_backward(
       grad_color,
       grad_alpha,
       fragment_evaluator,
+      saved_alpha,
+      saved_depth,
+      saved_median_face,
+      grad_depth,
+      depth_options,
       edge_gradients);
   return {common_grads[0], common_grads[1], texture_grad, common_grads[3], common_grads[4]};
 }
@@ -3094,6 +3350,11 @@ std::vector<torch::Tensor> transparent_render_with_mlp_cuda_backward(
     int64_t padding_mode,
     int64_t rgb_activation,
     int64_t alpha_activation,
+    const torch::Tensor& saved_alpha,
+    const torch::Tensor& saved_depth,
+    const torch::Tensor& saved_median_face,
+    const torch::Tensor& grad_depth,
+    const TransparentDepthOptions& depth_options,
     bool edge_gradients) {
   check_backward_inputs(
       v,
@@ -3192,6 +3453,11 @@ std::vector<torch::Tensor> transparent_render_with_mlp_cuda_backward(
         grad_color,
         grad_alpha,
         fragment_evaluator,
+        saved_alpha,
+        saved_depth,
+        saved_median_face,
+        grad_depth,
+        depth_options,
         edge_gradients);
   } else {
     MlpFragmentBackward<5> fragment_evaluator{
@@ -3227,6 +3493,11 @@ std::vector<torch::Tensor> transparent_render_with_mlp_cuda_backward(
         grad_color,
         grad_alpha,
         fragment_evaluator,
+        saved_alpha,
+        saved_depth,
+        saved_median_face,
+        grad_depth,
+        depth_options,
         edge_gradients);
   }
 

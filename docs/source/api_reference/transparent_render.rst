@@ -15,8 +15,8 @@ drtk.transparent_render
 
 These functions render arbitrary triangle meshes with depth-sorted
 transparency. Covered fragments are evaluated from front to back and
-composited into a color and alpha image without a hard z-buffer selecting a
-single surface.
+composited into color, alpha, and depth images. Each function returns
+``(rgb, alpha, depth)``.
 
 Ordering uses each triangle's mean vertex depth, not a per-pixel depth sort.
 This approximation suits small triangles with locally consistent ordering;
@@ -49,6 +49,69 @@ silhouette gradients to vertex X/Y motion by default. Set
 ``edge_gradients=False`` to disable the boundary estimator. The
 forward image, compositing order, and appearance gradients are unchanged.
 
+Depth outputs
+-------------
+
+Each fragment contributes its perspective-correct interpolated camera Z.
+This is neither distance along the viewing ray nor the triangle-center Z used
+for sorting. Define foreground weights, accumulated depth, and opacity as
+
+.. math::
+
+   T_i=\prod_{j<i}(1-\alpha_j),\qquad
+   S=\sum_i T_i\alpha_i z_i,\qquad
+   A=\sum_i T_i\alpha_i.
+
+All six public native/reference functions accept these depth modes:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 48 30
+
+   * - ``depth_mode``
+     - Output
+     - Empty or insufficient-opacity pixel
+   * - ``"expected"`` (default)
+     - :math:`S+T_{\mathrm{end}}z_{\mathrm{background}}`
+     - Background depth
+   * - ``"accumulated"``
+     - Unnormalized foreground sum :math:`S`
+     - Zero
+   * - ``"foreground_mean"``
+     - :math:`S/A`, when :math:`A` exceeds ``depth_alpha_threshold``
+     - Background depth
+   * - ``"median"``
+     - First fragment where cumulative foreground opacity reaches 0.5
+     - Background depth if no fragment reaches 0.5
+
+The expected-depth background is an opaque final layer: its weight is the
+remaining transmittance, so no alpha normalization is needed. Set
+``background_depth`` to a finite positive camera Z appropriate for the scene.
+The default is 1000 in the same units as vertex Z. This setting is independent
+of the RGB background, and the returned alpha always remains foreground
+opacity. A very distant background produces stronger depth-loss gradients at
+opacity changes and silhouettes.
+
+Foreground mean defaults to ``depth_alpha_threshold=1e-6``. Pixels at or below
+that threshold return background depth with zero smooth depth gradient; the unsafe
+division is never evaluated. Foreground alpha is accumulated from fragment
+weights directly, avoiding cancellation in ``1 - transmittance`` near zero.
+
+Expected, accumulated, and valid foreground-mean depth have smooth geometry
+and opacity gradients while coverage and ordering are fixed. Median has only
+the selected fragment's smooth depth gradient: its threshold decision does
+not provide a smooth opacity derivative. Mean-depth validity is also a hard
+decision. The native silhouette estimator includes the selected depth mode,
+including median; it does not differentiate depth-order swaps or median
+selection changes caused by opacity alone.
+
+.. code-block:: python
+
+   rgb, alpha, depth = drtk.render_transparent(
+       v, vi, uv, texture, height, width,
+       depth_mode="expected", background_depth=100.0,
+   )
+
 Transparent edge gradients
 --------------------------
 
@@ -57,7 +120,9 @@ This estimator extends `Rasterized Edge Gradients
 two neighboring pixels' loss-weighted insertion/removal effects at each
 geometric edge crossing. Each pixel supplies its own foreground attenuation
 and suffix composite at the queried triangle's position in the existing sort
-order. Final RGB/alpha alone cannot recover this information.
+order. Final RGB/alpha alone cannot recover this information. A depth loss
+also compares the two ordered depth composites, including normalization or
+median selection where requested.
 
 Common indexed edges between triangles on opposite projected sides are
 ordinary tessellation and produce no boundary term. Incident triangles that

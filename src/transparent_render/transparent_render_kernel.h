@@ -9,6 +9,19 @@
 
 #include <vector>
 
+enum class TransparentDepthMode : int32_t {
+  Expected = 0,
+  Accumulated = 1,
+  ForegroundMean = 2,
+  Median = 3
+};
+
+struct TransparentDepthOptions {
+  TransparentDepthMode mode;
+  float background;
+  float alpha_threshold;
+};
+
 std::vector<torch::Tensor> transparent_render_with_texture_cuda_forward(
     const torch::Tensor& v,
     const torch::Tensor& vi,
@@ -23,6 +36,7 @@ std::vector<torch::Tensor> transparent_render_with_texture_cuda_forward(
     double transmittance_epsilon,
     int64_t rgb_activation,
     int64_t alpha_activation,
+    const TransparentDepthOptions& depth_options,
     bool save_transmittance = true);
 
 std::vector<torch::Tensor> transparent_render_with_mlp_cuda_forward(
@@ -44,6 +58,7 @@ std::vector<torch::Tensor> transparent_render_with_mlp_cuda_forward(
     double transmittance_epsilon,
     int64_t rgb_activation,
     int64_t alpha_activation,
+    const TransparentDepthOptions& depth_options,
     bool save_transmittance = true);
 
 std::vector<torch::Tensor> transparent_render_with_texture_cuda_backward(
@@ -63,6 +78,11 @@ std::vector<torch::Tensor> transparent_render_with_texture_cuda_backward(
     int64_t padding_mode,
     int64_t rgb_activation,
     int64_t alpha_activation,
+    const torch::Tensor& saved_alpha,
+    const torch::Tensor& saved_depth,
+    const torch::Tensor& saved_median_face,
+    const torch::Tensor& grad_depth,
+    const TransparentDepthOptions& depth_options,
     bool edge_gradients);
 
 std::vector<torch::Tensor> transparent_render_with_mlp_cuda_backward(
@@ -87,4 +107,9 @@ std::vector<torch::Tensor> transparent_render_with_mlp_cuda_backward(
     int64_t padding_mode,
     int64_t rgb_activation,
     int64_t alpha_activation,
+    const torch::Tensor& saved_alpha,
+    const torch::Tensor& saved_depth,
+    const torch::Tensor& saved_median_face,
+    const torch::Tensor& grad_depth,
+    const TransparentDepthOptions& depth_options,
     bool edge_gradients);

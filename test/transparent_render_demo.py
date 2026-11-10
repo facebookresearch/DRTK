@@ -298,7 +298,7 @@ def _render(
         opacity=opacity,
         rgb_activation="identity",
         alpha_activation="clamp",
-    )
+    )[:2]
 
 
 def _tensor_to_image(color: th.Tensor) -> Image.Image:
