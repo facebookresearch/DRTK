@@ -3,12 +3,10 @@
 The mesh builder creates a triangle mesh from a regular grid of **cells centered on
 source-image pixels**. Each live cell contributes a quad whose initial corners
 are at pixel corners. Neighbor affinities determine which corner vertices are
-shared. Geometry construction is independent of the model producing its inputs:
-prediction heads, task losses, and camera-placement policies remain with the caller.
+shared.
 
-The differentiable training objective is the expected loss of sampled hard
-meshes. It is not a derivative of triangle indices and is not the loss of an
-averaged rendered image. At inference, construct one deterministic hard mesh.
+Training minimizes the expected rendered loss of sampled meshes. At inference,
+construct one deterministic mesh from the predicted decisions.
 
 For function signatures, see [the module reference](pixel_grid_mesh.rst).
 The [optimization tutorial](../tutorials/DRTK_Tutorial_pixel_grid_mesh.rst)
@@ -26,8 +24,7 @@ v, vt0, vt1, vi, vertex_opacity, face_cell_ids, face_ids = pixel_grid_mesh(
 )
 ```
 
-The return value is always a plain **seven-element tuple**. Optional entries
-become `None`; they are never omitted and do not change position.
+The function returns seven elements. Optional outputs are `None` when disabled.
 
 | Input | Shape | Meaning |
 | --- | --- | --- |
@@ -40,12 +37,11 @@ become `None`; they are never omitted and do not change position.
 | `diagonal` | H × W or `None` | False: TL–BR; True: TR–BL; None: geometric choice |
 | `feather_width` | H × W or `None` | Nonnegative strip width in source-image pixels |
 
-The first implementation operates on one grid per call. Call it per example
-for a ragged batch; do not treat different examples as one connected grid.
+The function operates on one grid per call. Call it per example
+for a ragged batch.
 Floating inputs share float32/float64 dtype and device; hard decisions are bool.
 Depth, K, displacement, and widths must be finite and geometrically valid. The
-displaced surface must remain in front of the source camera. Metadata/shape
-validation is at the API boundary, not repeated in pixel loops.
+displaced surface must remain in front of the source camera.
 
 | Output | Meaning |
 | --- | --- |
@@ -59,19 +55,17 @@ validation is at the API boundary, not repeated in pixel loops.
 
 Faces are emitted in increasing stable-ID order, including strips. Removing
 unrelated cells preserves relative tie order for the renderer's equal-depth
-triangles. Native and reference implementations use the same order.
+triangles. The reference function uses the same order.
 
 `vertex_opacity` defines the boundary fade. Pass it as
 `opacity=vertex_opacity` to the transparent renderer to multiply the appearance
 alpha. None means an all-one multiplier.
 
 Project `v` into the desired target camera before rendering: the transparent
-renderer accepts target pixel XY and camera Z, not source-camera XYZ. Both UVs
-use the existing 2D interpolation; no homogeneous/projective-UV extension is
-introduced in this version. Exact projective resampling is deliberately deferred
-because the triangles are small. Source visibility/provenance gating remains
-the caller's responsibility; a reprojected UV alone does not establish that the
-source feature belongs to this surface.
+renderer accepts target pixel XY and camera Z. Both UVs use 2D interpolation.
+Use
+[source-feature sampling](source_features.rst) to account for occlusion when
+transferring features to the deformed mesh.
 
 ## Pixel and camera convention
 
@@ -80,9 +74,8 @@ Source pixel (x,y) has its center at integer coordinates. Its corners are
 flip. A K resized by sx,sy needs fx'=sx·fx and cx'=sx·(cx+0.5)−0.5, and likewise
 for Y. The same convention must be used when resizing the source image and its camera.
 
-Camera Z and camera-space displacement are sufficient. There is no inverse-depth
-plane fitting in this implementation. World/placement transforms remain outside
-the builder.
+Depth is camera Z; displacement is expressed in the same camera frame.
+Apply world and placement transforms after building the mesh.
 
 ## Cuts and corner sharing
 
@@ -101,10 +94,7 @@ Construct a connected fan among the at-most-four live cell corners incident on
 each lattice corner. Give each fan one shared vertex. Diagonally touching but
 unconnected cells remain separate. Connections elsewhere in the mesh never
 weld a local cut. An open fan can contain all four incident cells: its two
-boundary edges share one **crack-tip vertex**. That tip is intentional; do not
-force an additional cut or duplicate the tip. Interior cuts with both tips on
-one edge are already removed by the isolated-cut rule; no extra midpoint
-vertices are introduced to represent them.
+boundary edges share one **crack-tip vertex**. Interior cuts with both tips on one edge are removed by the isolated-cut rule.
 
 Cut realization depends only on sampled bits. The effective probability
 that an edge is cut is therefore not simply its raw Bernoulli probability.
@@ -125,19 +115,15 @@ For a corner fan S, use its least-squares fit
 V_{q,S}=\frac{1}{|S|}\sum_{c\in S}Y_{cq}.
 ```
 
-No averaging crosses a cut except the intentionally shared tip. This is local
-and closed form, with ordinary autograd through depth, displacement and K.
-The displacement is a **proposal**, not an exact constraint on every final
-cell center after welding. Exact independent centers would require extra center
-vertices or a coupled solve; neither is part of this contract.
+The average is confined to each fan, including its shared crack tip.
+Gradients propagate through depth, displacement, and K.
+Averaging the shared corners can shift a cell center away from its individual
+displacement proposal.
 
 Each live quad emits two triangles. Automatic diagonal choice compares the two
 diagonal midpoints to the requested displaced cell center in 3D, choosing the
-smaller squared error and TL–BR on a tie. This is a geometric heuristic, not a
-claim of optimal rendered tessellation. The decision itself is discrete. Pass
-explicit sampled diagonal bits to learn it from rendered loss. No soft overlay
-of both triangulations is rendered. Degenerate/folded predictions are not
-repaired into a different shape; geometry regularization belongs to the caller.
+smaller squared error and TL–BR on a tie. The decision is discrete. Pass sampled diagonal bits to learn it from
+rendered loss. Regularize the predicted geometry to avoid degeneracies and folds.
 
 ## Optional boundary feathering
 
@@ -153,12 +139,9 @@ positions. The network supplies only width. Geometry and width receive ordinary
 render gradients. The zero-alpha outer contour contributes no artificial
 coverage jump to the existing edge estimator.
 
-This is a **local extrusion**, not global polygon offset/Boolean surgery.
-Large widths, acute crack tips, nearby opposing boundaries, and folded geometry
-can cause strip overlap. The initial implementation does not claim to eliminate
-those intersections or compensate their alpha. Keep strips narrow; test the
-zero-feather baseline. Global overlap resolution and learned width policies are
-separate work. Miter/bevel switching is also discrete.
+Large widths, acute crack tips, nearby opposing boundaries, and folded
+geometry can cause the extruded strips to overlap and accumulate opacity.
+Keep strips narrow. Switching between miter and bevel joins is discrete.
 
 ## Stochastic topology objective
 
@@ -191,36 +174,26 @@ loss.backward()
 The callback unpacks hard bits, calls the mesh builder and renderer, and returns
 a scalar loss. Each pair uses two renders. The returned value is the mean of
 their losses. Its surrogate backward supplies ARM to the logits and preserves
-ordinary continuous gradients from both evaluations. Detach the loss difference
-inside the score term, not the ordinary rendered losses. If a callback has other
-randomness, keep it fixed within a pair or make it independent of the topology
-sampling. No visibility-dependent loss mask may silently discard the error of
-deleted geometry. Target validity and loss normalization must not be controlled
-by predicted alive bits.
+ordinary continuous gradients from both evaluations. If the callback has other randomness, keep it fixed within a pair or
+independent of topology sampling. Define target validity and loss normalization
+independently of predicted alive bits, so missing geometry contributes to the loss.
 
-Average **losses**, not images: E[L(I)] and L(E[I]) can have opposite gradients.
-The latter can reward an unrealizable mixture of topologies. Likewise, a fixed
-hard mesh cannot acquire these gradients merely by returning differentiable
-positions alongside integer triangle indices.
+Averaging losses, E[L(I)], and evaluating the loss of an averaged image,
+L(E[I]), optimize different objectives. The latter can reward a mixture of
+topologies that cannot be represented by a single mesh.
 
 The estimator remains valid after isolated-cut cleanup because cleanup is a
-deterministic function of the sampled bits. Do not replace it with a detached
-logit-dependent repair. A cut with no rendering consequence has zero expected
+deterministic function of the sampled bits. A cut with no rendering consequence
+has zero expected
 loss gradient; nearby views, geometry evidence and initialization matter.
 
-## Native implementation and limitations
+## Supported inputs and limitations
 
-`pixel_grid_mesh` uses a native CUDA extension for topology realization, corner
-fitting, output compaction, triangulation, feather construction, and backward.
-`pixel_grid_mesh_ref` provides a tensor implementation for CPU/CUDA correctness
-comparisons. The default path does not silently fall back to that implementation.
-
-Native corner fans contain at most four cells. GPU prefix scans compute compact
-vertex and triangle offsets. One small count transfer determines allocation
-sizes; the native path is therefore not CUDA-graph static. Backward differentiates
-positions, source UV reprojection, and strip geometry into depth, displacement,
-intrinsics, and width. First-order gradients are supported; floating-point atomic
-accumulation can differ in its last bits between runs.
+`pixel_grid_mesh` accepts float32/float64 CUDA tensors. Its reference counterpart
+also supports CPU tensors. CUDA graph capture is unsupported. First-order
+gradients propagate from positions, reprojected UVs, and feather geometry to
+depth, displacement, intrinsics, and feather width. Backward is not guaranteed
+to be bitwise deterministic.
 
 The ARM estimator can have high variance on large grids. Increasing the pair
 count trades additional evaluations for lower sampling variance. Geometry
@@ -228,16 +201,6 @@ regularization, loss design, optimization schedules, and convergence remain the
 caller's responsibility. Absent cells must still contribute to the image loss;
 masking evaluation by predicted visibility can hide missing geometry.
 
-The renderer's per-triangle ordering and analytic continuous gradients are
-unchanged. The builder does not add per-pixel depth sorting, global feather
-intersection repair, or a geometry-validity constraint.
-
-## Validation
-
-The regression suite covers an independent local-topology oracle, cut tips and boundary cases,
-native/reference geometry and gradients, finite differences, feathering, empty
-meshes, stable face ordering, and exact expected-rendered-loss gradients for the
-stochastic helper.
 
 ## References
 

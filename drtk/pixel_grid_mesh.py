@@ -264,8 +264,7 @@ def pixel_grid_mesh_ref(
     """Tensor reference for :func:`pixel_grid_mesh`, supporting CPU and CUDA.
 
     See :func:`pixel_grid_mesh` for the complete argument and return-value
-    contract. This implementation uses tensor operations for correctness
-    comparisons; the public function uses native CUDA forward/backward.
+    contract.
     """
     if depth_z.ndim != 2 or min(depth_z.shape) < 1:
         raise ValueError("depth_z must have nonempty shape [H, W]")
@@ -389,10 +388,9 @@ def pixel_grid_mesh(
     *,
     return_metadata: bool = False,
 ) -> PixelGridMesh:
-    """Build a displaced pixel-cell mesh with native CUDA forward/backward.
+    """Build a displaced pixel-cell mesh with optional cuts and feathered borders.
 
-    This is the default implementation. It supports float32/float64 CUDA
-    tensors and first-order gradients.
+    Supports float32/float64 CUDA tensors and first-order gradients.
 
     Args:
         depth_z: Positive camera Z depth ``[H, W]`` (float32 or float64).
@@ -426,9 +424,7 @@ def pixel_grid_mesh(
 
     All tensors must share device; floating inputs must share dtype. Inputs
     must be finite, depths/widths valid, and displaced vertices in front of the
-    source camera. One small device-to-host count transfer allocates compact
-    output tensors; this is not a CUDA-graph static API. There is no per-cell
-    host work or tensor-expression geometry backward.
+    source camera. CUDA graph capture is unsupported.
 
     See :func:`pixel_grid_mesh_ref` for the tensor reference implementation.
     Vertex/face storage order may differ; use stable face IDs when comparing

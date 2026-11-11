@@ -2,7 +2,7 @@
 :github_url: https://github.com/facebookresearch/DRTK
 
 Tutorials
-===================================
+=========
 
 .. toctree::
    :maxdepth: 4
@@ -28,6 +28,7 @@ Tutorials
    :hidden:
 
    DRTK_Tutorial_pixel_grid_mesh
+   DRTK_Tutorial_source_features
    DRTK_Tutorial_hand_fitting
 
 .. grid::
@@ -84,3 +85,12 @@ Tutorials
 
         .. image:: ../_static/tutorial_hand_fitting.gif
           :width: 400
+
+.. grid::
+
+    .. grid-item-card:: :doc:`DRTK_Tutorial_source_features`
+
+        Fit opaque and translucent surfaces from shadows on a recessed receiver.
+
+        .. image:: ../_static/source_features_demo_poster.png
+           :width: 400

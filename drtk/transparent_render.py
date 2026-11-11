@@ -1070,24 +1070,19 @@ def render_transparent(
 ) -> Tuple[th.Tensor, th.Tensor, th.Tensor]:
     """Render depth-sorted transparent textured triangles.
 
-    CUDA inference uses a fused 4x4-tiled renderer. Triangle/tile pairs are
-    sorted by a stable 64-bit ``(batch/tile, center depth)`` key, and each pixel
-    performs perspective-correct texture sampling and front-to-back compositing
-    without a materialized fragment buffer. Mean-depth order is approximate:
-    intersecting or depth-crossing triangles can need different orders at
-    different pixels.
+    Triangles are composited front-to-back in stable mean-camera-depth order,
+    with face index breaking ties. Interpolation is perspective-correct.
+    Intersecting or depth-crossing triangles can composite in the wrong order;
+    per-pixel sorting is not supported.
 
-    CUDA backward traverses the same tile list in reverse and differentiates
-    compositing, texture sampling, perspective-correct interpolation, and
-    opacity. Coverage follows DRTK's hard top-left rule. Transparent silhouette
-    gradients are enabled by default; this adds a rasterized
-    boundary estimator to X/Y vertex gradients without changing forward images.
-    Ordinary shared mesh edges and zero-opacity edge traces are suppressed.
-    Set ``transmittance_epsilon`` only for inference: nonzero values
-    permit early ray termination and therefore define a discrete approximation.
+    Gradients propagate through texture sampling, interpolation, opacity, and
+    compositing. Visibility-boundary gradients are enabled by default through
+    ``edge_gradients=True``. Ordinary shared tessellation edges and zero-alpha
+    borders contribute no boundary term. Set ``transmittance_epsilon`` only
+    for inference: nonzero values permit early termination.
 
-    This optimized entry point requires CUDA. Use
-    :func:`render_transparent_ref` for the CPU correctness implementation.
+    This function requires CUDA. :func:`render_transparent_ref` is available
+    for CPU use and supports smooth gradients only.
 
     Args:
         v: Screen-space vertices ``[N, V, 3]``. X/Y use DRTK pixel coordinates
@@ -1157,7 +1152,7 @@ def render_transparent(
         geometry and opacity. Median differentiates the selected fragment's
         depth, with no smooth opacity gradient through its discrete selection.
         Ordering and the foreground-mean validity test are also discrete.
-        Native boundary gradients include the chosen depth output when
+        Boundary gradients include the chosen depth output when
         ``edge_gradients=True``; reference implementations retain only smooth
         derivatives with coverage fixed.
     """
@@ -1227,14 +1222,10 @@ def render_transparent_mlp(
 ) -> Tuple[th.Tensor, th.Tensor, th.Tensor]:
     """Render transparent triangles from one neural feature texture.
 
-    The fused CUDA kernel samples ``texture`` at each covered fragment's
-    perspective-correct interpolated ``uv``, evaluates a small appearance MLP,
-    and immediately composites the resulting RGBA front-to-back. It does not
-    materialize a fragment buffer. The MLP has exactly four or five affine
-    layers, hidden width eight, and LeakyReLU hidden activations. CUDA backward
-    recomputes the sampled features and MLP intermediates per fragment and
-    differentiates texture sampling, the MLP, interpolation, compositing,
-    vertex position/depth, UV, opacity, background, weights, and biases.
+    Samples ``texture`` at each fragment's interpolated ``uv`` and evaluates
+    an appearance MLP to obtain RGBA. The MLP must have four or five affine
+    layers, hidden width eight, and LeakyReLU hidden activations. Gradients
+    propagate to geometry, UVs, texture, opacity, background, weights, and biases.
 
     ``rgb_activation`` defaults to ``"shifted_relu"``, which computes
     ``max(x + 0.5, 0)``. It also accepts ``"shifted_identity"`` (``x + 0.5``),
@@ -1247,7 +1238,8 @@ def render_transparent_mlp(
     The shifts make a zero-centered MLP output represent a useful mid-range
     value. Activation follows feature filtering and MLP evaluation.
 
-    Triangle/tile pairs are stably sorted by ascending mean vertex depth.
+    Triangles are composited in ascending mean camera-depth order, with face
+    index breaking ties.
     This approximates per-pixel ordering; intersecting or depth-crossing
     triangles may composite in the wrong order. There is no hard z-buffer.
     Hard top-left coverage and clamped interpolated
@@ -1327,7 +1319,7 @@ def render_transparent_mlp(
         geometry and opacity. Median differentiates the selected fragment's
         depth, with no smooth opacity gradient through its discrete selection.
         Ordering and the foreground-mean validity test are also discrete.
-        Native boundary gradients include the chosen depth output when
+        Boundary gradients include the chosen depth output when
         ``edge_gradients=True``; reference implementations retain only smooth
         derivatives with coverage fixed.
     """
@@ -1387,16 +1379,12 @@ def render_transparent_mlp_two_textures(
 ) -> Tuple[th.Tensor, th.Tensor, th.Tensor]:
     """Render transparent triangles from two neural feature textures.
 
-    The fused CUDA kernel samples ``texture0`` at each covered fragment's
-    perspective-correct interpolated ``uv0`` and ``texture1`` at ``uv1``. It
-    concatenates the feature vectors in that order, evaluates a small
-    appearance MLP, and immediately composites the resulting RGBA
-    front-to-back without materializing a fragment buffer. The MLP has exactly
-    four or five affine layers, hidden width eight, and LeakyReLU hidden
-    activations. CUDA backward recomputes the sampled features and MLP
-    intermediates per fragment and differentiates both texture samples, the
-    MLP, interpolation, compositing, vertex position/depth, both UV sets,
-    opacity, background, weights, and biases.
+    Samples ``texture0`` at interpolated ``uv0`` and ``texture1`` at ``uv1``,
+    concatenates their feature vectors in that order, and evaluates an
+    appearance MLP to obtain RGBA. The MLP must have four or five affine
+    layers, hidden width eight, and LeakyReLU hidden activations. Gradients
+    propagate to geometry, both UV sets and textures, opacity, background,
+    weights, and biases.
 
     ``rgb_activation`` defaults to ``"shifted_relu"``, which computes
     ``max(x + 0.5, 0)``. It also accepts ``"shifted_identity"`` (``x + 0.5``),
@@ -1409,7 +1397,8 @@ def render_transparent_mlp_two_textures(
     The shifts make a zero-centered MLP output represent a useful mid-range
     value. Activation follows feature filtering and MLP evaluation.
 
-    Triangle/tile pairs are stably sorted by ascending mean vertex depth.
+    Triangles are composited in ascending mean camera-depth order, with face
+    index breaking ties.
     This approximates per-pixel ordering; intersecting or depth-crossing
     triangles may composite in the wrong order. There is no hard z-buffer.
     Hard top-left coverage and clamped interpolated
@@ -1497,7 +1486,7 @@ def render_transparent_mlp_two_textures(
         geometry and opacity. Median differentiates the selected fragment's
         depth, with no smooth opacity gradient through its discrete selection.
         Ordering and the foreground-mean validity test are also discrete.
-        Native boundary gradients include the chosen depth output when
+        Boundary gradients include the chosen depth output when
         ``edge_gradients=True``; reference implementations retain only smooth
         derivatives with coverage fixed.
     """

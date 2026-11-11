@@ -145,6 +145,7 @@ def main(debug: bool) -> None:
                 "drtk.transparent_render_ext",
                 sources=[
                     "src/transparent_render/transparent_render_module.cpp",
+                    "src/transparent_render/source_features_module.cpp",
                     "src/transparent_render/transparent_render_kernel.cu",
                 ],
                 extra_compile_args={"cxx": cxx_args[target_os], "nvcc": nvcc_args},

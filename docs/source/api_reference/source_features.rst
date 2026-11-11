@@ -1,0 +1,170 @@
+drtk.source_transmittance
+=========================
+
+.. currentmodule:: drtk
+
+.. autosummary::
+    :nosignatures:
+
+    source_transmittance
+    sample_with_transmittance
+    source_transmittance_ref
+    sample_with_transmittance_ref
+
+Evaluate transmittance from a source camera or light to points on a mesh.
+The outputs retain the original query order, including points on layers
+behind other surfaces. Use their weights to evaluate shadows or to sample
+image features with attenuation. Gradients propagate to deformation,
+material opacity, and sampled features.
+
+See :doc:`../tutorials/DRTK_Tutorial_source_features` for an example.
+
+Evaluating transmittance
+------------------------
+
+.. code-block:: python
+
+   indices, weights, _, _ = source_transmittance(
+       v_pix, faces, query_faces, query_barycentrics, height, width,
+       vertex_opacity=opacity,
+   )
+   transmittance = weights.sum(-1)
+
+The result is bilinearly filtered transmittance at each receiving point.
+It includes the fraction of the sampling footprint inside the image and
+receiving surface. For unit illumination from a light, it gives the shadow
+intensity on that surface.
+
+Sampling features
+-----------------
+
+:func:`source_transmittance` computes the four source texels and weights
+for each surface query. :func:`sample_with_transmittance` gathers their features:
+
+.. code-block:: python
+
+   indices, weights, _, _ = source_transmittance(
+       v_pix, faces, query_faces, query_barycentrics, height, width,
+       vertex_opacity=opacity,
+   )
+   sampled, confidence = sample_with_transmittance(features, indices, weights)
+
+A query is specified by a face ID and 3D barycentric coordinates. Each
+bilinear tap must lie on the query's local surface. The surface continues
+through shared manifold edges and ends at cuts, projected folds, and
+nonmanifold junctions. Occlusion is evaluated at each tap, including
+self-occlusion within a connected mesh.
+
+The same indices and weights can sample several feature maps with matching
+batch and spatial dimensions. Recompute them when the geometry, topology,
+material opacity, or source camera changes.
+
+Transmittance and confidence
+----------------------------
+
+For a receiving face :math:`r`, transmittance at source pixel :math:`p` is
+
+.. math::
+
+   T_r(p)=\prod_{f\prec r}\left(1-\alpha_f(p)\right).
+
+Faces are ordered by mean camera-space vertex depth, with face index breaking
+ties, as in :doc:`transparent_render`. This approximates visibility for
+small triangles; intersecting or depth-crossing triangles can require a
+different order at different pixels. The receiving face's own opacity is
+excluded from the product.
+
+With bilinear coefficients :math:`b_{qj}` and source features :math:`F_j`, the
+sampling weights, feature sum, and confidence are
+
+.. math::
+
+   w_{qj}=b_{qj}T_{qj},\qquad
+   S_q=\sum_{j=1}^{4}w_{qj}F_j,\qquad
+   c_q=\sum_{j=1}^{4}w_{qj}.
+
+Invalid taps have zero weight. The feature sum is unnormalized: a fully
+hidden query returns zero features and zero confidence. For example, an
+existing surface feature :math:`A_q` can fill the missing contribution as
+:math:`S_q+(1-c_q)A_q`.
+
+Use geometric or material opacity for visibility. If opacity is predicted
+from these same sampled features, the dependency is circular. Partial
+visibility supplies a confidence value; features already mixed by transparency
+or a neural receptive field remain mixed.
+
+Gradients
+---------
+
+Smooth derivatives propagate through projection, bilinear interpolation,
+material opacity, and feature values. Material opacity is clamped to
+``[0, 1]`` with the interior derivative at zero and one, and zero derivative
+outside that range. Coverage boundaries use DRTK's edge
+estimator, enabled by ``edge_gradients=True``. For upstream feature and
+confidence gradients :math:`g_S,g_c`, its weight derivative is
+
+.. math::
+
+   \frac{\partial L}{\partial w_{qj}}
+   =\langle g_{S_q},F_j\rangle+g_{c_q}.
+
+The estimator combines this derivative with the visibility change across an
+edge to obtain a geometry gradient. In-image taps retain their indices even
+at zero weight, allowing this change to account for features revealed by
+boundary motion. Ordinary shared tessellation edges, zero-opacity occluders,
+and fully hidden edges contribute zero boundary jump.
+
+Call ``loss.backward()`` on the downstream loss. Applying
+:func:`edge_grad_estimator` again would count the source boundary contribution
+twice. A target-view renderer computes its own boundary contribution.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 42 58
+
+   * - Quantity
+     - Gradient
+   * - Vertices, query barycentrics, source features, material opacity
+     - Smooth derivatives for fixed coverage and ordering.
+   * - Occlusion and receiving-surface boundaries
+     - Estimated geometry derivatives from boundary motion.
+   * - Face IDs, connectivity, ordering, and surface-continuation decisions
+     - Discrete. Use :func:`bernoulli_render_loss` for sampled topology, recomputing transmittance weights for each sample.
+   * - Second derivatives
+     - Unsupported.
+
+The reference functions support CPU tensors and smooth derivatives. The
+boundary estimator is available in :func:`source_transmittance`.
+
+Coordinates and data types
+--------------------------
+
+``v_pix`` contains source pixel XY and positive camera Z. Integer XY denotes
+pixel centers. For 3D barycentrics :math:`\beta`, a query projects to
+
+.. math::
+
+   z_q=\sum_i\beta_i z_i,\qquad
+   p_q=\frac{\sum_i\beta_i z_i p_i}{z_q}.
+
+For a feature map resized from :math:`W\times H` to :math:`W_f\times H_f`,
+transform pixel coordinates as
+``x_f = (x + 0.5) * W_f / W - 0.5`` and similarly for Y.
+``return_queries=True`` returns normalized UV coordinates compatible with
+``grid_sample(..., align_corners=False)`` and camera Z.
+
+The transmittance operation requires float32 CUDA geometry and produces float32 weights.
+Sampling accepts float16, bfloat16, and float32 CUDA features, with arbitrary
+channel counts and strides. Accumulation uses float32. Backward may be
+nondeterministic. ``source_transmittance`` does not support CUDA graph capture.
+
+Functions
+---------
+
+.. autofunction:: source_transmittance
+
+.. autofunction:: sample_with_transmittance
+
+.. autofunction:: source_transmittance_ref
+
+.. autofunction:: sample_with_transmittance_ref

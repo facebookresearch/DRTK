@@ -24,13 +24,13 @@ with corners on source-pixel boundaries. The fixed texture mixes broad color
 variation with a grid and dots, making deformation visible in both smooth
 regions and fine detail.
 
-For a small, readable example, five logits control groups of cells or edges:
+Five logits control groups of cells or edges:
 three candidate patches can be present or absent, and two candidate seams can
 be joined or separated. The target removes two patches and opens the vertical
 seam; it keeps the third patch and the horizontal seam connected.
 The mesh builder itself accepts a decision for every cell and neighbor pair.
-Grouping decisions here keeps the stochastic optimization small enough to
-inspect directly.
+These grouped decisions make the topology probabilities easy to follow
+during optimization.
 
 Geometry uses eighteen coefficients: six fixed spatial basis functions for
 each of X, Y, and Z displacement. The depth map, camera intrinsics, texture,
@@ -60,7 +60,7 @@ and per-edge tensors:
    :language: python
    :pyobject: Scene.topology
 
-The native builder returns a fixed tuple. Its vertices already include
+The builder returns a fixed tuple. Its vertices already include
 displacement; ``vt0`` holds original texture coordinates, while ``vt1``
 projects the displaced geometry back into the source image. This example
 uses ``vt0`` to keep the original texture attached to the material:
@@ -90,8 +90,7 @@ For each view, the loss is
    + 0.25\,\operatorname{MSE}(A, A^\star),
 
 where :math:`C` is premultiplied color and :math:`A` is accumulated alpha.
-The target mesh only generates these supervision images. Its vertex positions,
-alive labels, and join labels are not losses supplied to the optimizer.
+Training is supervised by the color and alpha images from the three views.
 The dark background in the figures is added for display after rendering.
 The renderer also returns depth; this example discards it and keeps the
 RGB/alpha objective shown above. See :doc:`../api_reference/transparent_render`
@@ -157,9 +156,7 @@ Watching the fit
    </video>
 
 The video shows saved optimizer states, with the current probabilities and
-the hard mesh obtained by thresholding them at 0.5. The final camera motion
-changes only the viewpoint. No parameters are interpolated between recorded
-states.
+the hard mesh obtained by thresholding them at 0.5. The final camera motion shows the fitted mesh from several viewpoints.
 
 .. figure:: ../_static/pixel_grid_mesh_demo_learning.png
    :width: 100%
@@ -170,11 +167,9 @@ states.
    loss. The two quantities need not decrease monotonically together.
 
 The saved run recovers the five intended hard decisions and substantially
-reduces rendered error, with a small residual geometric mismatch. This is a
-controlled example with grouped decisions and a smooth deformation basis;
-it does not establish convergence for unrestricted per-cell topology and
-geometry. More decisions can increase estimator variance, and geometry can
-sometimes compensate for an incorrect topology.
+reduces rendered error, with a small residual geometric mismatch. This example uses grouped decisions and a smooth deformation basis. Larger
+problems can have higher estimator variance, and geometry can sometimes
+compensate for an incorrect topology.
 
 Run the example
 ---------------

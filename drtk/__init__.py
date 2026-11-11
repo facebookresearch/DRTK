@@ -34,6 +34,12 @@ from .pixel_grid_mesh import (  # noqa
 )
 from .rasterize import rasterize, rasterize_with_depth  # noqa
 from .render import render, render_ref  # noqa
+from .source_features import (  # noqa
+    sample_with_transmittance,
+    sample_with_transmittance_ref,
+    source_transmittance,
+    source_transmittance_ref,
+)
 from .transform import transform, transform_with_v_cam  # noqa
 from .transparent_render import (  # noqa
     render_transparent,

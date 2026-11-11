@@ -1438,6 +1438,7 @@ __global__ void compute_tile_bounds_kernel(
     int32_t image_width,
     int32_t tile_height,
     int32_t tile_width,
+    int32_t bounds_padding,
     int32_t* tile_bounds,
     int32_t* tile_counts,
     float* face_depths) {
@@ -1467,10 +1468,10 @@ __global__ void compute_tile_bounds_kernel(
   const float* p1 = vertex_batch + static_cast<int64_t>(i1) * 3;
   const float* p2 = vertex_batch + static_cast<int64_t>(i2) * 3;
 
-  const float min_x = fminf(fminf(p0[0], p1[0]), p2[0]);
-  const float min_y = fminf(fminf(p0[1], p1[1]), p2[1]);
-  const float max_x = fmaxf(fmaxf(p0[0], p1[0]), p2[0]);
-  const float max_y = fmaxf(fmaxf(p0[1], p1[1]), p2[1]);
+  const float min_x = fminf(fminf(p0[0], p1[0]), p2[0]) - bounds_padding;
+  const float min_y = fminf(fminf(p0[1], p1[1]), p2[1]) - bounds_padding;
+  const float max_x = fmaxf(fmaxf(p0[0], p1[0]), p2[0]) + bounds_padding;
+  const float max_y = fmaxf(fmaxf(p0[1], p1[1]), p2[1]) + bounds_padding;
   const float area = cross2(p1[0] - p0[0], p1[1] - p0[1], p2[0] - p0[0], p2[1] - p0[1]);
   const float depth = (p0[2] + p1[2] + p2[2]) / 3.0f;
   face_depths[index] = depth;
@@ -1482,15 +1483,19 @@ __global__ void compute_tile_bounds_kernel(
   const bool finite_vertices = isfinite(p0[0]) && isfinite(p0[1]) && isfinite(p0[2]) &&
       isfinite(p1[0]) && isfinite(p1[1]) && isfinite(p1[2]) && isfinite(p2[0]) && isfinite(p2[1]) &&
       isfinite(p2[2]);
-  const bool valid = finite_vertices && i0 != i1 && i1 != i2 && i2 != i0 &&
-      fabsf(area) > 1.0e-12f && p0[2] > 1.0e-8f && p1[2] > 1.0e-8f && p2[2] > 1.0e-8f &&
-      max_x >= 0.0f && max_y >= 0.0f && min_x <= static_cast<float>(image_width - 1) &&
-      min_y <= static_cast<float>(image_height - 1);
+  const bool valid = finite_vertices && i0 != i1 && i1 != i2 && i2 != i0 && isfinite(area) &&
+      isfinite(depth) && fabsf(area) > 1.0e-12f && p0[2] > 1.0e-8f && p1[2] > 1.0e-8f &&
+      p2[2] > 1.0e-8f && max_x >= 0.0f && max_y >= 0.0f &&
+      min_x <= static_cast<float>(image_width - 1) && min_y <= static_cast<float>(image_height - 1);
   if (valid) {
-    min_tile_x = max(0, static_cast<int32_t>(floorf(min_x / kTileSize)));
-    min_tile_y = max(0, static_cast<int32_t>(floorf(min_y / kTileSize)));
-    max_tile_x = min(tile_width, static_cast<int32_t>(floorf(max_x / kTileSize)) + 1);
-    max_tile_y = min(tile_height, static_cast<int32_t>(floorf(max_y / kTileSize)) + 1);
+    min_tile_x = static_cast<int32_t>(floorf(fmaxf(min_x, 0.0f) / kTileSize));
+    min_tile_y = static_cast<int32_t>(floorf(fmaxf(min_y, 0.0f) / kTileSize));
+    max_tile_x = static_cast<int32_t>(
+                     floorf(fminf(max_x, static_cast<float>(image_width - 1)) / kTileSize)) +
+        1;
+    max_tile_y = static_cast<int32_t>(
+                     floorf(fminf(max_y, static_cast<float>(image_height - 1)) / kTileSize)) +
+        1;
   }
 
   tile_bounds[index * 4 + 0] = min_tile_x;
@@ -1933,6 +1938,45 @@ __global__ void compact_boundary_groups_kernel(
   active_groups[atomicAdd(active_count, 1)] = group;
 }
 
+struct BoundaryPixelPair {
+  float t;
+  float sign;
+  int32_t low;
+};
+
+__device__ __forceinline__ bool boundary_pixel_pair(
+    const TriangleData& triangle,
+    int32_t a,
+    int32_t b,
+    int32_t axis,
+    int32_t scan,
+    int32_t pair_size,
+    BoundaryPixelPair& pair) {
+  const float dx = triangle.x[b] - triangle.x[a];
+  const float dy = triangle.y[b] - triangle.y[a];
+  const float start = axis == 0 ? triangle.y[a] : triangle.x[a];
+  const float stop = axis == 0 ? triangle.y[b] : triangle.x[b];
+  if (start == stop || scan < fminf(start, stop) || scan >= fmaxf(start, stop)) {
+    return false;
+  }
+  pair.t = (static_cast<float>(scan) - start) / (stop - start);
+  const float crossing =
+      (axis == 0 ? triangle.x[a] : triangle.y[a]) + pair.t * (axis == 0 ? dx : dy);
+  if (!(crossing >= 0.0f && crossing <= static_cast<float>(pair_size - 1))) {
+    return false;
+  }
+  const int32_t nearest = static_cast<int32_t>(floorf(crossing + 0.5f));
+  const float px = axis == 0 ? static_cast<float>(nearest) : static_cast<float>(scan);
+  const float py = axis == 0 ? static_cast<float>(scan) : static_cast<float>(nearest);
+  const float side =
+      edge_function(triangle.x[a], triangle.y[a], triangle.x[b], triangle.y[b], px, py);
+  const bool plus_owns = side > 0.0f || (side == 0.0f && (dy < 0.0f || (dy == 0.0f && dx > 0.0f)));
+  const bool high_is_plus = axis == 0 ? dy < 0.0f : dx > 0.0f;
+  pair.low = nearest - (plus_owns == high_is_plus ? 1 : 0);
+  pair.sign = axis == 0 ? (dy > 0.0f ? 1.0f : -1.0f) : (dx > 0.0f ? -1.0f : 1.0f);
+  return pair.low >= 0 && pair.low + 1 < pair_size;
+}
+
 template <typename FragmentEvaluator>
 __device__ void boundary_group_backward(
     GeometryParams geometry,
@@ -1967,8 +2011,6 @@ __device__ void boundary_group_backward(
     a = b;
     b = tmp;
   }
-  const float dx = triangle.x[b] - triangle.x[a];
-  const float dy = triangle.y[b] - triangle.y[a];
   // Sample both grid-line families. Horizontal pairs contribute x motion;
   // vertical pairs contribute y motion, without slope amplification or a
   // second count of the same normal derivative.
@@ -1976,8 +2018,6 @@ __device__ void boundary_group_backward(
   for (int32_t axis = 0; axis < 2; ++axis) {
     const float start = axis == 0 ? triangle.y[a] : triangle.x[a];
     const float stop = axis == 0 ? triangle.y[b] : triangle.x[b];
-    const float along_start = axis == 0 ? triangle.x[a] : triangle.y[a];
-    const float along_delta = axis == 0 ? dx : dy;
     const int32_t scan_size = axis == 0 ? height : width;
     const int32_t pair_size = axis == 0 ? width : height;
     if (start == stop) {
@@ -1989,28 +2029,13 @@ __device__ void boundary_group_backward(
     const int32_t last = static_cast<int32_t>(
         ceilf(fminf(fmaxf(fmaxf(start, stop), 0.0f), static_cast<float>(scan_size))));
     for (int32_t scan = first + lane; scan < last; scan += 32) {
-      const float t = (static_cast<float>(scan) - start) / (stop - start);
-      const float crossing = along_start + t * along_delta;
-      if (!(crossing >= 0.0f && crossing <= static_cast<float>(pair_size - 1))) {
+      BoundaryPixelPair pair;
+      if (!boundary_pixel_pair(triangle, a, b, axis, scan, pair_size, pair)) {
         continue;
       }
-      // Classify the nearest pixel with the actual forward edge function.
-      // Reconstructing an integer crossing can round to either side, so an
-      // equality check on the reconstructed crossing is insufficient.
-      const int32_t nearest = static_cast<int32_t>(floorf(crossing + 0.5f));
-      const float px = axis == 0 ? static_cast<float>(nearest) : static_cast<float>(scan);
-      const float py = axis == 0 ? static_cast<float>(scan) : static_cast<float>(nearest);
-      const float side =
-          edge_function(triangle.x[a], triangle.y[a], triangle.x[b], triangle.y[b], px, py);
-      const bool plus_owns =
-          side > 0.0f || (side == 0.0f && (dy < 0.0f || (dy == 0.0f && dx > 0.0f)));
-      const bool high_is_plus = axis == 0 ? dy < 0.0f : dx > 0.0f;
-      const int32_t low = nearest - (plus_owns == high_is_plus ? 1 : 0);
-      if (low < 0 || low + 1 >= pair_size) {
-        continue;
-      }
-      const int32_t x = axis == 0 ? low : scan;
-      const int32_t y = axis == 0 ? scan : low;
+      const float t = pair.t;
+      const int32_t x = axis == 0 ? pair.low : scan;
+      const int32_t y = axis == 0 ? scan : pair.low;
       float bary[3] = {0.0f, 0.0f, 0.0f};
       bary[a] = (1.0f - t) / triangle.z[a];
       bary[b] = t / triangle.z[b];
@@ -2073,8 +2098,7 @@ __device__ void boundary_group_backward(
           grad_depth,
           depth_options,
           bary[a] * triangle.z[a] + bary[b] * triangle.z[b]);
-      const float sign = axis == 0 ? (dy > 0.0f ? 1.0f : -1.0f) : (dx > 0.0f ? -1.0f : 1.0f);
-      const float force = 0.5f * sign * (jump0 + jump1);
+      const float force = 0.5f * pair.sign * (jump0 + jump1);
       const int64_t vertex_a =
           static_cast<int64_t>(n) * geometry.vertex_count + triangle.vertex_id[a];
       const int64_t vertex_b =
@@ -2677,7 +2701,8 @@ TileBins build_tile_bins(
     const torch::Tensor& v,
     const torch::Tensor& vi,
     int32_t image_height,
-    int32_t image_width) {
+    int32_t image_width,
+    int32_t bounds_padding = 0) {
   const int32_t batch_size = static_cast<int32_t>(v.size(0));
   const int32_t vertex_count = static_cast<int32_t>(v.size(1));
   const int32_t face_count = static_cast<int32_t>(vi.size(1));
@@ -2712,6 +2737,7 @@ TileBins build_tile_bins(
         image_width,
         tile_height,
         tile_width,
+        bounds_padding,
         tile_bounds.data_ptr<int32_t>(),
         tile_counts.data_ptr<int32_t>(),
         face_depths.data_ptr<float>());
@@ -3513,3 +3539,5 @@ std::vector<torch::Tensor> transparent_render_with_mlp_cuda_backward(
   result.insert(result.end(), bias_grads.begin(), bias_grads.end());
   return result;
 }
+
+#include "source_features_kernel.cuh"
