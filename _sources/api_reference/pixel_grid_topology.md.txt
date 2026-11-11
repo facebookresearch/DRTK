@@ -28,20 +28,19 @@ The function returns seven elements. Optional outputs are `None` when disabled.
 
 | Input | Shape | Meaning |
 | --- | --- | --- |
-| `depth_z` | H × W | Positive source-camera Z depth, not inverse depth or ray distance |
-| `displacement_xyz` | H × W × 3 | Translation proposal in source-camera units |
-| `intrinsics` | 3 × 3 | Pinhole K for this source grid, including any crop/resize |
-| `alive` | H × W | Boolean cell participation |
-| `join_right` | H × (W−1) | Boolean connection to the right neighbor |
-| `join_down` | (H−1) × W | Boolean connection to the neighbor below |
-| `diagonal` | H × W or `None` | False: TL–BR; True: TR–BL; None: geometric choice |
-| `feather_width` | H × W or `None` | Nonnegative strip width in source-image pixels |
+| `depth_z` | N × H × W | Positive source-camera Z depth, not inverse depth or ray distance |
+| `displacement_xyz` | N × H × W × 3 | Translation proposal in source-camera units |
+| `intrinsics` | N × 3 × 3 or 1 × 3 × 3 | Pinhole K for this source grid, including any crop/resize |
+| `alive` | N × H × W | Boolean cell participation |
+| `join_right` | N × H × (W−1) | Boolean connection to the right neighbor |
+| `join_down` | N × (H−1) × W | Boolean connection to the neighbor below |
+| `diagonal` | N × H × W or `None` | False: TL–BR; True: TR–BL; None: geometric choice |
+| `feather_width` | N × H × W or `None` | Nonnegative strip width in source-image pixels |
 
-For a batch of N meshes, add a leading N dimension to the grids and
-translation proposals. Intrinsics may be shared as 3 × 3 or 1 × 3 × 3,
-or supplied per mesh as N × 3 × 3. Shared floating inputs supplied with
-`expand` receive the sum of their sample gradients. Each sample has its own
-topology, corner fans, and feather boundaries.
+Each of the N meshes has its own topology, corner fans, and feather
+boundaries. A camera supplied as 1 × 3 × 3 is shared across the batch.
+Shared floating inputs supplied with `expand` receive the sum of their
+sample gradients.
 Floating inputs share float32/float64 dtype and device; hard decisions are bool.
 Depth, K, displacement, and widths must be finite and geometrically valid. The
 displaced surface must remain in front of the source camera.
@@ -56,7 +55,7 @@ displaced surface must remain in front of the source camera.
 | `face_cell_ids` | Source-cell ownership, or `None` unless metadata is requested |
 | `face_ids` | Stable cell/local-face identifiers, or `None` unless metadata is requested |
 
-Batched vertices have shape N × Vmax × 3 and faces N × Fmax × 3, where the
+Vertices have shape N × Vmax × 3 and faces N × Fmax × 3, where the
 maximum counts are taken across the batch. Each sample occupies a compact
 prefix; indices and stable IDs are local to that sample. Padding has face
 indices and metadata -1, positions (0,0,1), and zero UVs and opacity.

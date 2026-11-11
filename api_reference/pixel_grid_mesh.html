@@ -457,19 +457,17 @@ a rendered optimization example.</p>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>depth_z</strong> – Positive camera Z depth <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">H,</span> <span class="pre">W]</span></code> (float32 or float64).
 A batch contains N independent meshes on grids with the same H
-and W. A single grid may use <code class="docutils literal notranslate"><span class="pre">[H,</span> <span class="pre">W]</span></code>.</p></li>
-<li><p><strong>displacement_xyz</strong> – Camera-space translation proposals <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">H,</span> <span class="pre">W,</span> <span class="pre">3]</span></code>
-or <code class="docutils literal notranslate"><span class="pre">[H,</span> <span class="pre">W,</span> <span class="pre">3]</span></code> for a single grid.
+and W.</p></li>
+<li><p><strong>displacement_xyz</strong> – Camera-space translation proposals <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">H,</span> <span class="pre">W,</span> <span class="pre">3]</span></code>.
 Shared corners are least-squares averages of incident proposals;
 a cell’s final center need not equal its proposed center exactly.</p></li>
 <li><p><strong>intrinsics</strong> – Nonsingular pinhole matrix with last row 0,0,1.
-Use <code class="docutils literal notranslate"><span class="pre">[3,</span> <span class="pre">3]</span></code> for a shared camera, or <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">3,</span> <span class="pre">3]</span></code> for one
-camera per mesh. Batched inputs also accept <code class="docutils literal notranslate"><span class="pre">[1,</span> <span class="pre">3,</span> <span class="pre">3]</span></code>;
-gradients to a shared matrix sum over the batch.
+Shape <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">3,</span> <span class="pre">3]</span></code>, or <code class="docutils literal notranslate"><span class="pre">[1,</span> <span class="pre">3,</span> <span class="pre">3]</span></code> for a shared camera.
+Gradients to a shared matrix sum over the batch.
 Pixel centers have integer coordinates, corners half-integers.</p></li>
 <li><p><strong>alive</strong> – Boolean cell participation, with the same shape as depth_z.</p></li>
-<li><p><strong>join_right</strong> – Boolean horizontal adjacency <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">H,</span> <span class="pre">W-1]</span></code> or <code class="docutils literal notranslate"><span class="pre">[H,</span> <span class="pre">W-1]</span></code>.</p></li>
-<li><p><strong>join_down</strong> – Boolean vertical adjacency <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">H-1,</span> <span class="pre">W]</span></code> or <code class="docutils literal notranslate"><span class="pre">[H-1,</span> <span class="pre">W]</span></code>.
+<li><p><strong>join_right</strong> – Boolean horizontal adjacency <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">H,</span> <span class="pre">W-1]</span></code>.</p></li>
+<li><p><strong>join_down</strong> – Boolean vertical adjacency <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">H-1,</span> <span class="pre">W]</span></code>.
 Isolated interior
 one-edge cuts are healed; cuts touching a live/dead or grid border
 survive. Adjacent cut edges are evaluated before any healing.</p></li>
@@ -488,27 +486,22 @@ widths can cause overlap; there is no global collision resolution.</p></li>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>A fixed seven-element tuple <code class="docutils literal notranslate"><span class="pre">(v,</span> <span class="pre">vt0,</span> <span class="pre">vt1,</span> <span class="pre">vi,</span> <span class="pre">vertex_opacity,</span>
 <span class="pre">face_cell_ids,</span> <span class="pre">face_ids)</span></code>. Vertices already include displacement and
-optional strips, in source-camera 3D, shape <code class="docutils literal notranslate"><span class="pre">[V,</span> <span class="pre">3]</span></code>. UVs have shape
-<code class="docutils literal notranslate"><span class="pre">[V,</span> <span class="pre">2]</span></code> and faces <code class="docutils literal notranslate"><span class="pre">[F,</span> <span class="pre">3]</span></code> int32. vt0 is the source anchor; vt1
-is the displaced source projection. Vertex opacity is <code class="docutils literal notranslate"><span class="pre">[V]</span></code> or None
-without feathering. The two metadata tensors are <code class="docutils literal notranslate"><span class="pre">[F]</span></code> int64 or
-None. No optional tuple slot is omitted.</p>
+optional strips, in source-camera 3D, shape <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">Vmax,</span> <span class="pre">3]</span></code>.
+UVs have shape <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">Vmax,</span> <span class="pre">2]</span></code> and faces <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">Fmax,</span> <span class="pre">3]</span></code> int32.
+vt0 is the source anchor; vt1 is the displaced source projection.
+Vertex opacity is <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">Vmax]</span></code> or None without feathering. The two
+metadata tensors are <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">Fmax]</span></code> int64 or None.</p>
 </dd>
 </dl>
+<p>Vmax and Fmax are the largest vertex and face counts in the batch.
+Each mesh occupies a compact prefix; face indices and metadata stay
+local to that mesh. Unused faces and metadata are -1. Unused positions
+are (0,0,1), and unused UVs and opacity are zero. Padding contributes
+no gradients. <code class="docutils literal notranslate"><span class="pre">vi[...,</span> <span class="pre">0]</span> <span class="pre">&gt;=</span> <span class="pre">0</span></code> identifies valid faces. Empty meshes
+and empty batches are supported.</p>
 <p>Gradients flow through <code class="docutils literal notranslate"><span class="pre">v</span></code> and <code class="docutils literal notranslate"><span class="pre">vt1</span></code>. The source anchors <code class="docutils literal notranslate"><span class="pre">vt0</span></code>,
 vertex opacity, face indices, and metadata describe the fixed topology
 and are nondifferentiable outputs.</p>
-<p>For batched depth, the same tuple contains <code class="docutils literal notranslate"><span class="pre">v</span></code> of shape <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">Vmax,</span> <span class="pre">3]</span></code>,
-UVs <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">Vmax,</span> <span class="pre">2]</span></code>, faces <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">Fmax,</span> <span class="pre">3]</span></code>, optional opacity
-<code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">Vmax]</span></code>, and optional metadata <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">Fmax]</span></code>. Vmax and Fmax are
-the largest vertex and face counts in the batch. Each mesh occupies a
-compact prefix; face indices and metadata stay local to that mesh.
-Unused faces and metadata are -1. Unused positions are (0,0,1), and
-unused UVs and opacity are zero. Padding contributes no gradients.
-<code class="docutils literal notranslate"><span class="pre">vi[...,</span> <span class="pre">0]</span> <span class="pre">&gt;=</span> <span class="pre">0</span></code> identifies valid faces. These outputs can be passed
-directly to the batched transparent renderer after camera projection.
-Empty meshes and empty batches are supported; optional tuple entries
-follow the same None rules as a single mesh.</p>
 <p>All tensors must share device; floating inputs must share dtype. Inputs
 must be finite, depths/widths valid, and displaced vertices in front of the
 source camera. CUDA graph capture is unsupported.</p>

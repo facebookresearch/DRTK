@@ -111,7 +111,7 @@ class Scene:
         return pixel_grid_mesh(
             self.depth.expand(batch, -1, -1),
             (self.basis @ coefficients).expand(batch, -1, -1, -1),
-            self.intrinsics,
+            self.intrinsics[None],
             *self.topology(bits),
             diagonal=self.diagonal.expand(batch, -1, -1),
             feather_width=self.feather.expand(batch, -1, -1),
