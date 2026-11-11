@@ -64,7 +64,7 @@ class Scene:
         self.views = [(-25.0, -8.0), (0.0, 0.0), (25.0, 8.0)]
         with torch.no_grad():
             self.targets = [
-                self.render(self.target_bits, self.target_coefficients, view)[:2]
+                self.render(self.target_bits[None], self.target_coefficients, view)[:2]
                 for view in self.views
             ]
 
@@ -90,23 +90,31 @@ class Scene:
         return rgb.permute(2, 0, 1)[None].contiguous()
 
     def topology(self, bits):
-        alive = torch.ones_like(self.depth, dtype=torch.bool)
+        batch = bits.shape[0]
+        alive = torch.ones(
+            batch, self.height, self.width, device="cuda", dtype=torch.bool
+        )
         for index, region in enumerate(self.regions):
-            alive = alive & (~region | bits[index])
-        right = torch.ones(self.height, self.width - 1, device="cuda", dtype=torch.bool)
-        down = torch.ones(self.height - 1, self.width, device="cuda", dtype=torch.bool)
-        right[:, self.width // 2 - 1] = bits[3]
-        down[self.height // 2 - 1] = bits[4]
+            alive = alive & (~region | bits[:, index, None, None])
+        right = torch.ones(
+            batch, self.height, self.width - 1, device="cuda", dtype=torch.bool
+        )
+        down = torch.ones(
+            batch, self.height - 1, self.width, device="cuda", dtype=torch.bool
+        )
+        right[:, :, self.width // 2 - 1] = bits[:, 3, None]
+        down[:, self.height // 2 - 1, :] = bits[:, 4, None]
         return alive, right, down
 
     def mesh(self, bits, coefficients):
+        batch = bits.shape[0]
         return pixel_grid_mesh(
-            self.depth,
-            self.basis @ coefficients,
+            self.depth.expand(batch, -1, -1),
+            (self.basis @ coefficients).expand(batch, -1, -1, -1),
             self.intrinsics,
             *self.topology(bits),
-            diagonal=self.diagonal,
-            feather_width=self.feather,
+            diagonal=self.diagonal.expand(batch, -1, -1),
+            feather_width=self.feather.expand(batch, -1, -1),
         )
 
     def project(self, vertices, view, resolution, framing=1.0):
@@ -127,9 +135,9 @@ class Scene:
         )
         center = vertices.new_tensor([0, 0, 1.27])
         camera = (vertices - center) @ (rx @ ry).T + center
-        screen = camera[:, :2] / camera[:, 2:] * (resolution * 0.78 * framing)
+        screen = camera[..., :2] / camera[..., 2:] * (resolution * 0.78 * framing)
         screen = screen + (resolution - 1) / 2
-        return torch.cat((screen, camera[:, 2:]), dim=-1)[None]
+        return torch.cat((screen, camera[..., 2:]), dim=-1)
 
     def render(self, bits, coefficients, view, resolution=None, framing=1.0):
         size = resolution or self.resolution
@@ -150,9 +158,9 @@ class Scene:
     def loss(self, bits, coefficients, view_index):
         rgb, alpha, _ = self.render(bits, coefficients, self.views[view_index])
         target_rgb, target_alpha = self.targets[view_index]
-        return (rgb - target_rgb).square().mean() + 0.25 * (
+        return (rgb - target_rgb).square().mean((1, 2, 3)) + 0.25 * (
             alpha - target_alpha
-        ).square().mean()
+        ).square().mean((1, 2, 3))
 
 
 def optimize(scene, steps, pairs, output):
@@ -171,7 +179,7 @@ def optimize(scene, steps, pairs, output):
         if step % 10 == 0 or step == steps:
             with torch.no_grad():
                 loss = sum(
-                    scene.loss(logits > 0, coefficients, i)
+                    scene.loss((logits > 0)[None], coefficients, i).mean()
                     for i in range(len(scene.views))
                 ) / len(scene.views)
                 row = {
@@ -236,7 +244,7 @@ def render_media(scene, states, history, output):  # noqa: C901
 
     @torch.no_grad()
     def rendered(bits, coefficients, view, size):
-        rgb, alpha, _ = scene.render(bits, coefficients, view, size, framing=0.8)
+        rgb, alpha, _ = scene.render(bits[None], coefficients, view, size, framing=0.8)
         color = (
             rgb
             + (1 - alpha) * rgb.new_tensor([0.045, 0.065, 0.09])[None, :, None, None]
@@ -245,7 +253,7 @@ def render_media(scene, states, history, output):  # noqa: C901
         return Image.fromarray(pixels.cpu().numpy())
 
     def topology(bits, size=(400, 285)):
-        alive, right, down = [t.cpu().numpy() for t in scene.topology(bits)]
+        alive, right, down = [t[0].cpu().numpy() for t in scene.topology(bits[None])]
         image = Image.new("RGB", size, background)
         draw = ImageDraw.Draw(image)
         sx, sy = size[0] / scene.width, size[1] / scene.height

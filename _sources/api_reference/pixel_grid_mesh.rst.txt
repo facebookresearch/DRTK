@@ -19,35 +19,6 @@ See :doc:`pixel_grid_topology` for camera conventions, cuts, feathering, and
 the gradient model, and :doc:`../tutorials/DRTK_Tutorial_pixel_grid_mesh` for
 a rendered optimization example.
 
-Batched meshes
---------------
-
-Pass depth as ``[N, H, W]`` to construct N meshes together. Cell participation,
-connections, and deformation may differ between samples. Intrinsics may be
-shared as ``[3, 3]`` or supplied per mesh as ``[N, 3, 3]``.
-
-.. code-block:: python
-
-   v, vt0, vt1, faces, opacity, cell_ids, face_ids = pixel_grid_mesh(
-       depth, displacement, intrinsics, alive, join_right, join_down,
-       feather_width=width, return_metadata=True,
-   )
-   valid_faces = faces[..., 0] >= 0
-
-Vertices and faces are padded to the largest counts in the batch. Invalid
-face indices and metadata are -1; padded positions are (0,0,1), UVs and
-opacity are zero. Padding contributes no gradients. The seven tuple positions
-and optional None outputs are the same as for a single grid.
-
-After camera projection, the batched outputs can be passed directly to
-:func:`render_transparent` and its MLP variants. Group meshes with similar
-sizes to reduce padding. :func:`bernoulli_render_loss` accepts ``batched=True``
-to evaluate all topology samples in one callback; see the
-:doc:`../tutorials/DRTK_Tutorial_pixel_grid_mesh` example.
-
-Functions
----------
-
 .. autofunction:: pixel_grid_mesh
 
 .. autofunction:: bernoulli_topology_samples

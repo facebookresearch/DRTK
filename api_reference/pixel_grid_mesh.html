@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 
 
@@ -27,23 +26,23 @@
   </noscript>
   
   <!-- Loaded before other Sphinx assets -->
-  <link href="../_static/styles/theme.css?digest=a95f357e85573c9b56d5" rel="stylesheet" />
-<link href="../_static/styles/pydata-sphinx-theme.css?digest=a95f357e85573c9b56d5" rel="stylesheet" />
+  <link href="../_static/styles/theme.css?digest=75c7c72ae941e8b558d8" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=75c7c72ae941e8b558d8" rel="stylesheet" />
 
     <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
-    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=6a604523" />
     <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=697b55c0" />
   
   <!-- So that users can add custom icons -->
-  <script defer src="../_static/scripts/fontawesome.js?digest=a95f357e85573c9b56d5"></script>
+  <script defer src="../_static/scripts/fontawesome.js?digest=75c7c72ae941e8b558d8"></script>
   <!-- Pre-loaded scripts that we'll load fully later -->
-  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=a95f357e85573c9b56d5" />
-<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=a95f357e85573c9b56d5" />
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=75c7c72ae941e8b558d8" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=75c7c72ae941e8b558d8" />
 
     <script src="../_static/documentation_options.js?v=5929fcd5"></script>
     <script src="../_static/doctools.js?v=fd6eb6e6"></script>
     <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
-    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script data-sd-tabs-storage-prefix="sphinx-design-tab-id-" src="../_static/design-tabs.js?v=fcb327ea"></script>
     <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
     <script>DOCUMENTATION_OPTIONS.pagename = 'api_reference/pixel_grid_mesh';</script>
     <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
@@ -52,6 +51,7 @@
     <link rel="next" title="drtk.source_transmittance" href="source_features.html" />
     <link rel="prev" title="drtk.transparent_render" href="transparent_render.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="color-scheme" content="light dark"/>
   <meta name="docsearch:language" content="en"/>
   <meta name="docsearch:version" content="0.1.0" />
   
@@ -98,7 +98,7 @@
   
     <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
 <div class="bd-header__inner bd-page-width">
-  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+  <button type="button" class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation" aria-expanded="false" aria-controls="pst-primary-sidebar-modal">
     <span class="fa-solid fa-bars"></span>
   </button>
   
@@ -170,7 +170,7 @@
         <div class="navbar-item navbar-persistent--container">
           
 
-<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+<button type="button" class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
  <i class="fa-solid fa-magnifying-glass"></i>
  <span class="search-button__default-text">Search</span>
  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
@@ -181,15 +181,15 @@
         <div class="navbar-item">
 
 <div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
-  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
-    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
-    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
-    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  <button type="button" class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto" title="System Settings"></i>
   </button>
   <ul class="dropdown-menu dropdown-menu-end">
-    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
-    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
-    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+    <li><button type="button" class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg me-1"></i>System Settings</button></li>
+    <li><button type="button" class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg me-1"></i>Light</button></li>
+    <li><button type="button" class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg me-1"></i>Dark</button></li>
   </ul>
 </div></div>
       
@@ -215,7 +215,7 @@
   
     <div class="navbar-persistent--mobile">
 
-<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+<button type="button" class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
  <i class="fa-solid fa-magnifying-glass"></i>
  <span class="search-button__default-text">Search</span>
  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
@@ -224,7 +224,7 @@
   
 
   
-    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+    <button type="button" class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page" aria-expanded="false" aria-controls="pst-secondary-sidebar-modal">
       <span class="fa-solid fa-outdent"></span>
     </button>
   
@@ -238,7 +238,7 @@
       
       
       
-      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <dialog id="pst-primary-sidebar-modal" tabindex="-1"></dialog>
       <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
         
 
@@ -294,15 +294,15 @@
           <div class="navbar-item">
 
 <div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
-  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
-    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
-    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
-    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  <button type="button" class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto" title="System Settings"></i>
   </button>
   <ul class="dropdown-menu dropdown-menu-end">
-    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
-    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
-    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+    <li><button type="button" class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg me-1"></i>System Settings</button></li>
+    <li><button type="button" class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg me-1"></i>Light</button></li>
+    <li><button type="button" class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg me-1"></i>Dark</button></li>
   </ul>
 </div></div>
         
@@ -326,7 +326,8 @@
   </div>
   
     <div class="sidebar-primary-items__start sidebar-primary__section">
-        <div class="sidebar-primary-item pst-sidebar-collapse"><button id="pst-collapse-sidebar-button" aria-expanded="true" aria-controls="pst-primary-sidebar"><svg class="pst-icon svg-inline--fa" role="img" aria-hidden="true" focusable="false" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+        <div class="sidebar-primary-item pst-sidebar-collapse"><button type="button" id="pst-collapse-sidebar-button" aria-expanded="true" aria-controls="pst-primary-sidebar">
+  <svg class="pst-icon" role="img" aria-hidden="true" focusable="false" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
     <path fill="currentColor" d="M3 15.5C2.36232 15.5 1.74874 15.2564 1.28478 14.8189C0.820828 14.3815 0.541576 13.7832 0.504167 13.1467L0.5 13L0.5 3C0.499965 2.36232 0.743605 1.74874 1.18107 1.28478C1.61854 0.820828 2.21676 0.541576 2.85333 0.504167L3 0.5L13 0.5C13.6377 0.499965 14.2513 0.743605 14.7152 1.18107C15.1792 1.61854 15.4584 2.21676 15.4958 2.85333L15.5 3L15.5 13C15.5 13.6377 15.2564 14.2513 14.8189 14.7152C14.3815 15.1792 13.7832 15.4584 13.1467 15.4958L13 15.5L3 15.5ZM3 13.8333L10.5 13.8333L10.5 2.16667L3 2.16667C2.79589 2.16669 2.59889 2.24163 2.44636 2.37726C2.29383 2.5129 2.19638 2.69979 2.1725 2.9025L2.16667 3L2.16667 13C2.16669 13.2041 2.24163 13.4011 2.37726 13.5536C2.5129 13.7062 2.69979 13.8036 2.9025 13.8275L3 13.8333ZM6.65583 10.325L6.5775 10.2558L4.91083 8.58917C4.76735 8.44567 4.68116 8.25476 4.66843 8.05223C4.65569 7.84971 4.71729 7.6495 4.84167 7.48917L4.91083 7.41083L6.5775 5.74417C6.72747 5.59471 6.9287 5.50794 7.14032 5.50148C7.35194 5.49502 7.55809 5.56935 7.7169 5.70937C7.8757 5.8494 7.97525 6.04463 7.99533 6.25539C8.01541 6.46616 7.95451 6.67667 7.825 6.84417L7.75583 6.9225L6.67917 8L7.75583 9.0775C7.89931 9.22099 7.98551 9.41191 7.99824 9.61443C8.01097 9.81695 7.94938 10.0172 7.825 10.1775L7.75583 10.2558C7.61234 10.3993 7.42142 10.4855 7.2189 10.4982C7.01638 10.511 6.81617 10.4494 6.65583 10.325Z"/>
   </svg>
   <span class="pst-collapse-sidebar-label">Collapse Sidebar</span>
@@ -343,7 +344,7 @@
 <li class="toctree-l1"><a class="reference internal" href="rasterize.html">drtk.rasterize</a></li>
 <li class="toctree-l1"><a class="reference internal" href="render.html">drtk.render</a></li>
 <li class="toctree-l1"><a class="reference internal" href="transparent_render.html">drtk.transparent_render</a></li>
-<li class="toctree-l1 current active"><a class="current reference internal" href="#">drtk.pixel_grid_mesh</a></li>
+<li class="toctree-l1 current active"><a aria-current="page" class="current reference internal" href="#">drtk.pixel_grid_mesh</a></li>
 <li class="toctree-l1"><a class="reference internal" href="source_features.html">drtk.source_transmittance</a></li>
 <li class="toctree-l1"><a class="reference internal" href="interpolate.html">drtk.interpolate</a></li>
 <li class="toctree-l1"><a class="reference internal" href="filter2d.html">drtk.filter2d</a></li>
@@ -398,7 +399,7 @@
     
     <li class="breadcrumb-item breadcrumb-home">
       <a href="../index.html" class="nav-link" aria-label="Home">
-        <i class="fa-solid fa-home"></i>
+        <i class="fa-solid fa-house"></i>
       </a>
     </li>
     
@@ -446,47 +447,19 @@ Bernoulli helpers estimate gradients of the expected loss over sampled meshes.</
 <p>See <a class="reference internal" href="pixel_grid_topology.html"><span class="doc">Pixel-grid topology and gradients</span></a> for camera conventions, cuts, feathering, and
 the gradient model, and <a class="reference internal" href="../tutorials/DRTK_Tutorial_pixel_grid_mesh.html"><span class="doc">Learning pixel-grid geometry and topology</span></a> for
 a rendered optimization example.</p>
-<section id="batched-meshes">
-<h2>Batched meshes<a class="headerlink" href="#batched-meshes" title="Link to this heading">#</a></h2>
-<p>Pass depth as <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">H,</span> <span class="pre">W]</span></code> to construct N meshes together. Cell participation,
-connections, and deformation may differ between samples. Intrinsics may be
-shared as <code class="docutils literal notranslate"><span class="pre">[3,</span> <span class="pre">3]</span></code> or supplied per mesh as <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">3,</span> <span class="pre">3]</span></code>.</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">v</span><span class="p">,</span> <span class="n">vt0</span><span class="p">,</span> <span class="n">vt1</span><span class="p">,</span> <span class="n">faces</span><span class="p">,</span> <span class="n">opacity</span><span class="p">,</span> <span class="n">cell_ids</span><span class="p">,</span> <span class="n">face_ids</span> <span class="o">=</span> <span class="n">pixel_grid_mesh</span><span class="p">(</span>
-    <span class="n">depth</span><span class="p">,</span> <span class="n">displacement</span><span class="p">,</span> <span class="n">intrinsics</span><span class="p">,</span> <span class="n">alive</span><span class="p">,</span> <span class="n">join_right</span><span class="p">,</span> <span class="n">join_down</span><span class="p">,</span>
-    <span class="n">feather_width</span><span class="o">=</span><span class="n">width</span><span class="p">,</span> <span class="n">return_metadata</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-<span class="p">)</span>
-<span class="n">valid_faces</span> <span class="o">=</span> <span class="n">faces</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="mi">0</span>
-</pre></div>
-</div>
-<p>Vertices and faces are padded to the largest counts in the batch. Invalid
-face indices and metadata are -1; padded positions are (0,0,1), UVs and
-opacity are zero. Padding contributes no gradients. The seven tuple positions
-and optional None outputs are the same as for a single grid.</p>
-<p>After camera projection, the batched outputs can be passed directly to
-<a class="reference internal" href="transparent_render.html#drtk.render_transparent" title="drtk.render_transparent"><code class="xref py py-func docutils literal notranslate"><span class="pre">render_transparent()</span></code></a> and its MLP variants. Group meshes with similar
-sizes to reduce padding. <a class="reference internal" href="#drtk.bernoulli_render_loss" title="drtk.bernoulli_render_loss"><code class="xref py py-func docutils literal notranslate"><span class="pre">bernoulli_render_loss()</span></code></a> accepts <code class="docutils literal notranslate"><span class="pre">batched=True</span></code>
-to evaluate all topology samples in one callback; see the
-<a class="reference internal" href="../tutorials/DRTK_Tutorial_pixel_grid_mesh.html"><span class="doc">Learning pixel-grid geometry and topology</span></a> example.</p>
-</section>
-<section id="functions">
-<h2>Functions<a class="headerlink" href="#functions" title="Link to this heading">#</a></h2>
 <dl class="py function">
 <dt class="sig sig-object py" id="drtk.pixel_grid_mesh">
 <span class="sig-prename descclassname"><span class="pre">drtk.</span></span><span class="sig-name descname"><span class="pre">pixel_grid_mesh</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">depth_z</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">displacement_xyz</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">intrinsics</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alive</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">join_right</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">join_down</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">diagonal</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">feather_width</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_metadata</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/drtk/pixel_grid_mesh.html#pixel_grid_mesh"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#drtk.pixel_grid_mesh" title="Link to this definition">#</a></dt>
 <dd><p>Build a displaced pixel-cell mesh with optional cuts and feathered borders.</p>
 <p>Supports float32/float64 CUDA tensors and first-order gradients.</p>
-<p>For batched depth, join_right, join_down, diagonal, and feather_width
-also have a leading N dimension. Each mesh has independent live cells,
-cuts, diagonal choices, deformation, and feather widths. Shared grids
-can be supplied with <code class="docutils literal notranslate"><span class="pre">expand</span></code>; their gradients accumulate normally.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>depth_z</strong> – Positive camera Z depth <code class="docutils literal notranslate"><span class="pre">[H,</span> <span class="pre">W]</span></code> or <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">H,</span> <span class="pre">W]</span></code>
-(float32 or float64). A batch contains N independent meshes on
-grids with the same H and W.</p></li>
-<li><p><strong>displacement_xyz</strong> – Camera-space translation proposals <code class="docutils literal notranslate"><span class="pre">[H,</span> <span class="pre">W,</span> <span class="pre">3]</span></code>
-or <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">H,</span> <span class="pre">W,</span> <span class="pre">3]</span></code>.
+<li><p><strong>depth_z</strong> – Positive camera Z depth <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">H,</span> <span class="pre">W]</span></code> (float32 or float64).
+A batch contains N independent meshes on grids with the same H
+and W. A single grid may use <code class="docutils literal notranslate"><span class="pre">[H,</span> <span class="pre">W]</span></code>.</p></li>
+<li><p><strong>displacement_xyz</strong> – Camera-space translation proposals <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">H,</span> <span class="pre">W,</span> <span class="pre">3]</span></code>
+or <code class="docutils literal notranslate"><span class="pre">[H,</span> <span class="pre">W,</span> <span class="pre">3]</span></code> for a single grid.
 Shared corners are least-squares averages of incident proposals;
 a cell’s final center need not equal its proposed center exactly.</p></li>
 <li><p><strong>intrinsics</strong> – Nonsingular pinhole matrix with last row 0,0,1.
@@ -495,14 +468,17 @@ camera per mesh. Batched inputs also accept <code class="docutils literal notran
 gradients to a shared matrix sum over the batch.
 Pixel centers have integer coordinates, corners half-integers.</p></li>
 <li><p><strong>alive</strong> – Boolean cell participation, with the same shape as depth_z.</p></li>
-<li><p><strong>join_right</strong> – Boolean horizontal adjacency <code class="docutils literal notranslate"><span class="pre">[H,</span> <span class="pre">W-1]</span></code>.</p></li>
-<li><p><strong>join_down</strong> – Boolean vertical adjacency <code class="docutils literal notranslate"><span class="pre">[H-1,</span> <span class="pre">W]</span></code>. Isolated interior
+<li><p><strong>join_right</strong> – Boolean horizontal adjacency <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">H,</span> <span class="pre">W-1]</span></code> or <code class="docutils literal notranslate"><span class="pre">[H,</span> <span class="pre">W-1]</span></code>.</p></li>
+<li><p><strong>join_down</strong> – Boolean vertical adjacency <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">H-1,</span> <span class="pre">W]</span></code> or <code class="docutils literal notranslate"><span class="pre">[H-1,</span> <span class="pre">W]</span></code>.
+Isolated interior
 one-edge cuts are healed; cuts touching a live/dead or grid border
 survive. Adjacent cut edges are evaluated before any healing.</p></li>
-<li><p><strong>diagonal</strong> – Optional boolean <code class="docutils literal notranslate"><span class="pre">[H,</span> <span class="pre">W]</span></code>: False selects TL–BR, True
+<li><p><strong>diagonal</strong> – Optional boolean tensor with the same shape as depth_z.
+False selects TL–BR, True
 TR–BL. None selects the diagonal whose midpoint best matches the
 proposed cell center; ties select TL–BR.</p></li>
-<li><p><strong>feather_width</strong> – Optional nonnegative widths <code class="docutils literal notranslate"><span class="pre">[H,</span> <span class="pre">W]</span></code> in source pixels.
+<li><p><strong>feather_width</strong> – Optional nonnegative widths in source pixels, with
+the same shape as depth_z.
 Generates boundary strips and fixed vertex opacity, not a learned
 opacity head. Widths are averaged within each boundary fan. Large
 widths can cause overlap; there is no global collision resolution.</p></li>
@@ -569,28 +545,23 @@ the pair and shared noise to implement a custom estimator.</p>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="drtk.bernoulli_render_loss">
-<span class="sig-prename descclassname"><span class="pre">drtk.</span></span><span class="sig-name descname"><span class="pre">bernoulli_render_loss</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">logits</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">evaluate</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">pairs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">batched</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">generator</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/drtk/pixel_grid_mesh.html#bernoulli_render_loss"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#drtk.bernoulli_render_loss" title="Link to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">drtk.</span></span><span class="sig-name descname"><span class="pre">bernoulli_render_loss</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">logits</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">evaluate</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">pairs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">generator</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/drtk/pixel_grid_mesh.html#bernoulli_render_loss"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#drtk.bernoulli_render_loss" title="Link to this definition">#</a></dt>
 <dd><p>Estimate expected rendered loss and its Bernoulli-logit gradient with ARM.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>logits</strong> – Floating-point Bernoulli logits of any shape, typically a
 learnable tensor or the output of a prediction network.</p></li>
-<li><p><strong>evaluate</strong> – Callable accepting a boolean tensor with the same shape
-as <code class="docutils literal notranslate"><span class="pre">logits</span></code> and returning a scalar loss tensor, or a batch of
-samples and per-sample losses when <code class="docutils literal notranslate"><span class="pre">batched=True</span></code>. It constructs
-a hard mesh, renders it, and compares the render with the target.
-Continuous parameters captured by the callable retain ordinary
-autograd through the sampled mesh and renderer.</p></li>
+<li><p><strong>evaluate</strong> – Callable receiving boolean decisions of shape
+<code class="docutils literal notranslate"><span class="pre">[2</span> <span class="pre">*</span> <span class="pre">pairs,</span> <span class="pre">*logits.shape]</span></code> and returning one scalar loss per
+sample as a <code class="docutils literal notranslate"><span class="pre">[2</span> <span class="pre">*</span> <span class="pre">pairs]</span></code> tensor. The first half contains the
+plus samples and the second half their corresponding minus
+samples. The callable builds meshes, renders them, and compares
+each image with its target. Continuous parameters captured by
+the callable retain ordinary autograd.</p></li>
 <li><p><strong>pairs</strong> – Positive number of correlated sample pairs. Each pair uses
 two meshes; more pairs reduce sampling variance at the cost of
 more evaluations.</p></li>
-<li><p><strong>batched</strong> – Evaluate all samples in one call. The callback receives
-<code class="docutils literal notranslate"><span class="pre">[2</span> <span class="pre">*</span> <span class="pre">pairs,</span> <span class="pre">*logits.shape]</span></code> hard decisions and must return
-<code class="docutils literal notranslate"><span class="pre">[2</span> <span class="pre">*</span> <span class="pre">pairs]</span></code> scalar losses. The first half contains the plus
-samples and the second half their corresponding minus samples.
-Each loss must depend on its own topology; cross-sample coupling
-such as training-mode batch normalization changes the objective.</p></li>
 <li><p><strong>generator</strong> – Optional random generator matching the logits’ device.</p></li>
 </ul>
 </dd>
@@ -601,13 +572,16 @@ preserves ordinary continuous-input gradients from those evaluations.
 Calling <code class="docutils literal notranslate"><span class="pre">backward()</span></code> accumulates these gradients normally.</p>
 </dd>
 </dl>
+<p>Each sample’s loss must depend on its own topology. Cross-sample
+coupling, such as training-mode batch normalization, changes the
+objective. The callback may process the samples in smaller groups to
+limit memory use, then concatenate their losses.</p>
 <p>The score term uses detached loss differences. Any topology cleanup must
 depend on sampled bits, not detached logits. Use deterministic evaluation,
 common auxiliary randomness within each pair, or auxiliary randomness
 independent of the sampled topology.</p>
 <p>This helper estimates the expectation of the full loss: average losses,
-not rendered images. It does not compute visibility masks or supply
-task-specific regularizers. <a class="reference internal" href="#drtk.bernoulli_topology_samples" title="drtk.bernoulli_topology_samples"><code class="xref py py-func docutils literal notranslate"><span class="pre">bernoulli_topology_samples()</span></code></a> exposes
+not rendered images. <a class="reference internal" href="#drtk.bernoulli_topology_samples" title="drtk.bernoulli_topology_samples"><code class="xref py py-func docutils literal notranslate"><span class="pre">bernoulli_topology_samples()</span></code></a> exposes
 the underlying correlated samples for custom estimators.</p>
 </dd></dl>
 
@@ -619,7 +593,6 @@ the underlying correlated samples for custom estimators.</p>
 contract.</p>
 </dd></dl>
 
-</section>
 </section>
 
 
@@ -633,7 +606,7 @@ contract.</p>
             
             
               
-                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <dialog id="pst-secondary-sidebar-modal" tabindex="-1"></dialog>
                 <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
 
 
@@ -645,14 +618,10 @@ contract.</p>
   </div>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#batched-meshes">Batched meshes</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#functions">Functions</a><ul class="nav section-nav flex-column">
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.pixel_grid_mesh"><code class="docutils literal notranslate"><span class="pre">pixel_grid_mesh()</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.bernoulli_topology_samples"><code class="docutils literal notranslate"><span class="pre">bernoulli_topology_samples()</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.bernoulli_render_loss"><code class="docutils literal notranslate"><span class="pre">bernoulli_render_loss()</span></code></a></li>
-<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.pixel_grid_mesh_ref"><code class="docutils literal notranslate"><span class="pre">pixel_grid_mesh_ref()</span></code></a></li>
-</ul>
-</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.pixel_grid_mesh"><code class="docutils literal notranslate"><span class="pre">pixel_grid_mesh()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.bernoulli_topology_samples"><code class="docutils literal notranslate"><span class="pre">bernoulli_topology_samples()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.bernoulli_render_loss"><code class="docutils literal notranslate"><span class="pre">bernoulli_render_loss()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.pixel_grid_mesh_ref"><code class="docutils literal notranslate"><span class="pre">pixel_grid_mesh_ref()</span></code></a></li>
 </ul>
   </nav></div>
 
@@ -669,8 +638,8 @@ contract.</p>
   </div>
   
   <!-- Scripts loaded after <body> so the DOM is not blocked -->
-  <script defer src="../_static/scripts/bootstrap.js?digest=a95f357e85573c9b56d5"></script>
-<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=a95f357e85573c9b56d5"></script>
+  <script defer src="../_static/scripts/bootstrap.js?digest=75c7c72ae941e8b558d8"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=75c7c72ae941e8b558d8"></script>
 
   <footer class="bd-footer">
 <div class="bd-footer__inner bd-page-width">
@@ -690,8 +659,7 @@ contract.</p>
         <div class="footer-item">
 
   <p class="sphinx-version">
-    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
-    <br/>
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.2.0.
   </p>
 </div>
       
@@ -737,7 +705,7 @@ contract.</p>
         <div class="footer-item">
 <p class="theme-version">
   <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
-  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.19.0.
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.24.0.
 </p></div>
       
     </div>

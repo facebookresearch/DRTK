@@ -182,15 +182,12 @@ loss = bernoulli_render_loss(logits, evaluate, pairs=1, generator=rng)
 loss.backward()
 ```
 
-With `batched=True`, the callback instead receives all 2 × pairs samples in
-one tensor and returns one scalar loss per sample. The first half contains
-z⁺ and the second half the matching z⁻. Each loss must be evaluated independently
-of the other sampled topologies. Loss and gradient averaging are unchanged.
-
-The callback unpacks hard bits, calls the mesh builder and renderer, and returns
-a scalar loss. Each pair uses two renders. The returned value is the mean of
-their losses. Its surrogate backward supplies ARM to the logits and preserves
-ordinary continuous gradients from both evaluations. If the callback has other randomness, keep it fixed within a pair or
+The callback receives hard decisions with shape `[2 * pairs, *logits.shape]`,
+builds and renders the meshes, and returns a `[2 * pairs]` vector of losses.
+The first half contains z⁺ and the second half the matching z⁻. Each loss is
+evaluated independently of the other sampled topologies. The helper averages
+the losses and supplies the ARM gradient to logits while preserving ordinary
+continuous gradients from each evaluation. If the callback has other randomness, keep it fixed within a pair or
 independent of topology sampling. Define target validity and loss normalization
 independently of predicted alive bits, so missing geometry contributes to the loss.
 
