@@ -524,6 +524,10 @@ The default is 1000 in the same units as vertex Z. This setting is independent
 of the RGB background, and the returned alpha always remains foreground
 opacity. A very distant background produces stronger depth-loss gradients at
 opacity changes and silhouettes.</p>
+<p>For a single fully opaque surface, all four modes return its fragment depth;
+<code class="docutils literal notranslate"><span class="pre">background_depth</span></code> has no contribution. For translucent surfaces,
+<code class="docutils literal notranslate"><span class="pre">expected</span></code> includes the background, while <code class="docutils literal notranslate"><span class="pre">foreground_mean</span></code> describes
+the foreground alone.</p>
 <p>Foreground mean defaults to <code class="docutils literal notranslate"><span class="pre">depth_alpha_threshold=1e-6</span></code>. Pixels at or below
 that threshold return background depth with zero smooth depth gradient,
 avoiding division by very small opacity.</p>
@@ -602,13 +606,13 @@ means per-fragment optical thickness; no world-space path length is integrated.
 corresponds to an exponential density followed by the density-to-opacity
 conversion used by Instant-NGP-style volume models. Its raw input is capped at
 15 before exponentiation to avoid overflow. At sufficiently large density,
-float32 can still round the resulting opacity to exactly one; the fragment
-alpha cap below handles that case before compositing.</p>
-<p>Final fragment alpha is capped slightly below one after multiplying
-appearance alpha by interpolated vertex opacity. This fixed numerical limit
-is not a material parameter. Gradients remain defined even when the returned
-image alpha rounds to one.</p>
-<p>Appearance, material-opacity, and upper safety clamps use a unit subgradient
+float32 can round the resulting opacity to exactly one.</p>
+<p>Final fragment alpha is the product of appearance alpha and clamped
+interpolated vertex opacity, in <span class="math notranslate nohighlight">\([0,1]\)</span>. An opacity of one blocks all
+contributions from later fragments and the background. Gradients remain
+defined at full opacity, including the effect of revealing those later
+fragments when opacity decreases.</p>
+<p>Appearance, material-opacity, and final-alpha clamps use a unit subgradient
 at an exact endpoint and zero outside the interval. This is an explicit DRTK
 convention shared by the native operators and reference functions; it does not
 depend on the installed PyTorch build’s scalar-clamp convention. ReLU uses
@@ -745,7 +749,7 @@ This approximates per-pixel ordering; intersecting or depth-crossing
 triangles may composite in the wrong order. There is no hard z-buffer.
 Hard top-left coverage and clamped interpolated
 material opacity remain outside the MLP. The resulting fragment alpha is
-capped at 0.999 before front-to-back transmittance compositing. For soft
+clamped to [0, 1] before front-to-back transmittance compositing. For soft
 boundaries, supply explicitly feathered geometry or opacity.</p>
 <p>This entry point requires CUDA. Use <a class="reference internal" href="#drtk.render_transparent_mlp_ref" title="drtk.render_transparent_mlp_ref"><code class="xref py py-func docutils literal notranslate"><span class="pre">render_transparent_mlp_ref()</span></code></a> for
 the pure-PyTorch correctness implementation.</p>
@@ -852,7 +856,7 @@ This approximates per-pixel ordering; intersecting or depth-crossing
 triangles may composite in the wrong order. There is no hard z-buffer.
 Hard top-left coverage and clamped interpolated
 material opacity remain outside the MLP. The resulting fragment alpha is
-capped at 0.999 before front-to-back transmittance compositing. For soft
+clamped to [0, 1] before front-to-back transmittance compositing. For soft
 boundaries, supply explicitly feathered geometry or opacity.</p>
 <p>This entry point requires CUDA. Use
 <a class="reference internal" href="#drtk.render_transparent_mlp_two_textures_ref" title="drtk.render_transparent_mlp_two_textures_ref"><code class="xref py py-func docutils literal notranslate"><span class="pre">render_transparent_mlp_two_textures_ref()</span></code></a> for the pure-PyTorch

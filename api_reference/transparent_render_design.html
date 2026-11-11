@@ -419,8 +419,8 @@ texture. Filtering supports nearest, bilinear (default), or bicubic, with
 zeros, border (default), or reflection padding and fixed <code class="docutils literal notranslate"><span class="pre">align_corners=False</span></code>.
 Activations follow interpolation: RGB defaults to <code class="docutils literal notranslate"><span class="pre">max(x,</span> <span class="pre">0)</span></code> and alpha to
 <code class="docutils literal notranslate"><span class="pre">1</span> <span class="pre">-</span> <span class="pre">exp(-max(x,</span> <span class="pre">0))</span></code>. An RGB texture has implicit alpha one. Appearance alpha
-is multiplied by clamped interpolated material opacity before the fixed
-fragment-alpha cap. For conventional preactivated RGBA, explicitly select
+is multiplied by clamped interpolated material opacity to give a fragment
+alpha in [0, 1]. For conventional preactivated RGBA, explicitly select
 <code class="docutils literal notranslate"><span class="pre">rgb_activation=&quot;identity&quot;</span></code> and <code class="docutils literal notranslate"><span class="pre">alpha_activation=&quot;clamp&quot;</span></code>.</p>
 </section>
 <section id="single-and-dual-feature-tiny-mlp-variants">
@@ -718,9 +718,13 @@ backward pass differentiates through this conversion, including depth <code clas
 The direct-texture path uses activated sampled texture alpha for <code class="docutils literal notranslate"><span class="pre">p_k</span></code> (or one
 for RGB textures), while the MLP path uses its activated alpha output:</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>m_k = clamp(sum_i(b_i * vertex_opacity_i), 0, 1)
-a_k = min(m_k * p_k, 0.999)
+a_k = min(m_k * p_k, 1)
 </pre></div>
 </div>
+<p>Material opacity is evaluated as <code class="docutils literal notranslate"><span class="pre">a0</span> <span class="pre">+</span> <span class="pre">b1*(a1-a0)</span> <span class="pre">+</span> <span class="pre">b2*(a2-a0)</span></code> before
+clamping. Constant vertex opacity is therefore preserved exactly, including
+one, even when floating-point barycentric coordinates do not sum exactly to
+one. The edge queries use the corresponding two-endpoint form.</p>
 <p>Let <code class="docutils literal notranslate"><span class="pre">c_k</span></code> be fragment RGB and <code class="docutils literal notranslate"><span class="pre">T_k</span></code> be transmittance before the fragment:</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>C_(k+1) = C_k + T_k * a_k * c_k
 T_(k+1) = T_k * (1 - a_k)
@@ -731,7 +735,7 @@ the returned foreground alpha is accumulated directly as <code class="docutils l
 RGB is premultiplied by accumulated alpha. With an explicit background,
 returned RGB is the fully composited color. This is the same output convention
 used by gsplat’s front-to-back renderer.</p>
-<p>The fragment-alpha cap is fixed internally at 0.999 and is not a public setting. In inference, an optional
+<p>An alpha of one is fully opaque. In inference, an optional
 <code class="docutils literal notranslate"><span class="pre">transmittance_epsilon</span></code> can terminate traversal once the remaining
 transmittance is negligible. Early termination is rejected when gradients are
 enabled because it is a discrete approximation.</p>
@@ -770,20 +774,28 @@ retained.</p>
 </section>
 <section id="backward-pipeline">
 <h2>Backward pipeline<a class="headerlink" href="#backward-pipeline" title="Link to this heading">#</a></h2>
-<p>For backward, forward saves a per-pixel transmittance mantissa and integer
-power-of-two exponent, tile offsets, and sorted face identifiers; it does not
-save a fragment buffer. The extra transmittance state costs eight bytes per
-pixel, is used only when gradients are needed, and does not change the forward
-color or alpha calculation. Inference does not allocate or update this state. The backward traverses each tile list in
-reverse and recomputes hard coverage, barycentrics, texture samples, and the tiny
-MLP.</p>
-<p>Given transmittance after a fragment, the earlier value is recovered as:</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>T_before = T_after / (1 - a)
+<p>For backward, forward saves a per-pixel transmittance mantissa, integer
+power-of-two exponent, and opaque-fragment count, plus tile offsets and sorted
+face identifiers. The transmittance state costs twelve bytes per pixel and
+is used only when gradients are needed. Inference does not allocate or update
+this state. Backward traverses each tile list in reverse and recomputes hard
+coverage, barycentrics, texture samples, and the tiny MLP.</p>
+<p>Let <code class="docutils literal notranslate"><span class="pre">P</span></code> be the product of nonzero factors <code class="docutils literal notranslate"><span class="pre">(1</span> <span class="pre">-</span> <span class="pre">a)</span></code> and <code class="docutils literal notranslate"><span class="pre">K</span></code> the number of
+opaque fragments in the remaining prefix. Transmittance is zero when <code class="docutils literal notranslate"><span class="pre">K</span> <span class="pre">&gt;</span> <span class="pre">0</span></code>
+and otherwise equals <code class="docutils literal notranslate"><span class="pre">P</span></code>. Reverse traversal removes each fragment’s factor:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>if a == 1:
+    K -= 1
+else:
+    P /= 1 - a
+T_before = P if K == 0 else 0
 </pre></div>
 </div>
-<p>The fixed 0.999 fragment cap keeps the denominator nonzero. Saving only final
-alpha is insufficient: three opaque layers can round <code class="docutils literal notranslate"><span class="pre">1</span> <span class="pre">-</span> <span class="pre">T</span></code> to exactly one,
-erasing <code class="docutils literal notranslate"><span class="pre">T</span></code> and its reconstructed RGB gradients. Even saving an ordinary
+<p>Only nonzero factors enter the product or the division. Backward still
+evaluates the suffix behind an opaque fragment: decreasing its opacity can
+reveal that suffix, so the opacity derivative depends on its color and depth.
+Multiple opaque layers are handled by the count without a singular division.</p>
+<p>Saving only final alpha is insufficient: nearly opaque layers can round
+<code class="docutils literal notranslate"><span class="pre">1</span> <span class="pre">-</span> <span class="pre">T</span></code> to exactly one, erasing <code class="docutils literal notranslate"><span class="pre">T</span></code> and its reconstructed RGB gradients. Even saving an ordinary
 float32 <code class="docutils literal notranslate"><span class="pre">T</span></code> is insufficient for deep overlap because the product can underflow.
 The saved product is therefore rescaled by exact powers of two during forward
 and reverse traversal; backward reconstructs the prefix transmittance from

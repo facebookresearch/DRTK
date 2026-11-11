@@ -88,6 +88,11 @@ of the RGB background, and the returned alpha always remains foreground
 opacity. A very distant background produces stronger depth-loss gradients at
 opacity changes and silhouettes.
 
+For a single fully opaque surface, all four modes return its fragment depth;
+``background_depth`` has no contribution. For translucent surfaces,
+``expected`` includes the background, while ``foreground_mean`` describes
+the foreground alone.
+
 Foreground mean defaults to ``depth_alpha_threshold=1e-6``. Pixels at or below
 that threshold return background depth with zero smooth depth gradient,
 avoiding division by very small opacity.
@@ -178,15 +183,15 @@ means per-fragment optical thickness; no world-space path length is integrated.
 corresponds to an exponential density followed by the density-to-opacity
 conversion used by Instant-NGP-style volume models. Its raw input is capped at
 15 before exponentiation to avoid overflow. At sufficiently large density,
-float32 can still round the resulting opacity to exactly one; the fragment
-alpha cap below handles that case before compositing.
+float32 can round the resulting opacity to exactly one.
 
-Final fragment alpha is capped slightly below one after multiplying
-appearance alpha by interpolated vertex opacity. This fixed numerical limit
-is not a material parameter. Gradients remain defined even when the returned
-image alpha rounds to one.
+Final fragment alpha is the product of appearance alpha and clamped
+interpolated vertex opacity, in :math:`[0,1]`. An opacity of one blocks all
+contributions from later fragments and the background. Gradients remain
+defined at full opacity, including the effect of revealing those later
+fragments when opacity decreases.
 
-Appearance, material-opacity, and upper safety clamps use a unit subgradient
+Appearance, material-opacity, and final-alpha clamps use a unit subgradient
 at an exact endpoint and zero outside the interval. This is an explicit DRTK
 convention shared by the native operators and reference functions; it does not
 depend on the installed PyTorch build's scalar-clamp convention. ReLU uses

@@ -43,8 +43,8 @@ texture. Filtering supports nearest, bilinear (default), or bicubic, with
 zeros, border (default), or reflection padding and fixed `align_corners=False`.
 Activations follow interpolation: RGB defaults to `max(x, 0)` and alpha to
 `1 - exp(-max(x, 0))`. An RGB texture has implicit alpha one. Appearance alpha
-is multiplied by clamped interpolated material opacity before the fixed
-fragment-alpha cap. For conventional preactivated RGBA, explicitly select
+is multiplied by clamped interpolated material opacity to give a fragment
+alpha in [0, 1]. For conventional preactivated RGBA, explicitly select
 `rgb_activation="identity"` and `alpha_activation="clamp"`.
 
 ### Single- and dual-feature tiny-MLP variants
@@ -374,8 +374,13 @@ for RGB textures), while the MLP path uses its activated alpha output:
 
 ```text
 m_k = clamp(sum_i(b_i * vertex_opacity_i), 0, 1)
-a_k = min(m_k * p_k, 0.999)
+a_k = min(m_k * p_k, 1)
 ```
+
+Material opacity is evaluated as `a0 + b1*(a1-a0) + b2*(a2-a0)` before
+clamping. Constant vertex opacity is therefore preserved exactly, including
+one, even when floating-point barycentric coordinates do not sum exactly to
+one. The edge queries use the corresponding two-endpoint form.
 
 Let `c_k` be fragment RGB and `T_k` be transmittance before the fragment:
 
@@ -390,7 +395,7 @@ RGB is premultiplied by accumulated alpha. With an explicit background,
 returned RGB is the fully composited color. This is the same output convention
 used by gsplat's front-to-back renderer.
 
-The fragment-alpha cap is fixed internally at 0.999 and is not a public setting. In inference, an optional
+An alpha of one is fully opaque. In inference, an optional
 `transmittance_epsilon` can terminate traversal once the remaining
 transmittance is negligible. Early termination is rejected when gradients are
 enabled because it is a discrete approximation.
@@ -430,23 +435,32 @@ retained.
 
 ## Backward pipeline
 
-For backward, forward saves a per-pixel transmittance mantissa and integer
-power-of-two exponent, tile offsets, and sorted face identifiers; it does not
-save a fragment buffer. The extra transmittance state costs eight bytes per
-pixel, is used only when gradients are needed, and does not change the forward
-color or alpha calculation. Inference does not allocate or update this state. The backward traverses each tile list in
-reverse and recomputes hard coverage, barycentrics, texture samples, and the tiny
-MLP.
+For backward, forward saves a per-pixel transmittance mantissa, integer
+power-of-two exponent, and opaque-fragment count, plus tile offsets and sorted
+face identifiers. The transmittance state costs twelve bytes per pixel and
+is used only when gradients are needed. Inference does not allocate or update
+this state. Backward traverses each tile list in reverse and recomputes hard
+coverage, barycentrics, texture samples, and the tiny MLP.
 
-Given transmittance after a fragment, the earlier value is recovered as:
+Let `P` be the product of nonzero factors `(1 - a)` and `K` the number of
+opaque fragments in the remaining prefix. Transmittance is zero when `K > 0`
+and otherwise equals `P`. Reverse traversal removes each fragment's factor:
 
 ```text
-T_before = T_after / (1 - a)
+if a == 1:
+    K -= 1
+else:
+    P /= 1 - a
+T_before = P if K == 0 else 0
 ```
 
-The fixed 0.999 fragment cap keeps the denominator nonzero. Saving only final
-alpha is insufficient: three opaque layers can round `1 - T` to exactly one,
-erasing `T` and its reconstructed RGB gradients. Even saving an ordinary
+Only nonzero factors enter the product or the division. Backward still
+evaluates the suffix behind an opaque fragment: decreasing its opacity can
+reveal that suffix, so the opacity derivative depends on its color and depth.
+Multiple opaque layers are handled by the count without a singular division.
+
+Saving only final alpha is insufficient: nearly opaque layers can round
+`1 - T` to exactly one, erasing `T` and its reconstructed RGB gradients. Even saving an ordinary
 float32 `T` is insufficient for deep overlap because the product can underflow.
 The saved product is therefore rescaled by exact powers of two during forward
 and reverse traversal; backward reconstructs the prefix transmittance from
