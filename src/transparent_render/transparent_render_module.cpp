@@ -378,7 +378,8 @@ class RenderWithTextureFunction : public torch::autograd::Function<RenderWithTex
          outputs[6],
          outputs[1],
          outputs[2],
-         outputs[7]});
+         outputs[7],
+         outputs[8]});
     ctx->saved_data["interpolation_mode"] = interpolation_mode;
     ctx->saved_data["padding_mode"] = padding_mode;
     ctx->saved_data["rgb_activation"] = rgb_activation;
@@ -403,6 +404,7 @@ class RenderWithTextureFunction : public torch::autograd::Function<RenderWithTex
         saved[7],
         saved[8],
         saved[9],
+        saved[13],
         grad_outputs[0].contiguous(),
         grad_outputs[1].contiguous(),
         ctx->saved_data["interpolation_mode"].toInt(),
@@ -488,7 +490,7 @@ class RenderWithMlpFunction : public torch::autograd::Function<RenderWithMlpFunc
         depth_options(depth_mode, background_depth, depth_alpha_threshold));
 
     std::vector<torch::Tensor> saved{v, vi, uv, reference_uv, texture, reference_texture};
-    saved.reserve(15 + weights.size() + biases.size());
+    saved.reserve(16 + weights.size() + biases.size());
     saved.insert(saved.end(), weights.begin(), weights.end());
     saved.insert(saved.end(), biases.begin(), biases.end());
     saved.insert(
@@ -501,7 +503,8 @@ class RenderWithMlpFunction : public torch::autograd::Function<RenderWithMlpFunc
          outputs[6],
          outputs[1],
          outputs[2],
-         outputs[7]});
+         outputs[7],
+         outputs[8]});
     ctx->save_for_backward(saved);
     ctx->saved_data["layer_count"] = static_cast<int64_t>(weights.size());
     ctx->saved_data["negative_slope"] = negative_slope;
@@ -543,6 +546,7 @@ class RenderWithMlpFunction : public torch::autograd::Function<RenderWithMlpFunc
         saved[sorted_face_ids_index],
         saved[saved_transmittance_index],
         saved[saved_transmittance_exponent_index],
+        saved[saved_transmittance_exponent_index + 4],
         grad_outputs[0].contiguous(),
         grad_outputs[1].contiguous(),
         ctx->saved_data["negative_slope"].toDouble(),

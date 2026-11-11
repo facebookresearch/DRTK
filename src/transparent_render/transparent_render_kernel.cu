@@ -35,7 +35,7 @@ constexpr int kMaxFeatureChannels = 32;
 constexpr int kMaxMlpWeightParams =
     kMlpWidth * kMaxFeatureChannels + (kMaxMlpLayers - 2) * kMlpWidth * kMlpWidth + 4 * kMlpWidth;
 constexpr int kMaxMlpBiasParams = (kMaxMlpLayers - 1) * kMlpWidth + 4;
-constexpr float kAlphaMax = 0.999f;
+constexpr float kAlphaMax = 1.0f;
 constexpr float kExpDensityMax = 15.0f;
 constexpr int32_t kActivationModeCount = 4;
 
@@ -71,13 +71,19 @@ using at::native::safe_downgrade_to_int_range;
 using at::native::within_bounds_2d;
 using at::native::detail::GridSamplerPadding;
 
-// T = mantissa * 2^(-exponent). Keeping the product normalized makes
-// reverse traversal independent of alpha rounding and float32 underflow.
+// T is zero while opaque_count > 0. Otherwise T = mantissa * 2^(-exponent).
+// The normalized product excludes zero factors so reverse traversal can
+// recover prefixes across opaque fragments and float32 underflow.
 struct ScaledTransmittance {
   float mantissa = 1.0f;
   int32_t exponent = 0;
+  int32_t opaque_count = 0;
 
   __device__ void multiply(float factor) {
+    if (factor == 0.0f) {
+      ++opaque_count;
+      return;
+    }
     mantissa *= factor;
     if (mantissa < 0x1p-32f) {
       mantissa *= 0x1p32f;
@@ -86,10 +92,14 @@ struct ScaledTransmittance {
   }
 
   __device__ float value() const {
-    return ldexpf(mantissa, -exponent);
+    return opaque_count == 0 ? ldexpf(mantissa, -exponent) : 0.0f;
   }
 
   __device__ float divide(float factor) {
+    if (factor == 0.0f) {
+      --opaque_count;
+      return value();
+    }
     mantissa /= factor;
     if (mantissa >= 1.0f && exponent > 0) {
       mantissa *= 0x1p-32f;
@@ -150,6 +160,14 @@ struct TriangleData {
   float reference_v[3];
   float opacity[3];
 };
+
+__device__ __forceinline__ float interpolate_material_opacity(
+    const TriangleData& triangle,
+    const float* bary) {
+  // Preserve constant opacity exactly, including the fully opaque endpoint.
+  return triangle.opacity[0] + bary[1] * (triangle.opacity[1] - triangle.opacity[0]) +
+      bary[2] * (triangle.opacity[2] - triangle.opacity[0]);
+}
 
 struct GeometryParams {
   const float* vertices;
@@ -1754,14 +1772,13 @@ __device__ float boundary_depth_query(
       inverse_depth += bary[c];
     }
     inverse_depth = clamp_away_from_zero(inverse_depth);
-    float material = 0.0f, z = 0.0f;
+    float z = 0.0f;
 #pragma unroll
     for (int32_t c = 0; c < 3; ++c) {
       bary[c] /= inverse_depth;
-      material += bary[c] * triangle.opacity[c];
       z += bary[c] * triangle.z[c];
     }
-    material = fminf(fmaxf(material, 0.0f), 1.0f);
+    const float material = fminf(fmaxf(interpolate_material_opacity(triangle, bary), 0.0f), 1.0f);
     if (material <= 0.0f) {
       continue;
     }
@@ -1855,13 +1872,11 @@ __device__ float boundary_query(
       inverse_depth += bary[c];
     }
     inverse_depth = clamp_away_from_zero(inverse_depth);
-    float material = 0.0f;
 #pragma unroll
     for (int32_t c = 0; c < 3; ++c) {
       bary[c] /= inverse_depth;
-      material += bary[c] * triangle.opacity[c];
     }
-    material = fminf(fmaxf(material, 0.0f), 1.0f);
+    const float material = fminf(fmaxf(interpolate_material_opacity(triangle, bary), 0.0f), 1.0f);
     if (material <= 0.0f) {
       continue;
     }
@@ -2042,8 +2057,9 @@ __device__ void boundary_group_backward(
       const float inv_depth = clamp_away_from_zero(bary[a] + bary[b]);
       bary[a] /= inv_depth;
       bary[b] /= inv_depth;
-      const float material =
-          fminf(fmaxf(bary[a] * triangle.opacity[a] + bary[b] * triangle.opacity[b], 0.0f), 1.0f);
+      const float material = fminf(
+          fmaxf(triangle.opacity[a] + bary[b] * (triangle.opacity[b] - triangle.opacity[a]), 0.0f),
+          1.0f);
       if (material <= 0.0f) {
         continue;
       }
@@ -2266,7 +2282,8 @@ __global__ void render_tiles_kernel(
     int32_t* saved_median_face,
     TransparentDepthOptions depth_options,
     float* saved_transmittance,
-    int32_t* saved_transmittance_exponent) {
+    int32_t* saved_transmittance_exponent,
+    int32_t* saved_opaque_count) {
   const int32_t n = blockIdx.z;
   const int32_t tile_x = blockIdx.x;
   const int32_t tile_y = blockIdx.y;
@@ -2332,12 +2349,8 @@ __global__ void render_tiles_kernel(
       float fragment_rgb[3];
       float appearance_alpha = 1.0f;
       fragment_evaluator.evaluate(n, triangle, bary, fragment_rgb, appearance_alpha);
-      float material_opacity = 0.0f;
-#pragma unroll
-      for (int32_t corner = 0; corner < 3; ++corner) {
-        material_opacity += bary[corner] * triangle.opacity[corner];
-      }
-      material_opacity = fminf(fmaxf(material_opacity, 0.0f), 1.0f);
+      const float material_opacity =
+          fminf(fmaxf(interpolate_material_opacity(triangle, bary), 0.0f), 1.0f);
       const float alpha = fminf(material_opacity * appearance_alpha, kAlphaMax);
       if (alpha <= 0.0f) {
         continue;
@@ -2383,6 +2396,7 @@ __global__ void render_tiles_kernel(
     if (saved_transmittance != nullptr) {
       saved_transmittance[pixel] = backward_transmittance.mantissa;
       saved_transmittance_exponent[pixel] = backward_transmittance.exponent;
+      saved_opaque_count[pixel] = backward_transmittance.opaque_count;
     }
   }
 }
@@ -2400,6 +2414,7 @@ __global__ void render_tiles_backward_kernel(
     const float* background,
     const float* saved_transmittance,
     const int32_t* saved_transmittance_exponent,
+    const int32_t* saved_opaque_count,
     const float* grad_color,
     const float* grad_alpha,
     const float* grad_depth,
@@ -2467,6 +2482,7 @@ __global__ void render_tiles_backward_kernel(
     }
     transmittance_after.mantissa = saved_transmittance[pixel];
     transmittance_after.exponent = saved_transmittance_exponent[pixel];
+    transmittance_after.opaque_count = saved_opaque_count[pixel];
     transmittance_grad_after = color_grad[0] * background[n * 3 + 0] +
         color_grad[1] * background[n * 3 + 1] + color_grad[2] * background[n * 3 + 2] - alpha_grad;
     if (depth_options.mode == TransparentDepthMode::Expected) {
@@ -2522,11 +2538,7 @@ __global__ void render_tiles_backward_kernel(
         float fragment_rgb[3];
         float appearance_alpha = 1.0f;
         block_evaluator.evaluate(n, triangle, bary, fragment_rgb, appearance_alpha);
-        float raw_material_opacity = 0.0f;
-#pragma unroll
-        for (int32_t corner = 0; corner < 3; ++corner) {
-          raw_material_opacity += bary[corner] * triangle.opacity[corner];
-        }
+        const float raw_material_opacity = interpolate_material_opacity(triangle, bary);
         const float material_opacity = fminf(fmaxf(raw_material_opacity, 0.0f), 1.0f);
         const float raw_alpha = material_opacity * appearance_alpha;
         const float alpha = fminf(raw_alpha, kAlphaMax);
@@ -2570,11 +2582,14 @@ __global__ void render_tiles_backward_kernel(
             attribute_grad);
 #pragma unroll
         for (int32_t corner = 0; corner < 3; ++corner) {
-          attribute_grad.bary[corner] += material_opacity_grad * triangle.opacity[corner] +
+          attribute_grad.bary[corner] +=
+              material_opacity_grad * (triangle.opacity[corner] - triangle.opacity[0]) +
               fragment_depth_grad * triangle.z[corner];
           const int64_t vertex =
               static_cast<int64_t>(n) * geometry.vertex_count + triangle.vertex_id[corner];
-          atomicAdd(opacity_grad + vertex, material_opacity_grad * bary[corner]);
+          atomicAdd(
+              opacity_grad + vertex,
+              material_opacity_grad * (corner == 0 ? 1.0f - bary[1] - bary[2] : bary[corner]));
           atomicAdd(uv_grad + vertex * 2 + 0, attribute_grad.u[corner]);
           atomicAdd(uv_grad + vertex * 2 + 1, attribute_grad.v[corner]);
           if (reference_uv_grad != nullptr) {
@@ -2854,6 +2869,9 @@ std::vector<torch::Tensor> launch_render(
   auto saved_transmittance_exponent = save_transmittance
       ? torch::empty_like(alpha, alpha.options().dtype(torch::kInt32))
       : torch::Tensor();
+  auto saved_opaque_count = save_transmittance
+      ? torch::empty_like(alpha, alpha.options().dtype(torch::kInt32))
+      : torch::Tensor();
   if (batch_size > 0) {
     GeometryParams geometry{
         v.data_ptr<float>(),
@@ -2882,7 +2900,8 @@ std::vector<torch::Tensor> launch_render(
         median_face.defined() ? median_face.data_ptr<int32_t>() : nullptr,
         depth_options,
         save_transmittance ? saved_transmittance.data_ptr<float>() : nullptr,
-        save_transmittance ? saved_transmittance_exponent.data_ptr<int32_t>() : nullptr);
+        save_transmittance ? saved_transmittance_exponent.data_ptr<int32_t>() : nullptr,
+        save_transmittance ? saved_opaque_count.data_ptr<int32_t>() : nullptr);
     C10_CUDA_KERNEL_LAUNCH_CHECK();
   }
   return {
@@ -2893,7 +2912,8 @@ std::vector<torch::Tensor> launch_render(
       bins.face_ids,
       saved_transmittance,
       saved_transmittance_exponent,
-      median_face};
+      median_face,
+      saved_opaque_count};
 }
 
 void check_texture(
@@ -2921,6 +2941,7 @@ void check_backward_inputs(
     const torch::Tensor& sorted_face_ids,
     const torch::Tensor& saved_transmittance,
     const torch::Tensor& saved_transmittance_exponent,
+    const torch::Tensor& saved_opaque_count,
     const torch::Tensor& grad_color,
     const torch::Tensor& grad_alpha,
     int64_t interpolation_mode,
@@ -2954,6 +2975,12 @@ void check_backward_inputs(
           saved_transmittance_exponent.sizes() == saved_transmittance.sizes() &&
           saved_transmittance_exponent.device() == v.device(),
       "transparent render backward: invalid saved transmittance exponent");
+  TORCH_CHECK(
+      saved_opaque_count.is_cuda() && saved_opaque_count.scalar_type() == torch::kInt32 &&
+          saved_opaque_count.is_contiguous() &&
+          saved_opaque_count.sizes() == saved_transmittance.sizes() &&
+          saved_opaque_count.device() == v.device(),
+      "transparent render backward: invalid saved opaque count");
   check_cuda_float_contiguous(grad_color, "grad_color");
   check_cuda_float_contiguous(grad_alpha, "grad_alpha");
   TORCH_CHECK(
@@ -2990,6 +3017,7 @@ std::vector<torch::Tensor> launch_render_backward(
     const torch::Tensor& sorted_face_ids,
     const torch::Tensor& saved_transmittance,
     const torch::Tensor& saved_transmittance_exponent,
+    const torch::Tensor& saved_opaque_count,
     const torch::Tensor& grad_color,
     const torch::Tensor& grad_alpha,
     const FragmentEvaluator& fragment_evaluator,
@@ -3041,6 +3069,7 @@ std::vector<torch::Tensor> launch_render_backward(
         background.data_ptr<float>(),
         saved_transmittance.data_ptr<float>(),
         saved_transmittance_exponent.data_ptr<int32_t>(),
+        saved_opaque_count.data_ptr<int32_t>(),
         grad_color.data_ptr<float>(),
         grad_alpha.data_ptr<float>(),
         grad_depth.data_ptr<float>(),
@@ -3286,6 +3315,7 @@ std::vector<torch::Tensor> transparent_render_with_texture_cuda_backward(
     const torch::Tensor& sorted_face_ids,
     const torch::Tensor& saved_transmittance,
     const torch::Tensor& saved_transmittance_exponent,
+    const torch::Tensor& saved_opaque_count,
     const torch::Tensor& grad_color,
     const torch::Tensor& grad_alpha,
     int64_t interpolation_mode,
@@ -3308,6 +3338,7 @@ std::vector<torch::Tensor> transparent_render_with_texture_cuda_backward(
       sorted_face_ids,
       saved_transmittance,
       saved_transmittance_exponent,
+      saved_opaque_count,
       grad_color,
       grad_alpha,
       interpolation_mode,
@@ -3342,6 +3373,7 @@ std::vector<torch::Tensor> transparent_render_with_texture_cuda_backward(
       sorted_face_ids,
       saved_transmittance,
       saved_transmittance_exponent,
+      saved_opaque_count,
       grad_color,
       grad_alpha,
       fragment_evaluator,
@@ -3369,6 +3401,7 @@ std::vector<torch::Tensor> transparent_render_with_mlp_cuda_backward(
     const torch::Tensor& sorted_face_ids,
     const torch::Tensor& saved_transmittance,
     const torch::Tensor& saved_transmittance_exponent,
+    const torch::Tensor& saved_opaque_count,
     const torch::Tensor& grad_color,
     const torch::Tensor& grad_alpha,
     double negative_slope,
@@ -3392,6 +3425,7 @@ std::vector<torch::Tensor> transparent_render_with_mlp_cuda_backward(
       sorted_face_ids,
       saved_transmittance,
       saved_transmittance_exponent,
+      saved_opaque_count,
       grad_color,
       grad_alpha,
       interpolation_mode,
@@ -3476,6 +3510,7 @@ std::vector<torch::Tensor> transparent_render_with_mlp_cuda_backward(
         sorted_face_ids,
         saved_transmittance,
         saved_transmittance_exponent,
+        saved_opaque_count,
         grad_color,
         grad_alpha,
         fragment_evaluator,
@@ -3516,6 +3551,7 @@ std::vector<torch::Tensor> transparent_render_with_mlp_cuda_backward(
         sorted_face_ids,
         saved_transmittance,
         saved_transmittance_exponent,
+        saved_opaque_count,
         grad_color,
         grad_alpha,
         fragment_evaluator,

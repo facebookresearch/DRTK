@@ -137,7 +137,7 @@ def _reference_depth(
 _MLP_WIDTH: int = 8
 _MAX_FEATURE_CHANNELS: int = 32
 _SUPPORTED_MLP_LAYER_COUNTS: Tuple[int, int] = (4, 5)
-_ALPHA_MAX: float = 0.999
+_ALPHA_MAX: float = 1.0
 _EXP_DENSITY_MAX: float = 15.0
 _TEXTURE_RGB_ACTIVATIONS: Dict[str, int] = {
     "relu": 0,
@@ -362,7 +362,11 @@ def _interpolate_triangle_attribute(
 ) -> th.Tensor:
     corners = attribute[face.to(dtype=th.long)]
     if corners.ndim == 1:
-        return (corners[:, None, None] * bary).sum(dim=0)
+        return (
+            corners[0]
+            + bary[1] * (corners[1] - corners[0])
+            + bary[2] * (corners[2] - corners[0])
+        )
     return (corners[:, :, None, None] * bary[:, None]).sum(dim=0)
 
 
@@ -1244,7 +1248,7 @@ def render_transparent_mlp(
     triangles may composite in the wrong order. There is no hard z-buffer.
     Hard top-left coverage and clamped interpolated
     material opacity remain outside the MLP. The resulting fragment alpha is
-    capped at 0.999 before front-to-back transmittance compositing. For soft
+    clamped to [0, 1] before front-to-back transmittance compositing. For soft
     boundaries, supply explicitly feathered geometry or opacity.
 
     This entry point requires CUDA. Use :func:`render_transparent_mlp_ref` for
@@ -1403,7 +1407,7 @@ def render_transparent_mlp_two_textures(
     triangles may composite in the wrong order. There is no hard z-buffer.
     Hard top-left coverage and clamped interpolated
     material opacity remain outside the MLP. The resulting fragment alpha is
-    capped at 0.999 before front-to-back transmittance compositing. For soft
+    clamped to [0, 1] before front-to-back transmittance compositing. For soft
     boundaries, supply explicitly feathered geometry or opacity.
 
     This entry point requires CUDA. Use
