@@ -19,7 +19,13 @@ import torch.nn.functional as thf
 from drtk.utils import load_torch_ops
 
 
-load_torch_ops("drtk.pixel_grid_mesh_ext")
+try:
+    load_torch_ops("drtk.pixel_grid_mesh_ext")
+except ImportError:
+    # The extension has CUDA sources only, so a ROCm build's module is empty; importing drtk
+    # must still work there, and the pixel-grid operators below are then None.
+    if th.version.hip is None:
+        raise
 
 _Build = Callable[
     [
