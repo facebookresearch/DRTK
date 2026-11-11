@@ -955,7 +955,7 @@ __device__ __forceinline__ void perspective_barycentric_backward(
   y_grad[2] += edge02_grad_y;
 }
 
-template <int LayerCount>
+template <int LayerCount, bool AlphaOnly = false>
 __device__ __forceinline__ void
 evaluate_tiny_mlp(const TinyMlpParams& mlp, const float* features, float* rgba) {
   static_assert(LayerCount == 4 || LayerCount == 5);
@@ -992,7 +992,7 @@ evaluate_tiny_mlp(const TinyMlpParams& mlp, const float* features, float* rgba) 
 
   constexpr int32_t kOutputLayer = LayerCount - 1;
 #pragma unroll
-  for (int32_t output_channel = 0; output_channel < 4; ++output_channel) {
+  for (int32_t output_channel = AlphaOnly ? 3 : 0; output_channel < 4; ++output_channel) {
     float value = mlp.biases[kOutputLayer][output_channel];
     const float* weight = mlp.weights[kOutputLayer] + output_channel * kMlpWidth;
 #pragma unroll
@@ -1004,7 +1004,7 @@ evaluate_tiny_mlp(const TinyMlpParams& mlp, const float* features, float* rgba) 
   }
 }
 
-template <int LayerCount>
+template <int LayerCount, bool AlphaOnly = false>
 __device__ __forceinline__ void evaluate_tiny_mlp_backward(
     const TinyMlpParams& mlp,
     const TinyMlpGradParams& mlp_grad,
@@ -1044,7 +1044,7 @@ __device__ __forceinline__ void evaluate_tiny_mlp_backward(
   float activation_grad[kMlpWidth] = {0.0f};
   constexpr int32_t kOutputLayer = LayerCount - 1;
 #pragma unroll
-  for (int32_t output_channel = 0; output_channel < 4; ++output_channel) {
+  for (int32_t output_channel = AlphaOnly ? 3 : 0; output_channel < 4; ++output_channel) {
     const float* weight = mlp.weights[kOutputLayer] + output_channel * kMlpWidth;
     float value = mlp.biases[kOutputLayer][output_channel];
 #pragma unroll
@@ -1223,7 +1223,7 @@ struct TextureFragmentBackward {
   }
 };
 
-template <int LayerCount>
+template <int LayerCount, bool AlphaOnly = false>
 struct MlpFragmentEvaluator {
   const float* texture;
   const float* reference_texture;
@@ -1283,17 +1283,19 @@ struct MlpFragmentEvaluator {
         padding_mode,
         features + texture_channels);
     float rgba[4];
-    evaluate_tiny_mlp<LayerCount>(mlp, features, rgba);
-    rgb[0] = rgba[0];
-    rgb[1] = rgba[1];
-    rgb[2] = rgba[2];
+    evaluate_tiny_mlp<LayerCount, AlphaOnly>(mlp, features, rgba);
+    if constexpr (!AlphaOnly) {
+      rgb[0] = rgba[0];
+      rgb[1] = rgba[1];
+      rgb[2] = rgba[2];
+    }
     alpha = rgba[3];
   }
 };
 
-template <int LayerCount>
+template <int LayerCount, bool AlphaOnly = false>
 struct MlpFragmentBackward {
-  MlpFragmentEvaluator<LayerCount> forward;
+  MlpFragmentEvaluator<LayerCount, AlphaOnly> forward;
   float* texture_grad;
   float* reference_texture_grad;
   TinyMlpGradParams mlp_grad;
@@ -1396,7 +1398,7 @@ struct MlpFragmentBackward {
         features + forward.texture_channels);
     float feature_grad[kMaxFeatureChannels] = {0.0f};
     const float rgba_grad[4] = {rgb_grad[0], rgb_grad[1], rgb_grad[2], alpha_grad};
-    evaluate_tiny_mlp_backward<LayerCount>(
+    evaluate_tiny_mlp_backward<LayerCount, AlphaOnly>(
         forward.mlp, mlp_grad, features, rgba_grad, feature_grad);
 
     float u_grad = 0.0f;

@@ -5,10 +5,22 @@
 
 # pyre-strict
 
-from typing import Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 import torch as th
 from drtk.utils import load_torch_ops
+
+from .transparent_render import (
+    _activate_texture_alpha,
+    _clamp_with_inclusive_grad,
+    _interpolate_triangle_attribute,
+    _sample_texture,
+    _tiny_mlp,
+    _validate_mlp,
+    _validate_mlp_activation_options,
+    _validate_sampling_options,
+    _validate_texture_activation_options,
+)
 
 load_torch_ops("drtk.transparent_render_ext")
 
@@ -148,6 +160,458 @@ def source_transmittance(
         weights,
         uv if return_queries else None,
         depth if return_queries else None,
+    )
+
+
+@th.compiler.disable
+def source_transmittance_texture(
+    v_pix: th.Tensor,
+    vi: th.Tensor,
+    uv: th.Tensor,
+    texture: th.Tensor,
+    query_face_ids: th.Tensor,
+    query_barycentrics: th.Tensor,
+    height: int,
+    width: int,
+    *,
+    vertex_opacity: Optional[th.Tensor] = None,
+    mode: str = "bilinear",
+    padding_mode: str = "border",
+    alpha_activation: str = "relu_density",
+    edge_gradients: bool = True,
+    return_queries: bool = False,
+) -> Tuple[th.Tensor, th.Tensor, Optional[th.Tensor], Optional[th.Tensor]]:
+    """Evaluate source transmittance using a textured opacity field.
+
+    Uses the same perspective-correct UV interpolation, texture filtering, and
+    alpha activation as :func:`render_transparent`. With an RGBA texture, the
+    fourth channel supplies appearance alpha; an RGB texture supplies alpha
+    one. Interpolated vertex opacity multiplies this appearance alpha.
+
+    Occluders follow mean-triangle-depth order, with face index breaking ties.
+    Queries and surface connectivity follow :func:`source_transmittance`.
+    Sum the returned weights for transmittance, or pass them to
+    :func:`sample_with_transmittance` to gather attenuated source features.
+
+    Args:
+        v_pix: Float32 CUDA vertices ``(N, V, 3)`` in source pixel XY and
+            positive camera Z. Integer XY denotes pixel centers.
+        vi: Int32 faces ``(F, 3)`` or ``(N, F, 3)``. Shared indices define
+            connectivity; invalid or degenerate faces are ignored.
+        uv: Per-vertex texture coordinates ``(V, 2)``, ``(1, V, 2)``, or
+            ``(N, V, 2)`` in ``[0, 1]``.
+        texture: RGB or RGBA texture ``(N or 1, 3 or 4, Ht, Wt)``. RGB channels
+            do not affect visibility. Alpha activation follows texture filtering.
+        query_face_ids: Int32 receiving-face IDs ``(N, Q)``; ``-1`` marks
+            unused queries. The receiving face's own alpha is excluded.
+        query_barycentrics: Float32 3D barycentrics ``(N, Q, 3)``. Values must
+            be nonnegative and sum to one; invalid queries have zero weights.
+        height: Source feature-image height, independent of texture size.
+        width: Source feature-image width, independent of texture size.
+        vertex_opacity: Optional float32 material opacity ``(N, V)``, clamped
+            to ``[0, 1]`` and multiplied by appearance alpha. Defaults to one.
+        mode: Texture filtering: ``"bilinear"``, ``"nearest"``, or ``"bicubic"``.
+        padding_mode: Texture padding: ``"border"``, ``"zeros"``, or
+            ``"reflection"``. Sampling uses ``align_corners=False``.
+        alpha_activation: ``"relu_density"`` (default) computes
+            ``1 - exp(-max(a, 0))``. Alternatives are ``"shifted_sigmoid"``
+            (``sigmoid(a - 0.5)``), ``"exp_density"``
+            (``1 - exp(-exp(min(a, 15)))``), and ``"clamp"``
+            (``clamp(a, 0, 1)``).
+        edge_gradients: Estimate geometry gradients at occlusion and
+            receiving-surface boundaries. Defaults to True. Shared tessellation
+            edges and zero-alpha edge traces have no boundary jump.
+        return_queries: Also return query UV in normalized ``[-1, 1]`` image
+            coordinates and camera depth. Defaults to False.
+
+    Returns:
+        ``(tap_indices, tap_weights, query_uv, query_depth)``. Indices are
+        int32 ``(N, Q, 4)`` and weights are float32 ``(N, Q, 4)``, ordered
+        top-left, top-right, bottom-left, bottom-right. Each weight is a
+        bilinear coefficient times transmittance; invalid taps have zero
+        weight. Indices are flattened as ``y * width + x``; out-of-image or
+        unused-query taps have index ``-1``. Query UV ``(N, Q, 2)`` and depth
+        ``(N, Q)`` are None unless requested.
+
+    Gradients:
+        Smooth derivatives reach vertices, query barycentrics, UVs, material
+        opacity, and appearance parameters. RGB output channels do not affect
+        transmittance. Coverage boundaries contribute geometry gradients when
+        enabled; do not apply :func:`edge_grad_estimator` again to this result.
+        Face IDs, connectivity, and depth ordering are discrete. Second
+        derivatives are unsupported.
+
+        The alpha activations and endpoint derivatives match the corresponding
+        transparent renderer. In particular, final zero alpha has zero smooth
+        gradient, while exactly opaque fragments retain their opacity gradient
+        unless another opaque fragment blocks the query.
+    """
+    return _source_appearance(
+        v_pix,
+        vi,
+        query_face_ids,
+        query_barycentrics,
+        height,
+        width,
+        [uv, texture],
+        mlp=False,
+        vertex_opacity=vertex_opacity,
+        negative_slope=0.2,
+        mode=mode,
+        padding_mode=padding_mode,
+        alpha_activation=alpha_activation,
+        edge_gradients=edge_gradients,
+        return_queries=return_queries,
+        native=True,
+    )
+
+
+def source_transmittance_texture_ref(
+    v_pix: th.Tensor,
+    vi: th.Tensor,
+    uv: th.Tensor,
+    texture: th.Tensor,
+    query_face_ids: th.Tensor,
+    query_barycentrics: th.Tensor,
+    height: int,
+    width: int,
+    *,
+    vertex_opacity: Optional[th.Tensor] = None,
+    mode: str = "bilinear",
+    padding_mode: str = "border",
+    alpha_activation: str = "relu_density",
+    edge_gradients: bool = False,
+    return_queries: bool = False,
+) -> Tuple[th.Tensor, th.Tensor, Optional[th.Tensor], Optional[th.Tensor]]:
+    """Reference for :func:`source_transmittance_texture`, with smooth gradients only."""
+    return _source_appearance(
+        v_pix,
+        vi,
+        query_face_ids,
+        query_barycentrics,
+        height,
+        width,
+        [uv, texture],
+        mlp=False,
+        vertex_opacity=vertex_opacity,
+        negative_slope=0.2,
+        mode=mode,
+        padding_mode=padding_mode,
+        alpha_activation=alpha_activation,
+        edge_gradients=edge_gradients,
+        return_queries=return_queries,
+        native=False,
+    )
+
+
+@th.compiler.disable
+def source_transmittance_mlp(
+    v_pix: th.Tensor,
+    vi: th.Tensor,
+    uv: th.Tensor,
+    texture: th.Tensor,
+    weights: List[th.Tensor],
+    biases: List[th.Tensor],
+    query_face_ids: th.Tensor,
+    query_barycentrics: th.Tensor,
+    height: int,
+    width: int,
+    *,
+    vertex_opacity: Optional[th.Tensor] = None,
+    negative_slope: float = 0.2,
+    mode: str = "bilinear",
+    padding_mode: str = "border",
+    alpha_activation: str = "shifted_relu_density",
+    edge_gradients: bool = True,
+    return_queries: bool = False,
+) -> Tuple[th.Tensor, th.Tensor, Optional[th.Tensor], Optional[th.Tensor]]:
+    """Evaluate source transmittance from a feature texture and an appearance MLP.
+
+    Uses the alpha output of the appearance model from
+    :func:`render_transparent_mlp`. Features are sampled at perspective-correct
+    UVs before MLP evaluation. Use the same appearance inputs, vertex opacity,
+    and activation in visibility and rendering to obtain consistent attenuation.
+
+    Occluders follow mean-triangle-depth order, with face index breaking ties.
+    Queries and surface connectivity follow :func:`source_transmittance`.
+    Sum the returned weights for transmittance, or pass them to
+    :func:`sample_with_transmittance` to gather attenuated source features.
+    The appearance textures must be available before this sampling step; they
+    cannot depend on features sampled using the same transmittance.
+
+    Args:
+        v_pix: Float32 CUDA vertices ``(N, V, 3)`` in source pixel XY and
+            positive camera Z. Integer XY denotes pixel centers.
+        vi: Int32 faces ``(F, 3)`` or ``(N, F, 3)``. Shared indices define
+            connectivity; invalid or degenerate faces are ignored.
+        uv: Per-vertex texture coordinates ``(V, 2)``, ``(1, V, 2)``, or
+            ``(N, V, 2)`` in ``[0, 1]``.
+        texture: Feature texture ``(N or 1, C, Ht, Wt)``, with ``1 <= C <= 32``.
+        weights: Four or five affine weight tensors, with hidden width eight
+            and a final ``(4, 8)`` RGBA layer. Hidden layers use LeakyReLU.
+        biases: One bias per weight; the final bias has shape ``(4,)``.
+        query_face_ids: Int32 receiving-face IDs ``(N, Q)``; ``-1`` marks
+            unused queries. The receiving face's own alpha is excluded.
+        query_barycentrics: Float32 3D barycentrics ``(N, Q, 3)``. Values must
+            be nonnegative and sum to one; invalid queries have zero weights.
+        height: Source feature-image height, independent of texture size.
+        width: Source feature-image width, independent of texture size.
+        vertex_opacity: Optional float32 material opacity ``(N, V)``, clamped
+            to ``[0, 1]`` and multiplied by appearance alpha. Defaults to one.
+        negative_slope: Hidden LeakyReLU slope, in ``[0, 1]``. Defaults to 0.2.
+        mode: Texture filtering: ``"bilinear"``, ``"nearest"``, or ``"bicubic"``.
+        padding_mode: Texture padding: ``"border"``, ``"zeros"``, or
+            ``"reflection"``. Sampling uses ``align_corners=False``.
+        alpha_activation: ``"shifted_relu_density"`` (default) computes
+            ``1 - exp(-max(x + 0.5, 0))`` from the fourth MLP output.
+            Alternatives are ``"sigmoid"``, ``"exp_density"``
+            (``1 - exp(-exp(min(x, 15)))``), and ``"shifted_clamp"``
+            (``clamp(x + 0.5, 0, 1)``).
+        edge_gradients: Estimate geometry gradients at occlusion and
+            receiving-surface boundaries. Defaults to True. Shared tessellation
+            edges and zero-alpha edge traces have no boundary jump.
+        return_queries: Also return query UV in normalized ``[-1, 1]`` image
+            coordinates and camera depth. Defaults to False.
+
+    Returns:
+        ``(tap_indices, tap_weights, query_uv, query_depth)``. Indices are
+        int32 ``(N, Q, 4)`` and weights are float32 ``(N, Q, 4)``, ordered
+        top-left, top-right, bottom-left, bottom-right. Each weight is a
+        bilinear coefficient times transmittance; invalid taps have zero
+        weight. Indices are flattened as ``y * width + x``; out-of-image or
+        unused-query taps have index ``-1``. Query UV ``(N, Q, 2)`` and depth
+        ``(N, Q)`` are None unless requested.
+
+    Gradients:
+        Smooth derivatives reach vertices, query barycentrics, UVs, material
+        opacity, and appearance parameters. RGB output channels do not affect
+        transmittance. Coverage boundaries contribute geometry gradients when
+        enabled; do not apply :func:`edge_grad_estimator` again to this result.
+        Face IDs, connectivity, and depth ordering are discrete. Second
+        derivatives are unsupported.
+
+        The alpha activations and endpoint derivatives match the corresponding
+        transparent renderer. In particular, final zero alpha has zero smooth
+        gradient, while exactly opaque fragments retain their opacity gradient
+        unless another opaque fragment blocks the query.
+    """
+    return _source_appearance(
+        v_pix,
+        vi,
+        query_face_ids,
+        query_barycentrics,
+        height,
+        width,
+        [uv, uv, texture, texture.new_empty((1, 0, 1, 1)), *weights, *biases],
+        mlp=True,
+        vertex_opacity=vertex_opacity,
+        negative_slope=negative_slope,
+        mode=mode,
+        padding_mode=padding_mode,
+        alpha_activation=alpha_activation,
+        edge_gradients=edge_gradients,
+        return_queries=return_queries,
+        native=True,
+    )
+
+
+def source_transmittance_mlp_ref(
+    v_pix: th.Tensor,
+    vi: th.Tensor,
+    uv: th.Tensor,
+    texture: th.Tensor,
+    weights: List[th.Tensor],
+    biases: List[th.Tensor],
+    query_face_ids: th.Tensor,
+    query_barycentrics: th.Tensor,
+    height: int,
+    width: int,
+    *,
+    vertex_opacity: Optional[th.Tensor] = None,
+    negative_slope: float = 0.2,
+    mode: str = "bilinear",
+    padding_mode: str = "border",
+    alpha_activation: str = "shifted_relu_density",
+    edge_gradients: bool = False,
+    return_queries: bool = False,
+) -> Tuple[th.Tensor, th.Tensor, Optional[th.Tensor], Optional[th.Tensor]]:
+    """Reference for :func:`source_transmittance_mlp`, with smooth gradients only."""
+    return _source_appearance(
+        v_pix,
+        vi,
+        query_face_ids,
+        query_barycentrics,
+        height,
+        width,
+        [uv, uv, texture, texture.new_empty((1, 0, 1, 1)), *weights, *biases],
+        mlp=True,
+        vertex_opacity=vertex_opacity,
+        negative_slope=negative_slope,
+        mode=mode,
+        padding_mode=padding_mode,
+        alpha_activation=alpha_activation,
+        edge_gradients=edge_gradients,
+        return_queries=return_queries,
+        native=False,
+    )
+
+
+@th.compiler.disable
+def source_transmittance_mlp_two_textures(
+    v_pix: th.Tensor,
+    vi: th.Tensor,
+    uv0: th.Tensor,
+    uv1: th.Tensor,
+    texture0: th.Tensor,
+    texture1: th.Tensor,
+    weights: List[th.Tensor],
+    biases: List[th.Tensor],
+    query_face_ids: th.Tensor,
+    query_barycentrics: th.Tensor,
+    height: int,
+    width: int,
+    *,
+    vertex_opacity: Optional[th.Tensor] = None,
+    negative_slope: float = 0.2,
+    mode: str = "bilinear",
+    padding_mode: str = "border",
+    alpha_activation: str = "shifted_relu_density",
+    edge_gradients: bool = True,
+    return_queries: bool = False,
+) -> Tuple[th.Tensor, th.Tensor, Optional[th.Tensor], Optional[th.Tensor]]:
+    """Evaluate source transmittance from two feature textures and an appearance MLP.
+
+    Samples both textures with their own perspective-correct UVs, concatenates
+    the features, and uses the alpha output of :func:`render_transparent_mlp_two_textures`'s
+    appearance model. Use the same textures, UVs, MLP, vertex opacity, and
+    activation in visibility and rendering to obtain consistent attenuation.
+
+    Occluders follow mean-triangle-depth order, with face index breaking ties.
+    Queries and surface connectivity follow :func:`source_transmittance`.
+    Sum the returned weights for transmittance, or pass them to
+    :func:`sample_with_transmittance` to gather attenuated source features.
+    The appearance textures must be available before this sampling step; they
+    cannot depend on features sampled using the same transmittance.
+
+    Args:
+        v_pix: Float32 CUDA vertices ``(N, V, 3)`` in source pixel XY and
+            positive camera Z. Integer XY denotes pixel centers.
+        vi: Int32 faces ``(F, 3)`` or ``(N, F, 3)``. Shared indices define
+            connectivity; invalid or degenerate faces are ignored.
+        uv0: First texture coordinates ``(V, 2)``, ``(1, V, 2)``, or
+            ``(N, V, 2)`` in ``[0, 1]``.
+        uv1: Second texture coordinates, with the same shape conventions.
+        texture0: First feature texture ``(N or 1, C0, H0, W0)``.
+        texture1: Second feature texture ``(N or 1, C1, H1, W1)``. The combined
+            channel count must be in ``[1, 32]``; resolutions may differ.
+        weights: Four or five affine weight tensors, with hidden width eight
+            and a final ``(4, 8)`` RGBA layer. Hidden layers use LeakyReLU.
+        biases: One bias per weight; the final bias has shape ``(4,)``.
+        query_face_ids: Int32 receiving-face IDs ``(N, Q)``; ``-1`` marks
+            unused queries. The receiving face's own alpha is excluded.
+        query_barycentrics: Float32 3D barycentrics ``(N, Q, 3)``. Values must
+            be nonnegative and sum to one; invalid queries have zero weights.
+        height: Source feature-image height, independent of texture size.
+        width: Source feature-image width, independent of texture size.
+        vertex_opacity: Optional float32 material opacity ``(N, V)``, clamped
+            to ``[0, 1]`` and multiplied by appearance alpha. Defaults to one.
+        negative_slope: Hidden LeakyReLU slope, in ``[0, 1]``. Defaults to 0.2.
+        mode: Texture filtering: ``"bilinear"``, ``"nearest"``, or ``"bicubic"``.
+        padding_mode: Texture padding: ``"border"``, ``"zeros"``, or
+            ``"reflection"``. Sampling uses ``align_corners=False``.
+        alpha_activation: ``"shifted_relu_density"`` (default) computes
+            ``1 - exp(-max(x + 0.5, 0))`` from the fourth MLP output.
+            Alternatives are ``"sigmoid"``, ``"exp_density"``
+            (``1 - exp(-exp(min(x, 15)))``), and ``"shifted_clamp"``
+            (``clamp(x + 0.5, 0, 1)``).
+        edge_gradients: Estimate geometry gradients at occlusion and
+            receiving-surface boundaries. Defaults to True. Shared tessellation
+            edges and zero-alpha edge traces have no boundary jump.
+        return_queries: Also return query UV in normalized ``[-1, 1]`` image
+            coordinates and camera depth. Defaults to False.
+
+    Returns:
+        ``(tap_indices, tap_weights, query_uv, query_depth)``. Indices are
+        int32 ``(N, Q, 4)`` and weights are float32 ``(N, Q, 4)``, ordered
+        top-left, top-right, bottom-left, bottom-right. Each weight is a
+        bilinear coefficient times transmittance; invalid taps have zero
+        weight. Indices are flattened as ``y * width + x``; out-of-image or
+        unused-query taps have index ``-1``. Query UV ``(N, Q, 2)`` and depth
+        ``(N, Q)`` are None unless requested.
+
+    Gradients:
+        Smooth derivatives reach vertices, query barycentrics, UVs, material
+        opacity, and appearance parameters. RGB output channels do not affect
+        transmittance. Coverage boundaries contribute geometry gradients when
+        enabled; do not apply :func:`edge_grad_estimator` again to this result.
+        Face IDs, connectivity, and depth ordering are discrete. Second
+        derivatives are unsupported.
+
+        The alpha activations and endpoint derivatives match the corresponding
+        transparent renderer. In particular, final zero alpha has zero smooth
+        gradient, while exactly opaque fragments retain their opacity gradient
+        unless another opaque fragment blocks the query.
+    """
+    return _source_appearance(
+        v_pix,
+        vi,
+        query_face_ids,
+        query_barycentrics,
+        height,
+        width,
+        [uv0, uv1, texture0, texture1, *weights, *biases],
+        mlp=True,
+        vertex_opacity=vertex_opacity,
+        negative_slope=negative_slope,
+        mode=mode,
+        padding_mode=padding_mode,
+        alpha_activation=alpha_activation,
+        edge_gradients=edge_gradients,
+        return_queries=return_queries,
+        native=True,
+    )
+
+
+def source_transmittance_mlp_two_textures_ref(
+    v_pix: th.Tensor,
+    vi: th.Tensor,
+    uv0: th.Tensor,
+    uv1: th.Tensor,
+    texture0: th.Tensor,
+    texture1: th.Tensor,
+    weights: List[th.Tensor],
+    biases: List[th.Tensor],
+    query_face_ids: th.Tensor,
+    query_barycentrics: th.Tensor,
+    height: int,
+    width: int,
+    *,
+    vertex_opacity: Optional[th.Tensor] = None,
+    negative_slope: float = 0.2,
+    mode: str = "bilinear",
+    padding_mode: str = "border",
+    alpha_activation: str = "shifted_relu_density",
+    edge_gradients: bool = False,
+    return_queries: bool = False,
+) -> Tuple[th.Tensor, th.Tensor, Optional[th.Tensor], Optional[th.Tensor]]:
+    """Reference for :func:`source_transmittance_mlp_two_textures`, with smooth gradients only."""
+    return _source_appearance(
+        v_pix,
+        vi,
+        query_face_ids,
+        query_barycentrics,
+        height,
+        width,
+        [uv0, uv1, texture0, texture1, *weights, *biases],
+        mlp=True,
+        vertex_opacity=vertex_opacity,
+        negative_slope=negative_slope,
+        mode=mode,
+        padding_mode=padding_mode,
+        alpha_activation=alpha_activation,
+        edge_gradients=edge_gradients,
+        return_queries=return_queries,
+        native=False,
     )
 
 
@@ -377,6 +841,33 @@ def source_transmittance_ref(
     return_queries: bool = False,
 ) -> Tuple[th.Tensor, th.Tensor, Optional[th.Tensor], Optional[th.Tensor]]:
     """Reference for :func:`source_transmittance`, with smooth gradients only."""
+    return _source_transmittance_ref_impl(
+        v_pix,
+        vi,
+        query_face_ids,
+        query_barycentrics,
+        height,
+        width,
+        vertex_opacity=vertex_opacity,
+        edge_gradients=edge_gradients,
+        return_queries=return_queries,
+    )
+
+
+def _source_transmittance_ref_impl(
+    v_pix: th.Tensor,
+    vi: th.Tensor,
+    query_face_ids: th.Tensor,
+    query_barycentrics: th.Tensor,
+    height: int,
+    width: int,
+    *,
+    vertex_opacity: Optional[th.Tensor],
+    edge_gradients: bool,
+    return_queries: bool,
+    appearance_alpha: Optional[Callable[[int, th.Tensor, th.Tensor], th.Tensor]] = None,
+    appearance_zero: Optional[th.Tensor] = None,
+) -> Tuple[th.Tensor, th.Tensor, Optional[th.Tensor], Optional[th.Tensor]]:
     if edge_gradients:
         raise ValueError("the reference implements smooth gradients only")
     vi, opacity = _prepare(
@@ -395,6 +886,8 @@ def source_transmittance_ref(
         + query_barycentrics.nan_to_num().sum()
         + opacity.nan_to_num().sum()
     ) * 0
+    if appearance_zero is not None:
+        zero = zero + appearance_zero
     indices, weights, uvs, depths = [], [], [], []
     for batch in range(n):
         v, faces, op = v_pix[batch], vi[batch], opacity[batch]
@@ -459,6 +952,13 @@ def source_transmittance_ref(
                             th.zeros_like(alpha),
                             th.where(alpha > 1, th.ones_like(alpha), alpha),
                         )
+                        if appearance_alpha is not None:
+                            alpha = _clamp_with_inclusive_grad(
+                                th.relu(
+                                    alpha * appearance_alpha(batch, faces[other], pb)
+                                ),
+                                max_value=1.0,
+                            )
                         transmittance = transmittance * (1 - alpha)
                 weights.append(b * transmittance)
     idx = th.tensor(indices, dtype=th.int32, device=v_pix.device).reshape(n, q, 4)
@@ -482,3 +982,147 @@ def sample_with_transmittance_ref(
     samples = image.reshape(n, c, h * w).gather(2, idx).reshape(n, c, q, 4)
     weights = tap_weights * valid
     return (samples * weights[:, None]).sum(-1), weights.sum(-1)[:, None]
+
+
+def _prepare_source_appearance(
+    v: th.Tensor,
+    appearance: List[th.Tensor],
+    mlp: bool,
+    native: bool,
+) -> List[th.Tensor]:
+    if any(x.device != v.device or not x.is_floating_point() for x in appearance):
+        raise ValueError(
+            "appearance tensors must be floating point on the geometry device"
+        )
+    if not native and any(x.dtype != v.dtype for x in appearance):
+        raise ValueError("reference appearance tensors must share the geometry dtype")
+    uv_count = 2 if mlp else 1
+    prepared: List[th.Tensor] = []
+    for uv in appearance[:uv_count]:
+        if uv.ndim == 2:
+            uv = uv[None]
+        if (
+            uv.ndim != 3
+            or uv.shape[0] not in (1, v.shape[0])
+            or uv.shape[1:] != (v.shape[1], 2)
+        ):
+            raise ValueError("UVs must have shape (V, 2), (1, V, 2), or (N, V, 2)")
+        prepared.append(uv.expand(v.shape[0], -1, -1))
+    prepared.extend(appearance[uv_count:])
+    textures = prepared[2:4] if mlp else prepared[1:2]
+    for texture in textures:
+        if (
+            texture.ndim != 4
+            or texture.shape[0] not in (1, v.shape[0])
+            or min(texture.shape[2:]) <= 0
+        ):
+            raise ValueError(
+                "textures must have shape (N or 1, C, Ht, Wt) with positive spatial dimensions"
+            )
+    if mlp:
+        layers = (len(prepared) - 4) // 2
+        _validate_mlp(
+            textures[0].shape[1] + textures[1].shape[1],
+            prepared[4 : 4 + layers],
+            prepared[4 + layers :],
+        )
+    elif textures[0].shape[1] not in (3, 4):
+        raise ValueError("texture must have three or four channels")
+    return prepared
+
+
+def _source_appearance(
+    v: th.Tensor,
+    vi: th.Tensor,
+    qf: th.Tensor,
+    qb: th.Tensor,
+    height: int,
+    width: int,
+    appearance: List[th.Tensor],
+    *,
+    mlp: bool,
+    vertex_opacity: Optional[th.Tensor],
+    negative_slope: float,
+    mode: str,
+    padding_mode: str,
+    alpha_activation: str,
+    edge_gradients: bool,
+    return_queries: bool,
+    native: bool,
+) -> Tuple[th.Tensor, th.Tensor, Optional[th.Tensor], Optional[th.Tensor]]:
+    vi, opacity = _prepare(v, vi, qf, qb, height, width, vertex_opacity, native=native)
+    mode_enum, padding_enum = _validate_sampling_options(mode, padding_mode)
+    _, activation_enum = (
+        _validate_mlp_activation_options("shifted_relu", alpha_activation)
+        if mlp
+        else _validate_texture_activation_options("identity", alpha_activation)
+    )
+    if not 0.0 <= negative_slope <= 1.0:
+        raise ValueError("negative_slope must be finite and in [0, 1]")
+    prepared = _prepare_source_appearance(v, appearance, mlp, native)
+    if native:
+        outputs = th.ops.source_features_ext.stencil_appearance(
+            v.contiguous(),
+            vi,
+            qf.contiguous(),
+            qb.contiguous(),
+            opacity,
+            [x.float().contiguous() for x in prepared],
+            height,
+            width,
+            mlp,
+            negative_slope,
+            mode_enum,
+            padding_enum,
+            activation_enum,
+            edge_gradients,
+        )
+        return (
+            outputs[0],
+            outputs[1],
+            outputs[2] if return_queries else None,
+            outputs[3] if return_queries else None,
+        )
+
+    uv_count = 2 if mlp else 1
+    textures = prepared[2:4] if mlp else prepared[1:2]
+    layers = (len(prepared) - 4) // 2
+
+    def evaluate(batch: int, face: th.Tensor, bary: th.Tensor) -> th.Tensor:
+        samples = []
+        for uv, texture in zip(prepared[:uv_count], textures, strict=True):
+            if texture.shape[1] == 0:
+                continue
+            coords = _interpolate_triangle_attribute(
+                uv[batch], face, bary[:, None, None]
+            )
+            tb = texture[batch : batch + 1] if texture.shape[0] != 1 else texture
+            samples.append(_sample_texture(tb, coords, mode, padding_mode))
+        if mlp:
+            rgba = _tiny_mlp(
+                th.cat(samples),
+                prepared[4 : 4 + layers],
+                prepared[4 + layers :],
+                negative_slope,
+                "shifted_relu",
+                alpha_activation,
+            )
+            return rgba[3, 0, 0]
+        if textures[0].shape[1] == 3:
+            return bary.new_ones(())
+        return _activate_texture_alpha(samples[0][3, 0, 0], alpha_activation)
+
+    zero = sum((x.nan_to_num().sum() * 0 for x in prepared), v.new_zeros(()))
+    return _source_transmittance_ref_impl(
+        v,
+        vi,
+        qf,
+        qb,
+        height,
+        width,
+        vertex_opacity=opacity,
+        edge_gradients=edge_gradients,
+        return_queries=return_queries,
+        appearance_alpha=evaluate,
+        appearance_zero=zero,
+    )

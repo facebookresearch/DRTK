@@ -5,6 +5,33 @@
 #include <torch/types.h>
 #include <vector>
 
+struct SourceShadingOptions {
+  bool mlp;
+  float negative_slope;
+  int32_t interpolation_mode;
+  int32_t padding_mode;
+  int32_t alpha_activation;
+};
+
+std::vector<torch::Tensor> source_stencil_appearance_forward(
+    const torch::Tensor& v,
+    const torch::Tensor& vi,
+    const torch::Tensor& query_faces,
+    const torch::Tensor& query_bary,
+    const torch::Tensor& opacity,
+    const torch::TensorList& appearance,
+    int64_t height,
+    int64_t width,
+    const SourceShadingOptions& options);
+std::vector<torch::Tensor> source_stencil_appearance_backward(
+    const torch::TensorList& saved,
+    const torch::TensorList& grads,
+    const torch::TensorList& appearance,
+    int64_t height,
+    int64_t width,
+    bool edge_gradients,
+    const SourceShadingOptions& options);
+
 std::vector<torch::Tensor> source_stencil_forward(
     const torch::Tensor& v,
     const torch::Tensor& vi,

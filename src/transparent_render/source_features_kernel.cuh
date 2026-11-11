@@ -53,26 +53,72 @@ source_screen_bary(const TriangleData& t, float x, float y, float* b) {
   }
 }
 
-__device__ __forceinline__ float source_alpha(
-    const TriangleData& t,
+struct SourceMaterialEvaluator {
+  static constexpr bool shaded = false;
+  static constexpr bool shared_grads = false;
+};
+
+template <typename Fragment, bool SharedGrads = false>
+struct SourceAppearanceEvaluator : Fragment {
+  static constexpr bool shaded = true;
+  static constexpr bool shared_grads = SharedGrads;
+};
+
+__device__ void source_load_uv(const GeometryParams& g, int32_t n, TriangleData& t) {
+#pragma unroll
+  for (int c = 0; c < 3; ++c) {
+    const int64_t vertex = static_cast<int64_t>(n) * g.vertex_count + t.vertex_id[c];
+    t.u[c] = g.uv[vertex * 2];
+    t.v[c] = g.uv[vertex * 2 + 1];
+    if (g.reference_uv != nullptr) {
+      t.reference_u[c] = g.reference_uv[vertex * 2];
+      t.reference_v[c] = g.reference_uv[vertex * 2 + 1];
+    }
+  }
+}
+
+template <typename Evaluator>
+__device__ float source_combined_alpha(
+    const GeometryParams& g,
+    const Evaluator& evaluator,
+    int32_t n,
+    TriangleData& t,
+    const float* bary,
+    float material,
+    float& appearance) {
+  material = fminf(fmaxf(material, 0.0f), 1.0f);
+  appearance = 1.0f;
+  if constexpr (Evaluator::shaded) {
+    source_load_uv(g, n, t);
+    float rgb[3];
+    evaluator.evaluate(n, t, bary, rgb, appearance);
+  }
+  return fminf(material * appearance, kAlphaMax);
+}
+
+template <typename Evaluator>
+__device__ float source_alpha(
+    const GeometryParams& g,
+    const Evaluator& evaluator,
+    int32_t face,
+    TriangleData& t,
     const float* screen,
     float* bary,
     float& inverse_depth,
-    float& unclamped) {
+    float& unclamped,
+    float& appearance) {
   inverse_depth = 0.0f;
 #pragma unroll
   for (int c = 0; c < 3; ++c) {
     bary[c] = screen[c] / t.z[c];
     inverse_depth += bary[c];
   }
-  unclamped = 0.0f;
 #pragma unroll
   for (int c = 0; c < 3; ++c) {
     bary[c] /= inverse_depth;
   }
-  unclamped = t.opacity[0] + bary[1] * (t.opacity[1] - t.opacity[0]) +
-      bary[2] * (t.opacity[2] - t.opacity[0]);
-  return fminf(fmaxf(unclamped, 0.0f), 1.0f);
+  unclamped = interpolate_material_opacity(t, bary);
+  return source_combined_alpha(g, evaluator, face / g.face_count, t, bary, unclamped, appearance);
 }
 
 __global__ void source_edge_keys(GeometryParams g, int32_t count, uint64_t* keys, int32_t* ids) {
@@ -256,8 +302,14 @@ source_tile(const SourceParams& p, int32_t n, int32_t x, int32_t y) {
   return (n * th + y / kTileSize) * tw + x / kTileSize;
 }
 
-__device__ float
-source_prefix(const SourceParams& p, int32_t receiver, int32_t tile, float x, float y) {
+template <typename Evaluator>
+__device__ float source_prefix(
+    const SourceParams& p,
+    const Evaluator& evaluator,
+    int32_t receiver,
+    int32_t tile,
+    float x,
+    float y) {
   TriangleData r;
   source_triangle(p.geometry, receiver, r);
   const uint64_t rank = triangle_order_key(r, receiver);
@@ -269,9 +321,10 @@ source_prefix(const SourceParams& p, int32_t receiver, int32_t tile, float x, fl
     if (triangle_order_key(t, face) >= rank) {
       break;
     }
-    float sb[3], pb[3], iz, a;
+    float sb[3], pb[3], iz, a, appearance;
     if (hard_triangle_coverage(t, x, y, source_area(t), sb)) {
-      transmittance *= 1.0f - source_alpha(t, sb, pb, iz, a);
+      transmittance *=
+          1.0f - source_alpha(p.geometry, evaluator, face, t, sb, pb, iz, a, appearance);
       if (transmittance == 0.0f) {
         break;
       }
@@ -318,8 +371,10 @@ source_query(const SourceParams& p, int32_t query, int32_t& face, float& x, floa
   return isfinite(x) && isfinite(y) && isfinite(z);
 }
 
+template <typename Evaluator>
 __global__ void source_stencil_kernel(
     SourceParams p,
+    const Evaluator evaluator,
     int32_t total,
     int32_t* indices,
     float* weights,
@@ -355,23 +410,27 @@ __global__ void source_stencil_kernel(
     const int32_t receiver = source_receiver(p, face, x, y, tx, ty);
     receivers[slot] = receiver;
     if (receiver >= 0) {
-      const float trans =
-          source_prefix(p, receiver, source_tile(p, query / p.query_count, tx, ty), tx, ty);
+      const float trans = source_prefix(
+          p, evaluator, receiver, source_tile(p, query / p.query_count, tx, ty), tx, ty);
       visibility[slot] = trans;
       weights[slot] = trans * ((j & 1) ? fx : 1.0f - fx) * ((j >> 1) ? fy : 1.0f - fy);
     }
   }
 }
 
+template <typename Evaluator>
 __device__ void source_material_backward(
     const SourceParams& p,
+    const Evaluator& evaluator,
     int32_t receiver,
     int32_t tile,
     int32_t x,
     int32_t y,
     float grad,
     float* gv,
-    float* go) {
+    float* go,
+    float* gu,
+    float* gu1) {
   TriangleData r;
   source_triangle(p.geometry, receiver, r);
   const uint64_t rank = triangle_order_key(r, receiver);
@@ -384,9 +443,10 @@ __device__ void source_material_backward(
     if (triangle_order_key(t, face) >= rank) {
       break;
     }
-    float sb[3], pb[3], iz, a;
+    float sb[3], pb[3], iz, a, appearance;
     if (hard_triangle_coverage(t, x, y, source_area(t), sb)) {
-      const float factor = 1.0f - source_alpha(t, sb, pb, iz, a);
+      const float factor =
+          1.0f - source_alpha(p.geometry, evaluator, face, t, sb, pb, iz, a, appearance);
       if (factor == 0.0f) {
         ++zeros;
       } else {
@@ -405,25 +465,45 @@ __device__ void source_material_backward(
     if (triangle_order_key(t, face) >= rank) {
       break;
     }
-    float sb[3], pb[3], iz, a;
+    float sb[3], pb[3], iz, a, appearance;
     if (!hard_triangle_coverage(t, x, y, source_area(t), sb)) {
       continue;
     }
-    const float factor = 1.0f - source_alpha(t, sb, pb, iz, a);
-    if (a < 0.0f || a > 1.0f || (zeros == 1 && factor != 0.0f)) {
+    const float alpha = source_alpha(p.geometry, evaluator, face, t, sb, pb, iz, a, appearance);
+    const float factor = 1.0f - alpha;
+    // Unshaded material outside the clamp has no derivative. With an
+    // appearance model, a saturated material can still transmit its gradients.
+    if ((zeros == 1 && factor != 0.0f) || (!Evaluator::shaded && (a < 0.0f || a > 1.0f))) {
       continue;
     }
     const float except =
         factor == 0.0f ? nonzero.value() : ldexpf(nonzero.mantissa / factor, -nonzero.exponent);
-    const float ga = -grad * except;
-    float gb[3], gx[3] = {}, gy[3] = {}, gz[3] = {};
+    // A small positive alpha can round 1-alpha to one without reaching the
+    // zero-alpha ReLU endpoint. Preserve its opacity derivative.
+    const float ga = Evaluator::shaded && alpha == 0.0f ? 0.0f : -grad * except;
+    const float material = fminf(fmaxf(a, 0.0f), 1.0f);
+    const float gm = a >= 0.0f && a <= 1.0f ? ga * appearance : 0.0f;
+    FragmentAttributeGrads attr{};
+    if constexpr (Evaluator::shaded) {
+      const float rgb_grad[3] = {};
+      evaluator.backward(n, t, pb, rgb_grad, ga * material, appearance, attr);
+    }
+    float gx[3] = {}, gy[3] = {}, gz[3] = {};
 #pragma unroll
     for (int c = 0; c < 3; ++c) {
       const int64_t vertex = static_cast<int64_t>(n) * p.geometry.vertex_count + t.vertex_id[c];
-      atomicAdd(go + vertex, ga * (c == 0 ? 1.0f - pb[1] - pb[2] : pb[c]));
-      gb[c] = ga * (t.opacity[c] - t.opacity[0]);
+      atomicAdd(go + vertex, gm * (c == 0 ? 1.0f - pb[1] - pb[2] : pb[c]));
+      attr.bary[c] += gm * (t.opacity[c] - t.opacity[0]);
+      if constexpr (Evaluator::shaded) {
+        atomicAdd(gu + vertex * 2, attr.u[c]);
+        atomicAdd(gu + vertex * 2 + 1, attr.v[c]);
+        if (gu1 != nullptr) {
+          atomicAdd(gu1 + vertex * 2, attr.reference_u[c]);
+          atomicAdd(gu1 + vertex * 2 + 1, attr.reference_v[c]);
+        }
+      }
     }
-    perspective_barycentric_backward(t, x, y, sb, pb, iz, gb, gx, gy, gz);
+    perspective_barycentric_backward(t, x, y, sb, pb, iz, attr.bary, gx, gy, gz);
 #pragma unroll
     for (int c = 0; c < 3; ++c) {
       const int64_t vertex = static_cast<int64_t>(n) * p.geometry.vertex_count + t.vertex_id[c];
@@ -434,8 +514,10 @@ __device__ void source_material_backward(
   }
 }
 
+template <typename Evaluator>
 __device__ float source_boundary_limit(
     const SourceParams& p,
+    const Evaluator& evaluator,
     int32_t receiver,
     int32_t tile,
     int32_t x,
@@ -469,9 +551,9 @@ __device__ float source_boundary_limit(
     if (has_first && has_second) {
       continue;
     }
-    float sb[3], pb[3], iz, a;
+    float sb[3], pb[3], iz, a, appearance;
     if (hard_triangle_coverage(t, x, y, source_area(t), sb)) {
-      trans *= 1.0f - source_alpha(t, sb, pb, iz, a);
+      trans *= 1.0f - source_alpha(p.geometry, evaluator, face, t, sb, pb, iz, a, appearance);
     }
   }
   for (int32_t i = begin; i < end; ++i) {
@@ -486,8 +568,10 @@ __device__ float source_boundary_limit(
   return trans;
 }
 
+template <typename Evaluator>
 __device__ void source_edge_backward(
     const SourceParams& p,
+    const Evaluator& evaluator,
     int32_t query,
     int32_t query_face,
     float qx,
@@ -546,15 +630,20 @@ __device__ void source_edge_backward(
           rp = rm = actual_receiver;
         }
         const float ba = (1.0f - pair.t) / t.z[a], bb = pair.t / t.z[b];
+        float pb[3] = {};
+        pb[a] = ba / (ba + bb);
+        pb[b] = bb / (ba + bb);
+        float appearance;
+        const float material = t.opacity[a] + pb[b] * (t.opacity[b] - t.opacity[a]);
         const float alpha =
-            fminf(fmaxf((ba * t.opacity[a] + bb * t.opacity[b]) / (ba + bb), 0.0f), 1.0f);
+            source_combined_alpha(p.geometry, evaluator, n, t, pb, material, appearance);
         if (alpha == 0.0f && rp == rm) {
           continue;
         }
         const float plus = source_boundary_limit(
-            p, rp, tile, x, y, t.vertex_id[a], t.vertex_id[b], begin, end, alpha, true);
+            p, evaluator, rp, tile, x, y, t.vertex_id[a], t.vertex_id[b], begin, end, alpha, true);
         const float minus = source_boundary_limit(
-            p, rm, tile, x, y, t.vertex_id[a], t.vertex_id[b], begin, end, alpha, false);
+            p, evaluator, rm, tile, x, y, t.vertex_id[a], t.vertex_id[b], begin, end, alpha, false);
         const float force = 0.5f * pair.sign * grad * (plus - minus);
         const int64_t va = static_cast<int64_t>(n) * p.geometry.vertex_count + t.vertex_id[a];
         const int64_t vb = static_cast<int64_t>(n) * p.geometry.vertex_count + t.vertex_id[b];
@@ -565,8 +654,10 @@ __device__ void source_edge_backward(
   }
 }
 
-__global__ void source_stencil_backward_kernel(
+template <typename Evaluator>
+__device__ void source_stencil_backward_query(
     SourceParams p,
+    const Evaluator& evaluator,
     int32_t total,
     const int32_t* indices,
     const int32_t* receivers,
@@ -577,8 +668,10 @@ __global__ void source_stencil_backward_kernel(
     bool edges,
     float* gv,
     float* gb,
-    float* go) {
-  const int32_t query = blockIdx.x * blockDim.x + threadIdx.x;
+    float* go,
+    float* gu,
+    float* gu1,
+    int32_t query) {
   if (query >= total) {
     return;
   }
@@ -607,10 +700,12 @@ __global__ void source_stencil_backward_kernel(
     const float grad = gw[slot] * wx * wy;
     if (grad != 0.0f) {
       if (receivers[slot] >= 0) {
-        source_material_backward(p, receivers[slot], tile, tx, ty, grad, gv, go);
+        source_material_backward(
+            p, evaluator, receivers[slot], tile, tx, ty, grad, gv, go, gu, gu1);
       }
       if (edges) {
-        source_edge_backward(p, query, face, x, y, tile, tx, ty, receivers[slot], grad, gv);
+        source_edge_backward(
+            p, evaluator, query, face, x, y, tile, tx, ty, receivers[slot], grad, gv);
       }
     }
   }
@@ -625,6 +720,58 @@ __global__ void source_stencil_backward_kernel(
     atomicAdd(gv + vertex * 3 + 1, beta * t.z[c] * gy / z);
     atomicAdd(gv + vertex * 3 + 2, beta * (projection + gz[query]));
     gb[static_cast<int64_t>(query) * 3 + c] = t.z[c] * (projection + gz[query]);
+  }
+}
+
+template <typename Evaluator>
+__global__ void source_stencil_backward_kernel(
+    SourceParams p,
+    Evaluator evaluator,
+    int32_t total,
+    const int32_t* indices,
+    const int32_t* receivers,
+    const float* visibility,
+    const float* gw,
+    const float* guv,
+    const float* gz,
+    bool edges,
+    float* gv,
+    float* gb,
+    float* go,
+    float* gu,
+    float* gu1) {
+  __shared__ float shared_weights[kMaxMlpWeightParams];
+  __shared__ float shared_biases[kMaxMlpBiasParams];
+  if constexpr (Evaluator::shared_grads) {
+    for (int i = threadIdx.x; i < evaluator.shared_weight_grad_count(); i += blockDim.x) {
+      shared_weights[i] = 0.0f;
+    }
+    for (int i = threadIdx.x; i < evaluator.shared_bias_grad_count(); i += blockDim.x) {
+      shared_biases[i] = 0.0f;
+    }
+    __syncthreads();
+    evaluator.bind_shared_mlp_grads(shared_weights, shared_biases);
+  }
+  source_stencil_backward_query(
+      p,
+      evaluator,
+      total,
+      indices,
+      receivers,
+      visibility,
+      gw,
+      guv,
+      gz,
+      edges,
+      gv,
+      gb,
+      go,
+      gu,
+      gu1,
+      blockIdx.x * blockDim.x + threadIdx.x);
+  if constexpr (Evaluator::shared_grads) {
+    __syncthreads();
+    evaluator.flush_shared_mlp_grads(threadIdx.x, blockDim.x);
   }
 }
 
@@ -795,14 +942,18 @@ source_feature_shape(const torch::Tensor& f, const torch::Tensor& idx, const tor
 
 } // namespace
 
-std::vector<torch::Tensor> source_stencil_forward(
+template <typename Evaluator>
+std::vector<torch::Tensor> launch_source_stencil_forward(
     const torch::Tensor& v,
     const torch::Tensor& vi,
     const torch::Tensor& qf,
     const torch::Tensor& qb,
     const torch::Tensor& opacity,
     int64_t height,
-    int64_t width) {
+    int64_t width,
+    const Evaluator& evaluator,
+    const torch::Tensor& uv0 = {},
+    const torch::Tensor& uv1 = {}) {
   source_check(v, at::kFloat, v.device());
   source_check(vi, at::kInt, v.device());
   source_check(qf, at::kInt, v.device());
@@ -820,7 +971,11 @@ std::vector<torch::Tensor> source_stencil_forward(
           qf.numel() < INT32_MAX / 4,
       "source features: dimensions exceed int32 indexing");
   const c10::cuda::CUDAGuard guard(v.device());
-  const auto g = source_geometry(v, vi, opacity);
+  auto g = source_geometry(v, vi, opacity);
+  if constexpr (Evaluator::shaded) {
+    g.uv = uv0.data_ptr<float>();
+    g.reference_uv = uv1.defined() ? uv1.data_ptr<float>() : nullptr;
+  }
   const auto adjacency = source_build_adjacency(g, vi);
   const auto bins =
       build_tile_bins(v, vi, static_cast<int32_t>(height), static_cast<int32_t>(width), 1);
@@ -845,6 +1000,7 @@ std::vector<torch::Tensor> source_stencil_forward(
         width);
     source_stencil_kernel<<<(n * q + 127) / 128, 128, 0, at::cuda::getCurrentCUDAStream()>>>(
         p,
+        evaluator,
         static_cast<int32_t>(n * q),
         indices.data_ptr<int32_t>(),
         weights.data_ptr<float>(),
@@ -868,19 +1024,29 @@ std::vector<torch::Tensor> source_stencil_forward(
       adjacency[2]};
 }
 
-std::vector<torch::Tensor> source_stencil_backward(
+template <typename Evaluator>
+std::vector<torch::Tensor> launch_source_stencil_backward(
     const torch::TensorList& s,
     const torch::TensorList& grads,
     int64_t height,
     int64_t width,
-    bool edge_gradients) {
+    bool edge_gradients,
+    const Evaluator& evaluator,
+    const torch::Tensor& uv0 = {},
+    const torch::Tensor& uv1 = {},
+    const torch::Tensor& gu = {},
+    const torch::Tensor& gu1 = {}) {
   TORCH_CHECK(s.size() == 16 && grads.size() == 3, "source features: invalid saved state");
   const auto& v = s[0];
   const c10::cuda::CUDAGuard guard(v.device());
   auto gv = torch::zeros_like(v), gb = torch::zeros_like(s[3]), go = torch::zeros_like(s[4]);
   const auto total = s[2].numel();
   if (total) {
-    const auto g = source_geometry(v, s[1], s[4]);
+    auto g = source_geometry(v, s[1], s[4]);
+    if constexpr (Evaluator::shaded) {
+      g.uv = uv0.data_ptr<float>();
+      g.reference_uv = uv1.defined() ? uv1.data_ptr<float>() : nullptr;
+    }
     const auto p = source_params(g, s[2], s[3], s[13], s[14], s[15], s[11], s[12], height, width);
     source_stencil_backward_kernel<<<
         (total + 127) / 128,
@@ -888,6 +1054,7 @@ std::vector<torch::Tensor> source_stencil_backward(
         0,
         at::cuda::getCurrentCUDAStream()>>>(
         p,
+        evaluator,
         static_cast<int32_t>(total),
         s[5].data_ptr<int32_t>(),
         s[9].data_ptr<int32_t>(),
@@ -898,10 +1065,297 @@ std::vector<torch::Tensor> source_stencil_backward(
         edge_gradients,
         gv.data_ptr<float>(),
         gb.data_ptr<float>(),
-        go.data_ptr<float>());
+        go.data_ptr<float>(),
+        gu.defined() ? gu.data_ptr<float>() : nullptr,
+        gu1.defined() ? gu1.data_ptr<float>() : nullptr);
     C10_CUDA_KERNEL_LAUNCH_CHECK();
   }
   return {gv, gb, go};
+}
+
+std::vector<torch::Tensor> source_stencil_forward(
+    const torch::Tensor& v,
+    const torch::Tensor& vi,
+    const torch::Tensor& qf,
+    const torch::Tensor& qb,
+    const torch::Tensor& opacity,
+    int64_t height,
+    int64_t width) {
+  return launch_source_stencil_forward(
+      v, vi, qf, qb, opacity, height, width, SourceMaterialEvaluator{});
+}
+
+std::vector<torch::Tensor> source_stencil_backward(
+    const torch::TensorList& saved,
+    const torch::TensorList& grads,
+    int64_t height,
+    int64_t width,
+    bool edges) {
+  return launch_source_stencil_backward(
+      saved, grads, height, width, edges, SourceMaterialEvaluator{});
+}
+
+namespace {
+
+struct SourceTextureForward : TextureFragmentEvaluator {
+  __device__ void
+  evaluate(int32_t n, const TriangleData& t, const float* bary, float*, float& alpha) const {
+    alpha = 1.0f;
+    if (channels == 3) {
+      return;
+    }
+    float u = 0.0f, v = 0.0f;
+#pragma unroll
+    for (int c = 0; c < 3; ++c) {
+      u += bary[c] * t.u[c];
+      v += bary[c] * t.v[c];
+    }
+    const int64_t offset = ((texture_batch == 1 ? 0 : n) * int64_t(channels) + 3) * height * width;
+    float raw;
+    sample_texture(
+        texture + offset, 1, 1, height, width, 0, u, v, interpolation_mode, padding_mode, &raw);
+    alpha = activate_texture_alpha(raw, alpha_activation);
+  }
+};
+
+struct SourceTextureBackward {
+  SourceTextureForward forward;
+  float* texture_grad;
+
+  __device__ void
+  evaluate(int32_t n, const TriangleData& t, const float* bary, float* rgb, float& alpha) const {
+    forward.evaluate(n, t, bary, rgb, alpha);
+  }
+
+  __device__ void backward(
+      int32_t n,
+      const TriangleData& t,
+      const float* bary,
+      const float*,
+      float grad,
+      float,
+      FragmentAttributeGrads& attr) const {
+    if (forward.channels == 3) {
+      return;
+    }
+    float u = 0.0f, v = 0.0f;
+#pragma unroll
+    for (int c = 0; c < 3; ++c) {
+      u += bary[c] * t.u[c];
+      v += bary[c] * t.v[c];
+    }
+    const int64_t offset = ((forward.texture_batch == 1 ? 0 : n) * int64_t(forward.channels) + 3) *
+        forward.height * forward.width;
+    const float* texture = forward.texture + offset;
+    float raw;
+    sample_texture(
+        texture,
+        1,
+        1,
+        forward.height,
+        forward.width,
+        0,
+        u,
+        v,
+        forward.interpolation_mode,
+        forward.padding_mode,
+        &raw);
+    grad *= activate_texture_alpha_backward(raw, forward.alpha_activation);
+    float gu = 0.0f, gv = 0.0f;
+    sample_texture_backward(
+        texture,
+        texture_grad + offset,
+        1,
+        1,
+        forward.height,
+        forward.width,
+        0,
+        u,
+        v,
+        forward.interpolation_mode,
+        forward.padding_mode,
+        &grad,
+        gu,
+        gv);
+#pragma unroll
+    for (int c = 0; c < 3; ++c) {
+      attr.u[c] += bary[c] * gu;
+      attr.v[c] += bary[c] * gv;
+      attr.bary[c] += gu * t.u[c] + gv * t.v[c];
+    }
+  }
+};
+
+void check_source_appearance(
+    const torch::Tensor& v,
+    const torch::TensorList& a,
+    const SourceShadingOptions& o) {
+  TORCH_CHECK(
+      o.interpolation_mode >= 0 && o.interpolation_mode < 3 && o.padding_mode >= 0 &&
+          o.padding_mode < 3 && o.alpha_activation >= 0 &&
+          o.alpha_activation < kActivationModeCount,
+      "source transmittance: invalid shading options");
+  TORCH_CHECK(
+      std::isfinite(o.negative_slope) && o.negative_slope >= 0.0f && o.negative_slope <= 1.0f,
+      "source transmittance: negative_slope must be in [0, 1]");
+  TORCH_CHECK(
+      o.mlp ? (a.size() == 12 || a.size() == 14) : a.size() == 2,
+      "source transmittance: invalid appearance tensor list");
+  for (const auto& t : a) {
+    source_check(t, at::kFloat, v.device());
+  }
+  for (int i = 0; i < (o.mlp ? 2 : 1); ++i) {
+    TORCH_CHECK(
+        a[i].dim() == 3 && a[i].size(0) == v.size(0) && a[i].size(1) == v.size(1) &&
+            a[i].size(2) == 2,
+        "source transmittance: UVs must have shape [N, V, 2]");
+  }
+  if (!o.mlp) {
+    check_texture(a[1], v.size(0), "texture");
+    TORCH_CHECK(
+        a[1].size(1) == 3 || a[1].size(1) == 4,
+        "source transmittance: texture must be RGB or RGBA");
+    return;
+  }
+  check_texture(a[2], v.size(0), "texture0");
+  check_texture(a[3], v.size(0), "texture1", true);
+  int64_t inputs = a[2].size(1) + a[3].size(1);
+  TORCH_CHECK(
+      inputs > 0 && inputs <= kMaxFeatureChannels,
+      "source transmittance: total feature channels must be in [1, 32]");
+  const size_t layers = (a.size() - 4) / 2;
+  for (size_t i = 0; i < layers; ++i) {
+    const int64_t outputs = i + 1 == layers ? 4 : kMlpWidth;
+    TORCH_CHECK(
+        a[4 + i].dim() == 2 && a[4 + i].size(0) == outputs && a[4 + i].size(1) == inputs &&
+            a[4 + layers + i].dim() == 1 && a[4 + layers + i].size(0) == outputs,
+        "source transmittance: invalid MLP parameter shape");
+    inputs = outputs;
+  }
+}
+
+SourceTextureForward source_texture_evaluator(
+    const torch::Tensor& texture,
+    const SourceShadingOptions& o) {
+  return {
+      {texture.data_ptr<float>(),
+       static_cast<int32_t>(texture.size(0)),
+       static_cast<int32_t>(texture.size(1)),
+       static_cast<int32_t>(texture.size(2)),
+       static_cast<int32_t>(texture.size(3)),
+       o.interpolation_mode,
+       o.padding_mode,
+       0,
+       o.alpha_activation}};
+}
+
+template <int Layers>
+MlpFragmentEvaluator<Layers, true> source_mlp_evaluator(
+    const torch::TensorList& a,
+    const SourceShadingOptions& o) {
+  TinyMlpParams mlp{};
+  mlp.input_channels = a[2].size(1) + a[3].size(1);
+  mlp.negative_slope = o.negative_slope;
+  mlp.alpha_activation = o.alpha_activation;
+  for (int i = 0; i < Layers; ++i) {
+    mlp.weights[i] = a[4 + i].data_ptr<float>();
+    mlp.biases[i] = a[4 + Layers + i].data_ptr<float>();
+  }
+  return {
+      a[2].data_ptr<float>(),
+      a[3].data_ptr<float>(),
+      static_cast<int32_t>(a[2].size(0)),
+      static_cast<int32_t>(a[3].size(0)),
+      static_cast<int32_t>(a[2].size(1)),
+      static_cast<int32_t>(a[3].size(1)),
+      static_cast<int32_t>(a[2].size(2)),
+      static_cast<int32_t>(a[2].size(3)),
+      static_cast<int32_t>(a[3].size(2)),
+      static_cast<int32_t>(a[3].size(3)),
+      o.interpolation_mode,
+      o.padding_mode,
+      mlp};
+}
+
+template <int Layers>
+std::vector<torch::Tensor> source_mlp_backward(
+    const torch::TensorList& s,
+    const torch::TensorList& grads,
+    const torch::TensorList& a,
+    const torch::TensorList& ga,
+    int64_t height,
+    int64_t width,
+    bool edges,
+    const SourceShadingOptions& o) {
+  TinyMlpGradParams mg{};
+  for (int i = 0; i < Layers; ++i) {
+    mg.weights[i] = ga[4 + i].data_ptr<float>();
+    mg.biases[i] = ga[4 + Layers + i].data_ptr<float>();
+  }
+  SourceAppearanceEvaluator<MlpFragmentBackward<Layers, true>, true> evaluator{
+      {source_mlp_evaluator<Layers>(a, o),
+       ga[2].data_ptr<float>(),
+       ga[3].data_ptr<float>(),
+       mg,
+       {}}};
+  return launch_source_stencil_backward(
+      s, grads, height, width, edges, evaluator, a[0], a[1], ga[0], ga[1]);
+}
+
+} // namespace
+
+std::vector<torch::Tensor> source_stencil_appearance_forward(
+    const torch::Tensor& v,
+    const torch::Tensor& vi,
+    const torch::Tensor& qf,
+    const torch::Tensor& qb,
+    const torch::Tensor& opacity,
+    const torch::TensorList& a,
+    int64_t height,
+    int64_t width,
+    const SourceShadingOptions& o) {
+  check_source_appearance(v, a, o);
+  if (!o.mlp) {
+    SourceAppearanceEvaluator<SourceTextureForward> evaluator{source_texture_evaluator(a[1], o)};
+    return launch_source_stencil_forward(v, vi, qf, qb, opacity, height, width, evaluator, a[0]);
+  }
+  if (a.size() == 12) {
+    SourceAppearanceEvaluator<MlpFragmentEvaluator<4, true>> evaluator{
+        source_mlp_evaluator<4>(a, o)};
+    return launch_source_stencil_forward(
+        v, vi, qf, qb, opacity, height, width, evaluator, a[0], a[1]);
+  }
+  SourceAppearanceEvaluator<MlpFragmentEvaluator<5, true>> evaluator{source_mlp_evaluator<5>(a, o)};
+  return launch_source_stencil_forward(
+      v, vi, qf, qb, opacity, height, width, evaluator, a[0], a[1]);
+}
+
+std::vector<torch::Tensor> source_stencil_appearance_backward(
+    const torch::TensorList& s,
+    const torch::TensorList& grads,
+    const torch::TensorList& a,
+    int64_t height,
+    int64_t width,
+    bool edges,
+    const SourceShadingOptions& o) {
+  const c10::cuda::CUDAGuard guard(s[0].device());
+  std::vector<torch::Tensor> ga;
+  for (const auto& t : a) {
+    ga.push_back(torch::zeros_like(t));
+  }
+  std::vector<torch::Tensor> result;
+  if (!o.mlp) {
+    SourceAppearanceEvaluator<SourceTextureBackward> evaluator{
+        {source_texture_evaluator(a[1], o), ga[1].data_ptr<float>()}};
+    result =
+        launch_source_stencil_backward(s, grads, height, width, edges, evaluator, a[0], {}, ga[0]);
+  } else if (a.size() == 12) {
+    result = source_mlp_backward<4>(s, grads, a, ga, height, width, edges, o);
+  } else {
+    result = source_mlp_backward<5>(s, grads, a, ga, height, width, edges, o);
+  }
+  result.insert(result.end(), ga.begin(), ga.end());
+  return result;
 }
 
 std::vector<torch::Tensor> source_sample_forward(

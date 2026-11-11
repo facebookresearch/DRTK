@@ -38,7 +38,13 @@ from .source_features import (  # noqa
     sample_with_transmittance,
     sample_with_transmittance_ref,
     source_transmittance,
+    source_transmittance_mlp,
+    source_transmittance_mlp_ref,
+    source_transmittance_mlp_two_textures,
+    source_transmittance_mlp_two_textures_ref,
     source_transmittance_ref,
+    source_transmittance_texture,
+    source_transmittance_texture_ref,
 )
 from .transform import transform, transform_with_v_cam  # noqa
 from .transparent_render import (  # noqa
