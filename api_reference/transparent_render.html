@@ -613,10 +613,8 @@ contributions from later fragments and the background. Gradients remain
 defined at full opacity, including the effect of revealing those later
 fragments when opacity decreases.</p>
 <p>Appearance, material-opacity, and final-alpha clamps use a unit subgradient
-at an exact endpoint and zero outside the interval. This is an explicit DRTK
-convention shared by the native operators and reference functions; it does not
-depend on the installed PyTorch build’s scalar-clamp convention. ReLU uses
-zero gradient at zero, including the lower bound on final fragment alpha.</p>
+at an exact endpoint and zero outside the interval. ReLU uses zero gradient
+at zero, including the lower bound on final fragment alpha.</p>
 <p>Differentiable rendering of depth-sorted transparent triangles.</p>
 <p>The optimized operators in this module combine triangle coverage,
 perspective-correct attribute interpolation, texture/feature sampling, and

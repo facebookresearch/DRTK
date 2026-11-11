@@ -192,10 +192,8 @@ defined at full opacity, including the effect of revealing those later
 fragments when opacity decreases.
 
 Appearance, material-opacity, and final-alpha clamps use a unit subgradient
-at an exact endpoint and zero outside the interval. This is an explicit DRTK
-convention shared by the native operators and reference functions; it does not
-depend on the installed PyTorch build's scalar-clamp convention. ReLU uses
-zero gradient at zero, including the lower bound on final fragment alpha.
+at an exact endpoint and zero outside the interval. ReLU uses zero gradient
+at zero, including the lower bound on final fragment alpha.
 
 .. automodule:: drtk.transparent_render
     :no-index:
