@@ -37,8 +37,11 @@ The function returns seven elements. Optional outputs are `None` when disabled.
 | `diagonal` | H × W or `None` | False: TL–BR; True: TR–BL; None: geometric choice |
 | `feather_width` | H × W or `None` | Nonnegative strip width in source-image pixels |
 
-The function operates on one grid per call. Call it per example
-for a ragged batch.
+For a batch of N meshes, add a leading N dimension to the grids and
+translation proposals. Intrinsics may be shared as 3 × 3 or 1 × 3 × 3,
+or supplied per mesh as N × 3 × 3. Shared floating inputs supplied with
+`expand` receive the sum of their sample gradients. Each sample has its own
+topology, corner fans, and feather boundaries.
 Floating inputs share float32/float64 dtype and device; hard decisions are bool.
 Depth, K, displacement, and widths must be finite and geometrically valid. The
 displaced surface must remain in front of the source camera.
@@ -52,6 +55,14 @@ displaced surface must remain in front of the source camera.
 | `vertex_opacity` | Generated material-opacity multiplier: core 1, outer strip 0; `None` without strips |
 | `face_cell_ids` | Source-cell ownership, or `None` unless metadata is requested |
 | `face_ids` | Stable cell/local-face identifiers, or `None` unless metadata is requested |
+
+Batched vertices have shape N × Vmax × 3 and faces N × Fmax × 3, where the
+maximum counts are taken across the batch. Each sample occupies a compact
+prefix; indices and stable IDs are local to that sample. Padding has face
+indices and metadata -1, positions (0,0,1), and zero UVs and opacity.
+It contributes no gradients. `vi[..., 0] >= 0` marks valid faces. Empty
+meshes and empty batches are supported. The same seven tuple entries are
+returned, including `None` for disabled outputs.
 
 Faces are emitted in increasing stable-ID order, including strips. Removing
 unrelated cells preserves relative tie order for the renderer's equal-depth
@@ -170,6 +181,11 @@ g_\eta=(\mathcal L(z^+)-\mathcal L(z^-))(u-\tfrac12).
 loss = bernoulli_render_loss(logits, evaluate, pairs=1, generator=rng)
 loss.backward()
 ```
+
+With `batched=True`, the callback instead receives all 2 × pairs samples in
+one tensor and returns one scalar loss per sample. The first half contains
+z⁺ and the second half the matching z⁻. Each loss must be evaluated independently
+of the other sampled topologies. Loss and gradient averaging are unchanged.
 
 The callback unpacks hard bits, calls the mesh builder and renderer, and returns
 a scalar loss. Each pair uses two renders. The returned value is the mean of

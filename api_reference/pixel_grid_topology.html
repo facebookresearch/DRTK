@@ -488,8 +488,11 @@ shows how to use these pieces together.</p>
 </tbody>
 </table>
 </div>
-<p>The function operates on one grid per call. Call it per example
-for a ragged batch.
+<p>For a batch of N meshes, add a leading N dimension to the grids and
+translation proposals. Intrinsics may be shared as 3 × 3 or 1 × 3 × 3,
+or supplied per mesh as N × 3 × 3. Shared floating inputs supplied with
+<code class="docutils literal notranslate"><span class="pre">expand</span></code> receive the sum of their sample gradients. Each sample has its own
+topology, corner fans, and feather boundaries.
 Floating inputs share float32/float64 dtype and device; hard decisions are bool.
 Depth, K, displacement, and widths must be finite and geometrically valid. The
 displaced surface must remain in front of the source camera.</p>
@@ -524,6 +527,13 @@ displaced surface must remain in front of the source camera.</p>
 </tbody>
 </table>
 </div>
+<p>Batched vertices have shape N × Vmax × 3 and faces N × Fmax × 3, where the
+maximum counts are taken across the batch. Each sample occupies a compact
+prefix; indices and stable IDs are local to that sample. Padding has face
+indices and metadata -1, positions (0,0,1), and zero UVs and opacity.
+It contributes no gradients. <code class="docutils literal notranslate"><span class="pre">vi[...,</span> <span class="pre">0]</span> <span class="pre">&gt;=</span> <span class="pre">0</span></code> marks valid faces. Empty
+meshes and empty batches are supported. The same seven tuple entries are
+returned, including <code class="docutils literal notranslate"><span class="pre">None</span></code> for disabled outputs.</p>
 <p>Faces are emitted in increasing stable-ID order, including strips. Removing
 unrelated cells preserves relative tie order for the renderer’s equal-depth
 triangles. The reference function uses the same order.</p>
@@ -617,6 +627,10 @@ z⁺=1[u&gt;1−p] and z⁻=1[u&lt;p]. Its logit estimate is</p>
 <span class="n">loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
 </pre></div>
 </div>
+<p>With <code class="docutils literal notranslate"><span class="pre">batched=True</span></code>, the callback instead receives all 2 × pairs samples in
+one tensor and returns one scalar loss per sample. The first half contains
+z⁺ and the second half the matching z⁻. Each loss must be evaluated independently
+of the other sampled topologies. Loss and gradient averaging are unchanged.</p>
 <p>The callback unpacks hard bits, calls the mesh builder and renderer, and returns
 a scalar loss. Each pair uses two renders. The returned value is the mean of
 their losses. Its surrogate backward supplies ARM to the logits and preserves

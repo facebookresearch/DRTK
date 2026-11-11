@@ -446,21 +446,55 @@ Bernoulli helpers estimate gradients of the expected loss over sampled meshes.</
 <p>See <a class="reference internal" href="pixel_grid_topology.html"><span class="doc">Pixel-grid topology and gradients</span></a> for camera conventions, cuts, feathering, and
 the gradient model, and <a class="reference internal" href="../tutorials/DRTK_Tutorial_pixel_grid_mesh.html"><span class="doc">Learning pixel-grid geometry and topology</span></a> for
 a rendered optimization example.</p>
+<section id="batched-meshes">
+<h2>Batched meshes<a class="headerlink" href="#batched-meshes" title="Link to this heading">#</a></h2>
+<p>Pass depth as <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">H,</span> <span class="pre">W]</span></code> to construct N meshes together. Cell participation,
+connections, and deformation may differ between samples. Intrinsics may be
+shared as <code class="docutils literal notranslate"><span class="pre">[3,</span> <span class="pre">3]</span></code> or supplied per mesh as <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">3,</span> <span class="pre">3]</span></code>.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">v</span><span class="p">,</span> <span class="n">vt0</span><span class="p">,</span> <span class="n">vt1</span><span class="p">,</span> <span class="n">faces</span><span class="p">,</span> <span class="n">opacity</span><span class="p">,</span> <span class="n">cell_ids</span><span class="p">,</span> <span class="n">face_ids</span> <span class="o">=</span> <span class="n">pixel_grid_mesh</span><span class="p">(</span>
+    <span class="n">depth</span><span class="p">,</span> <span class="n">displacement</span><span class="p">,</span> <span class="n">intrinsics</span><span class="p">,</span> <span class="n">alive</span><span class="p">,</span> <span class="n">join_right</span><span class="p">,</span> <span class="n">join_down</span><span class="p">,</span>
+    <span class="n">feather_width</span><span class="o">=</span><span class="n">width</span><span class="p">,</span> <span class="n">return_metadata</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">valid_faces</span> <span class="o">=</span> <span class="n">faces</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="mi">0</span>
+</pre></div>
+</div>
+<p>Vertices and faces are padded to the largest counts in the batch. Invalid
+face indices and metadata are -1; padded positions are (0,0,1), UVs and
+opacity are zero. Padding contributes no gradients. The seven tuple positions
+and optional None outputs are the same as for a single grid.</p>
+<p>After camera projection, the batched outputs can be passed directly to
+<a class="reference internal" href="transparent_render.html#drtk.render_transparent" title="drtk.render_transparent"><code class="xref py py-func docutils literal notranslate"><span class="pre">render_transparent()</span></code></a> and its MLP variants. Group meshes with similar
+sizes to reduce padding. <a class="reference internal" href="#drtk.bernoulli_render_loss" title="drtk.bernoulli_render_loss"><code class="xref py py-func docutils literal notranslate"><span class="pre">bernoulli_render_loss()</span></code></a> accepts <code class="docutils literal notranslate"><span class="pre">batched=True</span></code>
+to evaluate all topology samples in one callback; see the
+<a class="reference internal" href="../tutorials/DRTK_Tutorial_pixel_grid_mesh.html"><span class="doc">Learning pixel-grid geometry and topology</span></a> example.</p>
+</section>
+<section id="functions">
+<h2>Functions<a class="headerlink" href="#functions" title="Link to this heading">#</a></h2>
 <dl class="py function">
 <dt class="sig sig-object py" id="drtk.pixel_grid_mesh">
 <span class="sig-prename descclassname"><span class="pre">drtk.</span></span><span class="sig-name descname"><span class="pre">pixel_grid_mesh</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">depth_z</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">displacement_xyz</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">intrinsics</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alive</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">join_right</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">join_down</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">diagonal</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">feather_width</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_metadata</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/drtk/pixel_grid_mesh.html#pixel_grid_mesh"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#drtk.pixel_grid_mesh" title="Link to this definition">#</a></dt>
 <dd><p>Build a displaced pixel-cell mesh with optional cuts and feathered borders.</p>
 <p>Supports float32/float64 CUDA tensors and first-order gradients.</p>
+<p>For batched depth, join_right, join_down, diagonal, and feather_width
+also have a leading N dimension. Each mesh has independent live cells,
+cuts, diagonal choices, deformation, and feather widths. Shared grids
+can be supplied with <code class="docutils literal notranslate"><span class="pre">expand</span></code>; their gradients accumulate normally.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>depth_z</strong> – Positive camera Z depth <code class="docutils literal notranslate"><span class="pre">[H,</span> <span class="pre">W]</span></code> (float32 or float64).</p></li>
-<li><p><strong>displacement_xyz</strong> – Camera-space translation proposals <code class="docutils literal notranslate"><span class="pre">[H,</span> <span class="pre">W,</span> <span class="pre">3]</span></code>.
+<li><p><strong>depth_z</strong> – Positive camera Z depth <code class="docutils literal notranslate"><span class="pre">[H,</span> <span class="pre">W]</span></code> or <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">H,</span> <span class="pre">W]</span></code>
+(float32 or float64). A batch contains N independent meshes on
+grids with the same H and W.</p></li>
+<li><p><strong>displacement_xyz</strong> – Camera-space translation proposals <code class="docutils literal notranslate"><span class="pre">[H,</span> <span class="pre">W,</span> <span class="pre">3]</span></code>
+or <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">H,</span> <span class="pre">W,</span> <span class="pre">3]</span></code>.
 Shared corners are least-squares averages of incident proposals;
 a cell’s final center need not equal its proposed center exactly.</p></li>
-<li><p><strong>intrinsics</strong> – Nonsingular pinhole matrix <code class="docutils literal notranslate"><span class="pre">[3,</span> <span class="pre">3]</span></code> with last row 0,0,1.
+<li><p><strong>intrinsics</strong> – Nonsingular pinhole matrix with last row 0,0,1.
+Use <code class="docutils literal notranslate"><span class="pre">[3,</span> <span class="pre">3]</span></code> for a shared camera, or <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">3,</span> <span class="pre">3]</span></code> for one
+camera per mesh. Batched inputs also accept <code class="docutils literal notranslate"><span class="pre">[1,</span> <span class="pre">3,</span> <span class="pre">3]</span></code>;
+gradients to a shared matrix sum over the batch.
 Pixel centers have integer coordinates, corners half-integers.</p></li>
-<li><p><strong>alive</strong> – Boolean cell participation <code class="docutils literal notranslate"><span class="pre">[H,</span> <span class="pre">W]</span></code>.</p></li>
+<li><p><strong>alive</strong> – Boolean cell participation, with the same shape as depth_z.</p></li>
 <li><p><strong>join_right</strong> – Boolean horizontal adjacency <code class="docutils literal notranslate"><span class="pre">[H,</span> <span class="pre">W-1]</span></code>.</p></li>
 <li><p><strong>join_down</strong> – Boolean vertical adjacency <code class="docutils literal notranslate"><span class="pre">[H-1,</span> <span class="pre">W]</span></code>. Isolated interior
 one-edge cuts are healed; cuts touching a live/dead or grid border
@@ -485,6 +519,17 @@ without feathering. The two metadata tensors are <code class="docutils literal n
 None. No optional tuple slot is omitted.</p>
 </dd>
 </dl>
+<p>For batched depth, the same tuple contains <code class="docutils literal notranslate"><span class="pre">v</span></code> of shape <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">Vmax,</span> <span class="pre">3]</span></code>,
+UVs <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">Vmax,</span> <span class="pre">2]</span></code>, faces <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">Fmax,</span> <span class="pre">3]</span></code>, optional opacity
+<code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">Vmax]</span></code>, and optional metadata <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">Fmax]</span></code>. Vmax and Fmax are
+the largest vertex and face counts in the batch. Each mesh occupies a
+compact prefix; face indices and metadata stay local to that mesh.
+Unused faces and metadata are -1. Unused positions are (0,0,1), and
+unused UVs and opacity are zero. Padding contributes no gradients.
+<code class="docutils literal notranslate"><span class="pre">vi[...,</span> <span class="pre">0]</span> <span class="pre">&gt;=</span> <span class="pre">0</span></code> identifies valid faces. These outputs can be passed
+directly to the batched transparent renderer after camera projection.
+Empty meshes and empty batches are supported; optional tuple entries
+follow the same None rules as a single mesh.</p>
 <p>All tensors must share device; floating inputs must share dtype. Inputs
 must be finite, depths/widths valid, and displaced vertices in front of the
 source camera. CUDA graph capture is unsupported.</p>
@@ -521,7 +566,7 @@ the pair and shared noise to implement a custom estimator.</p>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="drtk.bernoulli_render_loss">
-<span class="sig-prename descclassname"><span class="pre">drtk.</span></span><span class="sig-name descname"><span class="pre">bernoulli_render_loss</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">logits</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">evaluate</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">pairs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">generator</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/drtk/pixel_grid_mesh.html#bernoulli_render_loss"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#drtk.bernoulli_render_loss" title="Link to this definition">#</a></dt>
+<span class="sig-prename descclassname"><span class="pre">drtk.</span></span><span class="sig-name descname"><span class="pre">bernoulli_render_loss</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">logits</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">evaluate</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">pairs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">batched</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">generator</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/drtk/pixel_grid_mesh.html#bernoulli_render_loss"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#drtk.bernoulli_render_loss" title="Link to this definition">#</a></dt>
 <dd><p>Estimate expected rendered loss and its Bernoulli-logit gradient with ARM.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -529,13 +574,20 @@ the pair and shared noise to implement a custom estimator.</p>
 <li><p><strong>logits</strong> – Floating-point Bernoulli logits of any shape, typically a
 learnable tensor or the output of a prediction network.</p></li>
 <li><p><strong>evaluate</strong> – Callable accepting a boolean tensor with the same shape
-as <code class="docutils literal notranslate"><span class="pre">logits</span></code> and returning a scalar loss tensor. It constructs
+as <code class="docutils literal notranslate"><span class="pre">logits</span></code> and returning a scalar loss tensor, or a batch of
+samples and per-sample losses when <code class="docutils literal notranslate"><span class="pre">batched=True</span></code>. It constructs
 a hard mesh, renders it, and compares the render with the target.
 Continuous parameters captured by the callable retain ordinary
 autograd through the sampled mesh and renderer.</p></li>
-<li><p><strong>pairs</strong> – Positive number of correlated sample pairs. Each pair calls
-<code class="docutils literal notranslate"><span class="pre">evaluate</span></code> twice; more pairs reduce sampling variance at the
-cost of more evaluations.</p></li>
+<li><p><strong>pairs</strong> – Positive number of correlated sample pairs. Each pair uses
+two meshes; more pairs reduce sampling variance at the cost of
+more evaluations.</p></li>
+<li><p><strong>batched</strong> – Evaluate all samples in one call. The callback receives
+<code class="docutils literal notranslate"><span class="pre">[2</span> <span class="pre">*</span> <span class="pre">pairs,</span> <span class="pre">*logits.shape]</span></code> hard decisions and must return
+<code class="docutils literal notranslate"><span class="pre">[2</span> <span class="pre">*</span> <span class="pre">pairs]</span></code> scalar losses. The first half contains the plus
+samples and the second half their corresponding minus samples.
+Each loss must depend on its own topology; cross-sample coupling
+such as training-mode batch normalization changes the objective.</p></li>
 <li><p><strong>generator</strong> – Optional random generator matching the logits’ device.</p></li>
 </ul>
 </dd>
@@ -565,6 +617,7 @@ contract.</p>
 </dd></dl>
 
 </section>
+</section>
 
 
                 </article>
@@ -589,10 +642,14 @@ contract.</p>
   </div>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.pixel_grid_mesh"><code class="docutils literal notranslate"><span class="pre">pixel_grid_mesh()</span></code></a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.bernoulli_topology_samples"><code class="docutils literal notranslate"><span class="pre">bernoulli_topology_samples()</span></code></a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.bernoulli_render_loss"><code class="docutils literal notranslate"><span class="pre">bernoulli_render_loss()</span></code></a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.pixel_grid_mesh_ref"><code class="docutils literal notranslate"><span class="pre">pixel_grid_mesh_ref()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#batched-meshes">Batched meshes</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#functions">Functions</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.pixel_grid_mesh"><code class="docutils literal notranslate"><span class="pre">pixel_grid_mesh()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.bernoulli_topology_samples"><code class="docutils literal notranslate"><span class="pre">bernoulli_topology_samples()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.bernoulli_render_loss"><code class="docutils literal notranslate"><span class="pre">bernoulli_render_loss()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.pixel_grid_mesh_ref"><code class="docutils literal notranslate"><span class="pre">pixel_grid_mesh_ref()</span></code></a></li>
+</ul>
+</li>
 </ul>
   </nav></div>
 

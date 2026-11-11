@@ -557,6 +557,60 @@ would optimize a different objective.</p>
 shared random numbers when a custom estimator is needed. The example above
 uses the complete loss helper directly.</p>
 </section>
+<section id="evaluating-topology-samples-together">
+<h2>Evaluating topology samples together<a class="headerlink" href="#evaluating-topology-samples-together" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">batched=True</span></code> evaluates all ARM samples in one callback. The callback
+returns a loss for each sampled mesh, so each plus/minus pair retains its
+own loss difference for the topology gradient.</p>
+<p>This example learns which cells are present. <code class="docutils literal notranslate"><span class="pre">alive_logits</span></code> has shape
+<code class="docutils literal notranslate"><span class="pre">[H,</span> <span class="pre">W]</span></code>; depth, displacement, and the two connection grids are shared
+across samples. The same construction supports sampled connections and
+diagonals by unpacking them from the callback’s decisions.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">evaluate_batch</span><span class="p">(</span><span class="n">alive_samples</span><span class="p">):</span>
+    <span class="n">samples</span> <span class="o">=</span> <span class="n">alive_samples</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">v</span><span class="p">,</span> <span class="n">uv</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">faces</span><span class="p">,</span> <span class="n">opacity</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">pixel_grid_mesh</span><span class="p">(</span>
+        <span class="n">depth</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">),</span>
+        <span class="n">displacement</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">),</span>
+        <span class="n">intrinsics</span><span class="p">,</span>
+        <span class="n">alive_samples</span><span class="p">,</span>
+        <span class="n">join_right</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">),</span>
+        <span class="n">join_down</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">),</span>
+        <span class="n">feather_width</span><span class="o">=</span><span class="n">width</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">samples</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="c1"># Render into the source camera for this example.</span>
+    <span class="n">projected</span> <span class="o">=</span> <span class="n">v</span> <span class="o">@</span> <span class="n">intrinsics</span><span class="o">.</span><span class="n">T</span>
+    <span class="n">v_pix</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span>
+        <span class="p">(</span><span class="n">projected</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span><span class="mi">2</span><span class="p">]</span> <span class="o">/</span> <span class="n">projected</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">:],</span> <span class="n">v</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">:]),</span> <span class="o">-</span><span class="mi">1</span>
+    <span class="p">)</span>
+    <span class="n">rgb</span><span class="p">,</span> <span class="n">alpha</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">render_transparent</span><span class="p">(</span>
+        <span class="n">v_pix</span><span class="p">,</span> <span class="n">faces</span><span class="p">,</span> <span class="n">uv</span><span class="p">,</span> <span class="n">texture</span><span class="p">,</span> <span class="n">H</span><span class="p">,</span> <span class="n">W</span><span class="p">,</span> <span class="n">opacity</span><span class="o">=</span><span class="n">opacity</span><span class="p">,</span>
+        <span class="n">rgb_activation</span><span class="o">=</span><span class="s2">&quot;identity&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="p">(</span>
+        <span class="p">(</span><span class="n">rgb</span> <span class="o">-</span> <span class="n">target_rgb</span><span class="p">)</span><span class="o">.</span><span class="n">square</span><span class="p">()</span><span class="o">.</span><span class="n">mean</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+        <span class="o">+</span> <span class="mf">0.25</span> <span class="o">*</span> <span class="p">(</span><span class="n">alpha</span> <span class="o">-</span> <span class="n">target_alpha</span><span class="p">)</span><span class="o">.</span><span class="n">square</span><span class="p">()</span><span class="o">.</span><span class="n">mean</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+    <span class="p">)</span>
+
+<span class="n">optimizer</span><span class="o">.</span><span class="n">zero_grad</span><span class="p">()</span>
+<span class="n">loss</span> <span class="o">=</span> <span class="n">bernoulli_render_loss</span><span class="p">(</span>
+    <span class="n">alive_logits</span><span class="p">,</span> <span class="n">evaluate_batch</span><span class="p">,</span> <span class="n">pairs</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">batched</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">generator</span><span class="o">=</span><span class="n">generator</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
+<span class="n">optimizer</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>The mesh builder pads to the largest vertex and face counts among the eight
+samples. Padded faces use -1 indices and the renderer ignores them; padded
+positions have positive depth to keep this projection finite. Gradients to
+the expanded geometry and shared intrinsics accumulate across samples.
+Each image loss uses the full target, including pixels where a sampled mesh
+has removed geometry.</p>
+<p>The callback must return eight losses, not one loss for their averaged image.
+It may batch the computation, but each loss must depend on its own sampled
+topology. Cross-sample operations such as training-mode batch normalization
+would change this objective.</p>
+</section>
 <section id="watching-the-fit">
 <h2>Watching the fit<a class="headerlink" href="#watching-the-fit" title="Link to this heading">#</a></h2>
 <video controls playsinline preload="metadata"
@@ -629,6 +683,7 @@ stochastic-gradient model in more detail.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#from-decisions-to-a-mesh">From decisions to a mesh</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#rendering-and-supervision">Rendering and supervision</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#learning-hard-decisions">Learning hard decisions</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#evaluating-topology-samples-together">Evaluating topology samples together</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#watching-the-fit">Watching the fit</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#run-the-example">Run the example</a></li>
 </ul>

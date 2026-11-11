@@ -627,6 +627,121 @@
     <span class="p">)</span>
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_batched_intrinsics</span><span class="p">(</span><span class="n">intrinsics</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">batch</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">intrinsics</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">intrinsics</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">batch</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">intrinsics</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">3</span> <span class="ow">and</span> <span class="n">intrinsics</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">intrinsics</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">batch</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">intrinsics</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_pixel_grid_mesh_batched_ref</span><span class="p">(</span>
+    <span class="n">depth</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">displacement</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">intrinsics</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">alive</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">right</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">down</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">diagonal</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
+    <span class="n">width</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
+    <span class="n">metadata</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">PixelGridMesh</span><span class="p">:</span>
+    <span class="n">batch</span><span class="p">,</span> <span class="n">h</span><span class="p">,</span> <span class="n">w</span> <span class="o">=</span> <span class="n">depth</span><span class="o">.</span><span class="n">shape</span>
+    <span class="k">if</span> <span class="n">h</span> <span class="o">&lt;</span> <span class="mi">1</span> <span class="ow">or</span> <span class="n">w</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;batched depth must have shape [N,H,W] with nonempty grids&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">depth</span><span class="o">.</span><span class="n">dtype</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="n">th</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">float64</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;depth_z must be float32 or float64&quot;</span><span class="p">)</span>
+    <span class="n">intrinsics</span> <span class="o">=</span> <span class="n">_batched_intrinsics</span><span class="p">(</span><span class="n">intrinsics</span><span class="p">,</span> <span class="n">batch</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">value</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span> <span class="ow">in</span> <span class="p">(</span>
+        <span class="p">(</span><span class="n">displacement</span><span class="p">,</span> <span class="p">(</span><span class="n">batch</span><span class="p">,</span> <span class="n">h</span><span class="p">,</span> <span class="n">w</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">depth</span><span class="o">.</span><span class="n">dtype</span><span class="p">),</span>
+        <span class="p">(</span><span class="n">intrinsics</span><span class="p">,</span> <span class="p">(</span><span class="n">batch</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">depth</span><span class="o">.</span><span class="n">dtype</span><span class="p">),</span>
+        <span class="p">(</span><span class="n">alive</span><span class="p">,</span> <span class="p">(</span><span class="n">batch</span><span class="p">,</span> <span class="n">h</span><span class="p">,</span> <span class="n">w</span><span class="p">),</span> <span class="n">th</span><span class="o">.</span><span class="n">bool</span><span class="p">),</span>
+        <span class="p">(</span><span class="n">right</span><span class="p">,</span> <span class="p">(</span><span class="n">batch</span><span class="p">,</span> <span class="n">h</span><span class="p">,</span> <span class="n">w</span> <span class="o">-</span> <span class="mi">1</span><span class="p">),</span> <span class="n">th</span><span class="o">.</span><span class="n">bool</span><span class="p">),</span>
+        <span class="p">(</span><span class="n">down</span><span class="p">,</span> <span class="p">(</span><span class="n">batch</span><span class="p">,</span> <span class="n">h</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">w</span><span class="p">),</span> <span class="n">th</span><span class="o">.</span><span class="n">bool</span><span class="p">),</span>
+    <span class="p">):</span>
+        <span class="k">if</span> <span class="p">(</span>
+            <span class="nb">tuple</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">!=</span> <span class="n">shape</span>
+            <span class="ow">or</span> <span class="n">value</span><span class="o">.</span><span class="n">dtype</span> <span class="o">!=</span> <span class="n">dtype</span>
+            <span class="ow">or</span> <span class="n">value</span><span class="o">.</span><span class="n">device</span> <span class="o">!=</span> <span class="n">depth</span><span class="o">.</span><span class="n">device</span>
+        <span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;batched inputs must match grid shape, dtype, and device&quot;</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">value</span><span class="p">,</span> <span class="n">dtype</span> <span class="ow">in</span> <span class="p">((</span><span class="n">diagonal</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">bool</span><span class="p">),</span> <span class="p">(</span><span class="n">width</span><span class="p">,</span> <span class="n">depth</span><span class="o">.</span><span class="n">dtype</span><span class="p">)):</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="p">(</span>
+            <span class="n">value</span><span class="o">.</span><span class="n">shape</span> <span class="o">!=</span> <span class="n">depth</span><span class="o">.</span><span class="n">shape</span>
+            <span class="ow">or</span> <span class="n">value</span><span class="o">.</span><span class="n">dtype</span> <span class="o">!=</span> <span class="n">dtype</span>
+            <span class="ow">or</span> <span class="n">value</span><span class="o">.</span><span class="n">device</span> <span class="o">!=</span> <span class="n">depth</span><span class="o">.</span><span class="n">device</span>
+        <span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;diagonal/feather_width must match batched depth&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">batch</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">zero</span> <span class="o">=</span> <span class="p">(</span><span class="n">depth</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">+</span> <span class="n">displacement</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">+</span> <span class="n">intrinsics</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span> <span class="o">*</span> <span class="mi">0</span>
+        <span class="k">if</span> <span class="n">width</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">zero</span> <span class="o">=</span> <span class="n">zero</span> <span class="o">+</span> <span class="n">width</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">*</span> <span class="mi">0</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="n">depth</span><span class="o">.</span><span class="n">new_empty</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span> <span class="o">+</span> <span class="n">zero</span><span class="p">,</span>
+            <span class="n">depth</span><span class="o">.</span><span class="n">new_empty</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">)),</span>
+            <span class="n">depth</span><span class="o">.</span><span class="n">new_empty</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span> <span class="o">+</span> <span class="n">zero</span><span class="p">,</span>
+            <span class="n">th</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">th</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">depth</span><span class="o">.</span><span class="n">device</span><span class="p">),</span>
+            <span class="n">depth</span><span class="o">.</span><span class="n">new_empty</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span> <span class="k">if</span> <span class="n">width</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">th</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">th</span><span class="o">.</span><span class="n">int64</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">depth</span><span class="o">.</span><span class="n">device</span><span class="p">)</span> <span class="k">if</span> <span class="n">metadata</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">th</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">th</span><span class="o">.</span><span class="n">int64</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">depth</span><span class="o">.</span><span class="n">device</span><span class="p">)</span> <span class="k">if</span> <span class="n">metadata</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="n">meshes</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">pixel_grid_mesh_ref</span><span class="p">(</span>
+            <span class="n">depth</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+            <span class="n">displacement</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+            <span class="n">intrinsics</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+            <span class="n">alive</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+            <span class="n">right</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+            <span class="n">down</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+            <span class="n">diagonal</span><span class="o">=</span><span class="kc">None</span> <span class="k">if</span> <span class="n">diagonal</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">diagonal</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+            <span class="n">feather_width</span><span class="o">=</span><span class="kc">None</span> <span class="k">if</span> <span class="n">width</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">width</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>
+            <span class="n">return_metadata</span><span class="o">=</span><span class="n">metadata</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">batch</span><span class="p">)</span>
+    <span class="p">]</span>
+    <span class="n">nv</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">mesh</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">mesh</span> <span class="ow">in</span> <span class="n">meshes</span><span class="p">)</span>
+    <span class="n">nf</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">mesh</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">mesh</span> <span class="ow">in</span> <span class="n">meshes</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">padded</span><span class="p">(</span><span class="n">values</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span> <span class="n">count</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">fill</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">th</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span>
+            <span class="p">[</span>
+                <span class="n">th</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span>
+                    <span class="p">(</span>
+                        <span class="n">value</span><span class="p">,</span>
+                        <span class="n">value</span><span class="o">.</span><span class="n">new_full</span><span class="p">(</span>
+                            <span class="p">(</span><span class="n">count</span> <span class="o">-</span> <span class="n">value</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],)</span> <span class="o">+</span> <span class="n">value</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">:],</span> <span class="n">fill</span>
+                        <span class="p">),</span>
+                    <span class="p">)</span>
+                <span class="p">)</span>
+                <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">values</span>
+            <span class="p">]</span>
+        <span class="p">)</span>
+
+    <span class="n">vertices</span> <span class="o">=</span> <span class="n">th</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span>
+        <span class="p">[</span>
+            <span class="n">th</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span>
+                <span class="p">(</span><span class="n">mesh</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">depth</span><span class="o">.</span><span class="n">new_tensor</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">nv</span> <span class="o">-</span> <span class="n">mesh</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="o">-</span><span class="mi">1</span><span class="p">))</span>
+            <span class="p">)</span>
+            <span class="k">for</span> <span class="n">mesh</span> <span class="ow">in</span> <span class="n">meshes</span>
+        <span class="p">]</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="p">(</span>
+        <span class="n">vertices</span><span class="p">,</span>
+        <span class="n">padded</span><span class="p">([</span><span class="n">mesh</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">mesh</span> <span class="ow">in</span> <span class="n">meshes</span><span class="p">],</span> <span class="n">nv</span><span class="p">),</span>
+        <span class="n">padded</span><span class="p">([</span><span class="n">mesh</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="k">for</span> <span class="n">mesh</span> <span class="ow">in</span> <span class="n">meshes</span><span class="p">],</span> <span class="n">nv</span><span class="p">),</span>
+        <span class="n">padded</span><span class="p">([</span><span class="n">mesh</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="k">for</span> <span class="n">mesh</span> <span class="ow">in</span> <span class="n">meshes</span><span class="p">],</span> <span class="n">nf</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">),</span>
+        <span class="n">padded</span><span class="p">([</span><span class="n">cast</span><span class="p">(</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">mesh</span><span class="p">[</span><span class="mi">4</span><span class="p">])</span> <span class="k">for</span> <span class="n">mesh</span> <span class="ow">in</span> <span class="n">meshes</span><span class="p">],</span> <span class="n">nv</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">width</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">padded</span><span class="p">([</span><span class="n">cast</span><span class="p">(</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">mesh</span><span class="p">[</span><span class="mi">5</span><span class="p">])</span> <span class="k">for</span> <span class="n">mesh</span> <span class="ow">in</span> <span class="n">meshes</span><span class="p">],</span> <span class="n">nf</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">metadata</span>
+        <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">padded</span><span class="p">([</span><span class="n">cast</span><span class="p">(</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">mesh</span><span class="p">[</span><span class="mi">6</span><span class="p">])</span> <span class="k">for</span> <span class="n">mesh</span> <span class="ow">in</span> <span class="n">meshes</span><span class="p">],</span> <span class="n">nf</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">metadata</span>
+        <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
 <div class="viewcode-block" id="pixel_grid_mesh_ref">
 <a class="viewcode-back" href="../../api_reference/pixel_grid_mesh.html#drtk.pixel_grid_mesh_ref">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">pixel_grid_mesh_ref</span><span class="p">(</span>
@@ -646,6 +761,18 @@
 <span class="sd">    See :func:`pixel_grid_mesh` for the complete argument and return-value</span>
 <span class="sd">    contract.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">depth_z</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">_pixel_grid_mesh_batched_ref</span><span class="p">(</span>
+            <span class="n">depth_z</span><span class="p">,</span>
+            <span class="n">displacement_xyz</span><span class="p">,</span>
+            <span class="n">intrinsics</span><span class="p">,</span>
+            <span class="n">alive</span><span class="p">,</span>
+            <span class="n">join_right</span><span class="p">,</span>
+            <span class="n">join_down</span><span class="p">,</span>
+            <span class="n">diagonal</span><span class="p">,</span>
+            <span class="n">feather_width</span><span class="p">,</span>
+            <span class="n">return_metadata</span><span class="p">,</span>
+        <span class="p">)</span>
     <span class="k">if</span> <span class="n">depth_z</span><span class="o">.</span><span class="n">ndim</span> <span class="o">!=</span> <span class="mi">2</span> <span class="ow">or</span> <span class="nb">min</span><span class="p">(</span><span class="n">depth_z</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;depth_z must have nonempty shape [H, W]&quot;</span><span class="p">)</span>
     <span class="n">h</span><span class="p">,</span> <span class="n">w</span> <span class="o">=</span> <span class="n">depth_z</span><span class="o">.</span><span class="n">shape</span>
@@ -775,14 +902,25 @@
 
 <span class="sd">    Supports float32/float64 CUDA tensors and first-order gradients.</span>
 
+<span class="sd">    For batched depth, join_right, join_down, diagonal, and feather_width</span>
+<span class="sd">    also have a leading N dimension. Each mesh has independent live cells,</span>
+<span class="sd">    cuts, diagonal choices, deformation, and feather widths. Shared grids</span>
+<span class="sd">    can be supplied with ``expand``; their gradients accumulate normally.</span>
+
 <span class="sd">    Args:</span>
-<span class="sd">        depth_z: Positive camera Z depth ``[H, W]`` (float32 or float64).</span>
-<span class="sd">        displacement_xyz: Camera-space translation proposals ``[H, W, 3]``.</span>
+<span class="sd">        depth_z: Positive camera Z depth ``[H, W]`` or ``[N, H, W]``</span>
+<span class="sd">            (float32 or float64). A batch contains N independent meshes on</span>
+<span class="sd">            grids with the same H and W.</span>
+<span class="sd">        displacement_xyz: Camera-space translation proposals ``[H, W, 3]``</span>
+<span class="sd">            or ``[N, H, W, 3]``.</span>
 <span class="sd">            Shared corners are least-squares averages of incident proposals;</span>
 <span class="sd">            a cell&#39;s final center need not equal its proposed center exactly.</span>
-<span class="sd">        intrinsics: Nonsingular pinhole matrix ``[3, 3]`` with last row 0,0,1.</span>
+<span class="sd">        intrinsics: Nonsingular pinhole matrix with last row 0,0,1.</span>
+<span class="sd">            Use ``[3, 3]`` for a shared camera, or ``[N, 3, 3]`` for one</span>
+<span class="sd">            camera per mesh. Batched inputs also accept ``[1, 3, 3]``;</span>
+<span class="sd">            gradients to a shared matrix sum over the batch.</span>
 <span class="sd">            Pixel centers have integer coordinates, corners half-integers.</span>
-<span class="sd">        alive: Boolean cell participation ``[H, W]``.</span>
+<span class="sd">        alive: Boolean cell participation, with the same shape as depth_z.</span>
 <span class="sd">        join_right: Boolean horizontal adjacency ``[H, W-1]``.</span>
 <span class="sd">        join_down: Boolean vertical adjacency ``[H-1, W]``. Isolated interior</span>
 <span class="sd">            one-edge cuts are healed; cuts touching a live/dead or grid border</span>
@@ -805,6 +943,18 @@
 <span class="sd">        without feathering. The two metadata tensors are ``[F]`` int64 or</span>
 <span class="sd">        None. No optional tuple slot is omitted.</span>
 
+<span class="sd">    For batched depth, the same tuple contains ``v`` of shape ``[N, Vmax, 3]``,</span>
+<span class="sd">    UVs ``[N, Vmax, 2]``, faces ``[N, Fmax, 3]``, optional opacity</span>
+<span class="sd">    ``[N, Vmax]``, and optional metadata ``[N, Fmax]``. Vmax and Fmax are</span>
+<span class="sd">    the largest vertex and face counts in the batch. Each mesh occupies a</span>
+<span class="sd">    compact prefix; face indices and metadata stay local to that mesh.</span>
+<span class="sd">    Unused faces and metadata are -1. Unused positions are (0,0,1), and</span>
+<span class="sd">    unused UVs and opacity are zero. Padding contributes no gradients.</span>
+<span class="sd">    ``vi[..., 0] &gt;= 0`` identifies valid faces. These outputs can be passed</span>
+<span class="sd">    directly to the batched transparent renderer after camera projection.</span>
+<span class="sd">    Empty meshes and empty batches are supported; optional tuple entries</span>
+<span class="sd">    follow the same None rules as a single mesh.</span>
+
 <span class="sd">    All tensors must share device; floating inputs must share dtype. Inputs</span>
 <span class="sd">    must be finite, depths/widths valid, and displaced vertices in front of the</span>
 <span class="sd">    source camera. CUDA graph capture is unsupported.</span>
@@ -813,6 +963,8 @@
 <span class="sd">    Vertex/face storage order may differ; use stable face IDs when comparing</span>
 <span class="sd">    geometry.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">depth_z</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+        <span class="n">intrinsics</span> <span class="o">=</span> <span class="n">_batched_intrinsics</span><span class="p">(</span><span class="n">intrinsics</span><span class="p">,</span> <span class="n">depth_z</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
     <span class="n">outputs</span> <span class="o">=</span> <span class="n">_build</span><span class="p">(</span>
         <span class="n">depth_z</span><span class="o">.</span><span class="n">contiguous</span><span class="p">(),</span>
         <span class="n">displacement_xyz</span><span class="o">.</span><span class="n">contiguous</span><span class="p">(),</span>
@@ -879,6 +1031,7 @@
     <span class="n">evaluate</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
     <span class="o">*</span><span class="p">,</span>
     <span class="n">pairs</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="n">batched</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
     <span class="n">generator</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Generator</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Estimate expected rendered loss and its Bernoulli-logit gradient with ARM.</span>
@@ -887,13 +1040,20 @@
 <span class="sd">        logits: Floating-point Bernoulli logits of any shape, typically a</span>
 <span class="sd">            learnable tensor or the output of a prediction network.</span>
 <span class="sd">        evaluate: Callable accepting a boolean tensor with the same shape</span>
-<span class="sd">            as ``logits`` and returning a scalar loss tensor. It constructs</span>
+<span class="sd">            as ``logits`` and returning a scalar loss tensor, or a batch of</span>
+<span class="sd">            samples and per-sample losses when ``batched=True``. It constructs</span>
 <span class="sd">            a hard mesh, renders it, and compares the render with the target.</span>
 <span class="sd">            Continuous parameters captured by the callable retain ordinary</span>
 <span class="sd">            autograd through the sampled mesh and renderer.</span>
-<span class="sd">        pairs: Positive number of correlated sample pairs. Each pair calls</span>
-<span class="sd">            ``evaluate`` twice; more pairs reduce sampling variance at the</span>
-<span class="sd">            cost of more evaluations.</span>
+<span class="sd">        pairs: Positive number of correlated sample pairs. Each pair uses</span>
+<span class="sd">            two meshes; more pairs reduce sampling variance at the cost of</span>
+<span class="sd">            more evaluations.</span>
+<span class="sd">        batched: Evaluate all samples in one call. The callback receives</span>
+<span class="sd">            ``[2 * pairs, *logits.shape]`` hard decisions and must return</span>
+<span class="sd">            ``[2 * pairs]`` scalar losses. The first half contains the plus</span>
+<span class="sd">            samples and the second half their corresponding minus samples.</span>
+<span class="sd">            Each loss must depend on its own topology; cross-sample coupling</span>
+<span class="sd">            such as training-mode batch normalization changes the objective.</span>
 <span class="sd">        generator: Optional random generator matching the logits&#39; device.</span>
 
 <span class="sd">    Returns:</span>
@@ -914,6 +1074,20 @@
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">if</span> <span class="n">pairs</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;pairs must be positive&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">batched</span><span class="p">:</span>
+        <span class="n">expanded</span> <span class="o">=</span> <span class="n">logits</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">expand</span><span class="p">((</span><span class="n">pairs</span><span class="p">,)</span> <span class="o">+</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">logits</span><span class="o">.</span><span class="n">shape</span><span class="p">))</span>
+        <span class="n">plus</span><span class="p">,</span> <span class="n">minus</span><span class="p">,</span> <span class="n">uniform</span> <span class="o">=</span> <span class="n">bernoulli_topology_samples</span><span class="p">(</span><span class="n">expanded</span><span class="p">,</span> <span class="n">generator</span><span class="o">=</span><span class="n">generator</span><span class="p">)</span>
+        <span class="n">losses</span> <span class="o">=</span> <span class="n">evaluate</span><span class="p">(</span><span class="n">th</span><span class="o">.</span><span class="n">cat</span><span class="p">((</span><span class="n">plus</span><span class="p">,</span> <span class="n">minus</span><span class="p">),</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">losses</span><span class="o">.</span><span class="n">shape</span> <span class="o">!=</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">pairs</span><span class="p">,):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;batched evaluate must return one scalar loss per sample&quot;</span><span class="p">)</span>
+        <span class="n">difference</span> <span class="o">=</span> <span class="p">(</span><span class="n">losses</span><span class="p">[:</span><span class="n">pairs</span><span class="p">]</span> <span class="o">-</span> <span class="n">losses</span><span class="p">[</span><span class="n">pairs</span><span class="p">:])</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span>
+        <span class="n">score</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="p">(</span><span class="n">difference</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="n">pairs</span><span class="p">,)</span> <span class="o">+</span> <span class="p">(</span><span class="mi">1</span><span class="p">,)</span> <span class="o">*</span> <span class="n">logits</span><span class="o">.</span><span class="n">ndim</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">uniform</span> <span class="o">-</span> <span class="mf">0.5</span><span class="p">))</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span>
+                <span class="mi">0</span>
+            <span class="p">)</span>
+            <span class="o">*</span> <span class="n">logits</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">losses</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span> <span class="o">+</span> <span class="p">(</span><span class="n">score</span> <span class="o">-</span> <span class="n">score</span><span class="o">.</span><span class="n">detach</span><span class="p">())</span>
     <span class="n">result</span> <span class="o">=</span> <span class="n">logits</span><span class="o">.</span><span class="n">new_zeros</span><span class="p">(())</span>
     <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">pairs</span><span class="p">):</span>
         <span class="n">plus</span><span class="p">,</span> <span class="n">minus</span><span class="p">,</span> <span class="n">uniform</span> <span class="o">=</span> <span class="n">bernoulli_topology_samples</span><span class="p">(</span><span class="n">logits</span><span class="p">,</span> <span class="n">generator</span><span class="o">=</span><span class="n">generator</span><span class="p">)</span>
