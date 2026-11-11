@@ -446,6 +446,7 @@
         <span class="nb">int</span><span class="p">,</span>
         <span class="nb">float</span><span class="p">,</span>
         <span class="nb">float</span><span class="p">,</span>
+        <span class="nb">int</span><span class="p">,</span>
     <span class="p">],</span>
     <span class="n">List</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
 <span class="p">]</span>
@@ -1460,6 +1461,7 @@
     <span class="n">depth_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;expected&quot;</span><span class="p">,</span>
     <span class="n">background_depth</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1000.0</span><span class="p">,</span>
     <span class="n">depth_alpha_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0e-6</span><span class="p">,</span>
+    <span class="n">tile_capacity</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Render depth-sorted transparent textured triangles.</span>
 
@@ -1532,6 +1534,10 @@
 <span class="sd">            depth. Defaults to 1e-6. The division is not evaluated through</span>
 <span class="sd">            small or zero alpha; invalid pixels have zero smooth depth gradient.</span>
 <span class="sd">            This threshold only affects ``&quot;foreground_mean&quot;``.</span>
+<span class="sd">        tile_capacity: Optional maximum number of tile/triangle intersections</span>
+<span class="sd">            across the batch. Keeps bin counts on the GPU and permits CUDA</span>
+<span class="sd">            graph capture. Insufficient capacity raises an asynchronous CUDA</span>
+<span class="sd">            error. None allocates bins to their exact size.</span>
 
 <span class="sd">    Returns:</span>
 <span class="sd">        A tuple ``(rgb, alpha, depth)`` with shapes ``[N, 3, H, W]``,</span>
@@ -1585,6 +1591,7 @@
         <span class="n">depth_mode_enum</span><span class="p">,</span>
         <span class="n">background_depth</span><span class="p">,</span>
         <span class="n">depth_alpha_threshold</span><span class="p">,</span>
+        <span class="o">-</span><span class="mi">1</span> <span class="k">if</span> <span class="n">tile_capacity</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">tile_capacity</span><span class="p">,</span>
     <span class="p">)</span>
     <span class="k">return</span> <span class="n">outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">outputs</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">outputs</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span></div>
 
@@ -1615,6 +1622,7 @@
     <span class="n">depth_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;expected&quot;</span><span class="p">,</span>
     <span class="n">background_depth</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1000.0</span><span class="p">,</span>
     <span class="n">depth_alpha_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0e-6</span><span class="p">,</span>
+    <span class="n">tile_capacity</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Render transparent triangles from one neural feature texture.</span>
 
@@ -1702,6 +1710,10 @@
 <span class="sd">            depth. Defaults to 1e-6. The division is not evaluated through</span>
 <span class="sd">            small or zero alpha; invalid pixels have zero smooth depth gradient.</span>
 <span class="sd">            This threshold only affects ``&quot;foreground_mean&quot;``.</span>
+<span class="sd">        tile_capacity: Optional maximum number of tile/triangle intersections</span>
+<span class="sd">            across the batch. Keeps bin counts on the GPU and permits CUDA</span>
+<span class="sd">            graph capture. Insufficient capacity raises an asynchronous CUDA</span>
+<span class="sd">            error. None allocates bins to their exact size.</span>
 
 <span class="sd">    Returns:</span>
 <span class="sd">        A tuple ``(rgb, alpha, depth)`` with shapes ``[N, 3, H, W]``,</span>
@@ -1744,6 +1756,7 @@
         <span class="n">depth_mode</span><span class="o">=</span><span class="n">depth_mode</span><span class="p">,</span>
         <span class="n">background_depth</span><span class="o">=</span><span class="n">background_depth</span><span class="p">,</span>
         <span class="n">depth_alpha_threshold</span><span class="o">=</span><span class="n">depth_alpha_threshold</span><span class="p">,</span>
+        <span class="n">tile_capacity</span><span class="o">=</span><span class="n">tile_capacity</span><span class="p">,</span>
     <span class="p">)</span></div>
 
 
@@ -1775,6 +1788,7 @@
     <span class="n">depth_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;expected&quot;</span><span class="p">,</span>
     <span class="n">background_depth</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1000.0</span><span class="p">,</span>
     <span class="n">depth_alpha_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0e-6</span><span class="p">,</span>
+    <span class="n">tile_capacity</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Render transparent triangles from two neural feature textures.</span>
 
@@ -1872,6 +1886,10 @@
 <span class="sd">            depth. Defaults to 1e-6. The division is not evaluated through</span>
 <span class="sd">            small or zero alpha; invalid pixels have zero smooth depth gradient.</span>
 <span class="sd">            This threshold only affects ``&quot;foreground_mean&quot;``.</span>
+<span class="sd">        tile_capacity: Optional maximum number of tile/triangle intersections</span>
+<span class="sd">            across the batch. Keeps bin counts on the GPU and permits CUDA</span>
+<span class="sd">            graph capture. Insufficient capacity raises an asynchronous CUDA</span>
+<span class="sd">            error. None allocates bins to their exact size.</span>
 
 <span class="sd">    Returns:</span>
 <span class="sd">        A tuple ``(rgb, alpha, depth)`` with shapes ``[N, 3, H, W]``,</span>
@@ -1913,6 +1931,7 @@
         <span class="n">depth_mode</span><span class="o">=</span><span class="n">depth_mode</span><span class="p">,</span>
         <span class="n">background_depth</span><span class="o">=</span><span class="n">background_depth</span><span class="p">,</span>
         <span class="n">depth_alpha_threshold</span><span class="o">=</span><span class="n">depth_alpha_threshold</span><span class="p">,</span>
+        <span class="n">tile_capacity</span><span class="o">=</span><span class="n">tile_capacity</span><span class="p">,</span>
     <span class="p">)</span></div>
 
 
@@ -1942,6 +1961,7 @@
     <span class="n">depth_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;expected&quot;</span><span class="p">,</span>
     <span class="n">background_depth</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1000.0</span><span class="p">,</span>
     <span class="n">depth_alpha_threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0e-6</span><span class="p">,</span>
+    <span class="n">tile_capacity</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Shared implementation for the one- and two-texture CUDA APIs.&quot;&quot;&quot;</span>
 
@@ -1989,6 +2009,7 @@
         <span class="n">depth_mode_enum</span><span class="p">,</span>
         <span class="n">background_depth</span><span class="p">,</span>
         <span class="n">depth_alpha_threshold</span><span class="p">,</span>
+        <span class="o">-</span><span class="mi">1</span> <span class="k">if</span> <span class="n">tile_capacity</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">tile_capacity</span><span class="p">,</span>
     <span class="p">)</span>
     <span class="k">return</span> <span class="n">outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">outputs</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">outputs</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
 </pre></div>

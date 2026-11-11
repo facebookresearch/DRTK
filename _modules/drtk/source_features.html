@@ -417,6 +417,7 @@
     <span class="n">vertex_opacity</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">edge_gradients</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
     <span class="n">return_queries</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">tile_capacity</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]]:</span>
 <span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Evaluate transmittance from a source camera or light to mesh points.</span>
 
@@ -467,6 +468,11 @@
 <span class="sd">        return_queries (bool): Return each query&#39;s projected UV and camera Z.</span>
 <span class="sd">            Default: False.</span>
 
+<span class="sd">        tile_capacity: Optional maximum tile/triangle intersections across</span>
+<span class="sd">            the batch, including the boundary-query halo. Keeps bin counts</span>
+<span class="sd">            on the GPU and permits CUDA graph capture. Insufficient capacity</span>
+<span class="sd">            raises an asynchronous CUDA error. None uses exact-sized bins.</span>
+
 <span class="sd">    Returns:</span>
 <span class="sd">        Tuple[Tensor, Tensor, Optional[Tensor], Optional[Tensor]]:</span>
 <span class="sd">        ``(tap_indices, tap_weights, query_uv, query_depth)``.</span>
@@ -499,7 +505,7 @@
 
 <span class="sd">    Note:</span>
 <span class="sd">        Geometry and weights remain float32 under autocast. CUDA graph capture</span>
-<span class="sd">        is unsupported. :func:`source_transmittance_ref` supports CPU inputs</span>
+<span class="sd">        requires tile_capacity. :func:`source_transmittance_ref` supports CPU inputs</span>
 <span class="sd">        and smooth derivatives.</span>
 
 <span class="sd">        Visibility weights describe geometric access to the source image.</span>
@@ -534,6 +540,7 @@
         <span class="n">height</span><span class="p">,</span>
         <span class="n">width</span><span class="p">,</span>
         <span class="n">edge_gradients</span><span class="p">,</span>
+        <span class="o">-</span><span class="mi">1</span> <span class="k">if</span> <span class="n">tile_capacity</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">tile_capacity</span><span class="p">,</span>
     <span class="p">)</span>
     <span class="k">return</span> <span class="p">(</span>
         <span class="n">indices</span><span class="p">,</span>
@@ -563,6 +570,7 @@
     <span class="n">alpha_activation</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;relu_density&quot;</span><span class="p">,</span>
     <span class="n">edge_gradients</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
     <span class="n">return_queries</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">tile_capacity</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Evaluate source transmittance using a textured opacity field.</span>
 
@@ -607,6 +615,11 @@
 <span class="sd">        return_queries: Also return query UV in normalized ``[-1, 1]`` image</span>
 <span class="sd">            coordinates and camera depth. Defaults to False.</span>
 
+<span class="sd">        tile_capacity: Optional maximum tile/triangle intersections across</span>
+<span class="sd">            the batch, including the boundary-query halo. Keeps bin counts</span>
+<span class="sd">            on the GPU and permits CUDA graph capture. Insufficient capacity</span>
+<span class="sd">            raises an asynchronous CUDA error. None uses exact-sized bins.</span>
+
 <span class="sd">    Returns:</span>
 <span class="sd">        ``(tap_indices, tap_weights, query_uv, query_depth)``. Indices are</span>
 <span class="sd">        int32 ``(N, Q, 4)`` and weights are float32 ``(N, Q, 4)``, ordered</span>
@@ -646,6 +659,7 @@
         <span class="n">edge_gradients</span><span class="o">=</span><span class="n">edge_gradients</span><span class="p">,</span>
         <span class="n">return_queries</span><span class="o">=</span><span class="n">return_queries</span><span class="p">,</span>
         <span class="n">native</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">tile_capacity</span><span class="o">=</span><span class="n">tile_capacity</span><span class="p">,</span>
     <span class="p">)</span></div>
 
 
@@ -713,6 +727,7 @@
     <span class="n">alpha_activation</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;shifted_relu_density&quot;</span><span class="p">,</span>
     <span class="n">edge_gradients</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
     <span class="n">return_queries</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">tile_capacity</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Evaluate source transmittance from a feature texture and an appearance MLP.</span>
 
@@ -762,6 +777,11 @@
 <span class="sd">        return_queries: Also return query UV in normalized ``[-1, 1]`` image</span>
 <span class="sd">            coordinates and camera depth. Defaults to False.</span>
 
+<span class="sd">        tile_capacity: Optional maximum tile/triangle intersections across</span>
+<span class="sd">            the batch, including the boundary-query halo. Keeps bin counts</span>
+<span class="sd">            on the GPU and permits CUDA graph capture. Insufficient capacity</span>
+<span class="sd">            raises an asynchronous CUDA error. None uses exact-sized bins.</span>
+
 <span class="sd">    Returns:</span>
 <span class="sd">        ``(tap_indices, tap_weights, query_uv, query_depth)``. Indices are</span>
 <span class="sd">        int32 ``(N, Q, 4)`` and weights are float32 ``(N, Q, 4)``, ordered</span>
@@ -801,6 +821,7 @@
         <span class="n">edge_gradients</span><span class="o">=</span><span class="n">edge_gradients</span><span class="p">,</span>
         <span class="n">return_queries</span><span class="o">=</span><span class="n">return_queries</span><span class="p">,</span>
         <span class="n">native</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">tile_capacity</span><span class="o">=</span><span class="n">tile_capacity</span><span class="p">,</span>
     <span class="p">)</span></div>
 
 
@@ -873,6 +894,7 @@
     <span class="n">alpha_activation</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;shifted_relu_density&quot;</span><span class="p">,</span>
     <span class="n">edge_gradients</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
     <span class="n">return_queries</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">tile_capacity</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Evaluate source transmittance from two feature textures and an appearance MLP.</span>
 
@@ -925,6 +947,11 @@
 <span class="sd">        return_queries: Also return query UV in normalized ``[-1, 1]`` image</span>
 <span class="sd">            coordinates and camera depth. Defaults to False.</span>
 
+<span class="sd">        tile_capacity: Optional maximum tile/triangle intersections across</span>
+<span class="sd">            the batch, including the boundary-query halo. Keeps bin counts</span>
+<span class="sd">            on the GPU and permits CUDA graph capture. Insufficient capacity</span>
+<span class="sd">            raises an asynchronous CUDA error. None uses exact-sized bins.</span>
+
 <span class="sd">    Returns:</span>
 <span class="sd">        ``(tap_indices, tap_weights, query_uv, query_depth)``. Indices are</span>
 <span class="sd">        int32 ``(N, Q, 4)`` and weights are float32 ``(N, Q, 4)``, ordered</span>
@@ -964,6 +991,7 @@
         <span class="n">edge_gradients</span><span class="o">=</span><span class="n">edge_gradients</span><span class="p">,</span>
         <span class="n">return_queries</span><span class="o">=</span><span class="n">return_queries</span><span class="p">,</span>
         <span class="n">native</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">tile_capacity</span><span class="o">=</span><span class="n">tile_capacity</span><span class="p">,</span>
     <span class="p">)</span></div>
 
 
@@ -1457,6 +1485,7 @@
     <span class="n">edge_gradients</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
     <span class="n">return_queries</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
     <span class="n">native</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+    <span class="n">tile_capacity</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]]:</span>
     <span class="n">vi</span><span class="p">,</span> <span class="n">opacity</span> <span class="o">=</span> <span class="n">_prepare</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">vi</span><span class="p">,</span> <span class="n">qf</span><span class="p">,</span> <span class="n">qb</span><span class="p">,</span> <span class="n">height</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span> <span class="n">vertex_opacity</span><span class="p">,</span> <span class="n">native</span><span class="o">=</span><span class="n">native</span><span class="p">)</span>
     <span class="n">mode_enum</span><span class="p">,</span> <span class="n">padding_enum</span> <span class="o">=</span> <span class="n">_validate_sampling_options</span><span class="p">(</span><span class="n">mode</span><span class="p">,</span> <span class="n">padding_mode</span><span class="p">)</span>
@@ -1484,6 +1513,7 @@
             <span class="n">padding_enum</span><span class="p">,</span>
             <span class="n">activation_enum</span><span class="p">,</span>
             <span class="n">edge_gradients</span><span class="p">,</span>
+            <span class="o">-</span><span class="mi">1</span> <span class="k">if</span> <span class="n">tile_capacity</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">tile_capacity</span><span class="p">,</span>
         <span class="p">)</span>
         <span class="k">return</span> <span class="p">(</span>
             <span class="n">outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>

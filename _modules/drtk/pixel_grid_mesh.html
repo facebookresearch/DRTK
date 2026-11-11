@@ -410,6 +410,8 @@
         <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
         <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
         <span class="nb">bool</span><span class="p">,</span>
+        <span class="nb">int</span><span class="p">,</span>
+        <span class="nb">int</span><span class="p">,</span>
     <span class="p">],</span>
     <span class="n">List</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
 <span class="p">]</span>
@@ -858,6 +860,7 @@
     <span class="n">feather_width</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
     <span class="n">return_metadata</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">output_capacity</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">PixelGridMesh</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Build a displaced pixel-cell mesh with optional cuts and feathered borders.</span>
 
@@ -890,6 +893,11 @@
 <span class="sd">            opacity head. Widths are averaged within each boundary fan. Large</span>
 <span class="sd">            widths can cause overlap; there is no global collision resolution.</span>
 <span class="sd">        return_metadata: Return source-cell ownership and stable face-slot IDs.</span>
+<span class="sd">        output_capacity: Optional ``(max_vertices, max_faces)`` per mesh.</span>
+<span class="sd">            Fixes the padded output sizes and keeps vertex/face counts on the</span>
+<span class="sd">            GPU, allowing CUDA graph capture. Capacities must accommodate</span>
+<span class="sd">            every mesh in the batch; insufficient capacity raises an</span>
+<span class="sd">            asynchronous CUDA error. None sizes outputs to the current batch.</span>
 
 <span class="sd">    Returns:</span>
 <span class="sd">        A fixed seven-element tuple ``(v, vt0, vt1, vi, vertex_opacity,</span>
@@ -900,7 +908,8 @@
 <span class="sd">        Vertex opacity is ``[N, Vmax]`` or None without feathering. The two</span>
 <span class="sd">        metadata tensors are ``[N, Fmax]`` int64 or None.</span>
 
-<span class="sd">    Vmax and Fmax are the largest vertex and face counts in the batch.</span>
+<span class="sd">    Vmax and Fmax are the supplied capacities, or the largest vertex and</span>
+<span class="sd">    face counts in the batch when output_capacity is None.</span>
 <span class="sd">    Each mesh occupies a compact prefix; face indices and metadata stay</span>
 <span class="sd">    local to that mesh. Unused faces and metadata are -1. Unused positions</span>
 <span class="sd">    are (0,0,1), and unused UVs and opacity are zero. Padding contributes</span>
@@ -913,7 +922,7 @@
 
 <span class="sd">    All tensors must share device; floating inputs must share dtype. Inputs</span>
 <span class="sd">    must be finite, depths/widths valid, and displaced vertices in front of the</span>
-<span class="sd">    source camera. CUDA graph capture is unsupported.</span>
+<span class="sd">    source camera. CUDA graph capture requires output_capacity.</span>
 
 <span class="sd">    See :func:`pixel_grid_mesh_ref` for the tensor reference implementation.</span>
 <span class="sd">    Vertex/face storage order may differ; use stable face IDs when comparing</span>
@@ -921,6 +930,9 @@
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">if</span> <span class="n">depth_z</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">3</span> <span class="ow">and</span> <span class="n">intrinsics</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">3</span> <span class="ow">and</span> <span class="n">intrinsics</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
         <span class="n">intrinsics</span> <span class="o">=</span> <span class="n">intrinsics</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">depth_z</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">vertex_capacity</span><span class="p">,</span> <span class="n">face_capacity</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="k">if</span> <span class="n">output_capacity</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">output_capacity</span>
+    <span class="p">)</span>
     <span class="n">outputs</span> <span class="o">=</span> <span class="n">_build</span><span class="p">(</span>
         <span class="n">depth_z</span><span class="p">,</span>
         <span class="n">displacement_xyz</span><span class="p">,</span>
@@ -933,6 +945,8 @@
         <span class="k">else</span> <span class="n">diagonal</span><span class="p">,</span>
         <span class="n">depth_z</span><span class="o">.</span><span class="n">new_empty</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="k">if</span> <span class="n">feather_width</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">feather_width</span><span class="p">,</span>
         <span class="n">return_metadata</span><span class="p">,</span>
+        <span class="n">vertex_capacity</span><span class="p">,</span>
+        <span class="n">face_capacity</span><span class="p">,</span>
     <span class="p">)</span>
     <span class="k">return</span> <span class="p">(</span>
         <span class="n">outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>

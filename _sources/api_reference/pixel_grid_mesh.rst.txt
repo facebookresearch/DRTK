@@ -19,6 +19,9 @@ See :doc:`pixel_grid_topology` for camera conventions, cuts, feathering, and
 the gradient model, and :doc:`../tutorials/DRTK_Tutorial_pixel_grid_mesh` for
 a rendered optimization example.
 
+For repeated fitting steps, :doc:`cuda_graphs` explains how to choose output
+capacities and capture mesh construction together with rendering and gradients.
+
 .. autofunction:: pixel_grid_mesh
 
 .. autofunction:: bernoulli_topology_samples
