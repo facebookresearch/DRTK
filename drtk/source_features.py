@@ -22,7 +22,13 @@ from .transparent_render import (
     _validate_texture_activation_options,
 )
 
-load_torch_ops("drtk.transparent_render_ext")
+try:
+    load_torch_ops("drtk.transparent_render_ext")
+except ImportError:
+    # The extension has CUDA sources only, so a ROCm build's module is empty; importing drtk
+    # must still work there (`transparent_render` guards the same load).
+    if th.version.hip is None:
+        raise
 
 
 @th.compiler.disable

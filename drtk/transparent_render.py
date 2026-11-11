@@ -46,7 +46,13 @@ __all__ = [
 ]
 
 
-load_torch_ops("drtk.transparent_render_ext")
+try:
+    load_torch_ops("drtk.transparent_render_ext")
+except ImportError:
+    # The extension has CUDA sources only, so a ROCm build's module is empty; importing drtk
+    # must still work there, and the transparent operators below are then None.
+    if th.version.hip is None:
+        raise
 
 
 _RenderWithTexture = Callable[
