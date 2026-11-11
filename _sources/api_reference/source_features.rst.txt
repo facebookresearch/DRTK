@@ -7,15 +7,21 @@ drtk.source_transmittance
     :nosignatures:
 
     source_transmittance
+    source_transmittance_texture
+    source_transmittance_mlp
+    source_transmittance_mlp_two_textures
     sample_with_transmittance
     source_transmittance_ref
+    source_transmittance_texture_ref
+    source_transmittance_mlp_ref
+    source_transmittance_mlp_two_textures_ref
     sample_with_transmittance_ref
 
 Evaluate transmittance from a source camera or light to points on a mesh.
 The outputs retain the original query order, including points on layers
 behind other surfaces. Use their weights to evaluate shadows or to sample
 image features with attenuation. Gradients propagate to deformation,
-material opacity, and sampled features.
+material opacity, appearance textures and MLP parameters, and sampled features.
 
 See :doc:`../tutorials/DRTK_Tutorial_source_features` for an example.
 
@@ -34,6 +40,49 @@ The result is bilinearly filtered transmittance at each receiving point.
 It includes the fraction of the sampling footprint inside the image and
 receiving surface. For unit illumination from a light, it gives the shadow
 intensity on that surface.
+
+Opacity models
+--------------
+
+Choose the transmittance function that matches the mesh's appearance:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Appearance
+     - Transmittance function
+     - Matching renderer
+   * - Vertex opacity
+     - :func:`source_transmittance`
+     - Material-opacity input
+   * - RGB or RGBA texture
+     - :func:`source_transmittance_texture`
+     - :func:`render_transparent`
+   * - Feature texture and MLP
+     - :func:`source_transmittance_mlp`
+     - :func:`render_transparent_mlp`
+   * - Two feature textures and MLP
+     - :func:`source_transmittance_mlp_two_textures`
+     - :func:`render_transparent_mlp_two_textures`
+
+The textured variants evaluate appearance alpha at each occluding fragment
+and multiply it by interpolated vertex opacity. They use the renderer's
+perspective-correct UVs, filtering, padding, and alpha activation. Supply the
+same appearance parameters in both calls. RGB channels do not affect
+transmittance, and the receiving face's own alpha remains excluded.
+Texture resolution is independent of the source image resolution.
+
+For an RGBA texture whose alpha values are already in :math:`[0,1]`:
+
+.. code-block:: python
+
+   indices, weights, _, _ = source_transmittance_texture(
+       v_pix, faces, uv, rgba_texture, query_faces, query_barycentrics,
+       height, width, vertex_opacity=opacity, alpha_activation="clamp",
+   )
+
+All variants return the same four-item tuple and work with
+:func:`sample_with_transmittance`.
 
 Sampling features
 -----------------
@@ -57,7 +106,7 @@ self-occlusion within a connected mesh.
 
 The same indices and weights can sample several feature maps with matching
 batch and spatial dimensions. Recompute them when the geometry, topology,
-material opacity, or source camera changes.
+material opacity, appearance parameters, or source camera changes.
 
 Transmittance and confidence
 ----------------------------
@@ -88,18 +137,22 @@ hidden query returns zero features and zero confidence. For example, an
 existing surface feature :math:`A_q` can fill the missing contribution as
 :math:`S_q+(1-c_q)A_q`.
 
-Use geometric or material opacity for visibility. If opacity is predicted
-from these same sampled features, the dependency is circular. Partial
-visibility supplies a confidence value; features already mixed by transparency
-or a neural receptive field remain mixed.
+Opacity may come from vertex values, a texture, or an appearance MLP. Its
+inputs must be available before feature sampling: predicting opacity from the
+features sampled using that same opacity would create a circular dependency.
+Partial visibility supplies a confidence value; features already mixed by
+transparency or a neural receptive field remain mixed.
 
 Gradients
 ---------
 
 Smooth derivatives propagate through projection, bilinear interpolation,
-material opacity, and feature values. Material opacity is clamped to
-``[0, 1]`` with the interior derivative at zero and one, and zero derivative
-outside that range. Coverage boundaries use DRTK's edge
+material opacity, appearance textures and MLP parameters, and sampled feature
+values. :func:`source_transmittance` clamps material opacity to ``[0, 1]``
+with the interior derivative at zero and one. The textured variants follow
+their corresponding renderer, including its final zero-alpha ReLU subgradient
+and the opacity gradient at exactly one. Gradients are zero outside the
+material clamp. Coverage boundaries use DRTK's edge
 estimator, enabled by ``edge_gradients=True``. For upstream feature and
 confidence gradients :math:`g_S,g_c`, its weight derivative is
 
@@ -124,7 +177,7 @@ twice. A target-view renderer computes its own boundary contribution.
 
    * - Quantity
      - Gradient
-   * - Vertices, query barycentrics, source features, material opacity
+   * - Vertices, query barycentrics, source features, material opacity, UVs, textures, MLP parameters
      - Smooth derivatives for fixed coverage and ordering.
    * - Occlusion and receiving-surface boundaries
      - Estimated geometry derivatives from boundary motion.
@@ -134,7 +187,7 @@ twice. A target-view renderer computes its own boundary contribution.
      - Unsupported.
 
 The reference functions support CPU tensors and smooth derivatives. The
-boundary estimator is available in :func:`source_transmittance`.
+boundary estimator is available in all CUDA transmittance variants.
 
 Coordinates and data types
 --------------------------
@@ -156,15 +209,27 @@ transform pixel coordinates as
 The transmittance operation requires float32 CUDA geometry and produces float32 weights.
 Sampling accepts float16, bfloat16, and float32 CUDA features, with arbitrary
 channel counts and strides. Accumulation uses float32. Backward may be
-nondeterministic. ``source_transmittance`` does not support CUDA graph capture.
+nondeterministic. The transmittance operations do not support CUDA graph capture.
 
 Functions
 ---------
 
 .. autofunction:: source_transmittance
 
+.. autofunction:: source_transmittance_texture
+
+.. autofunction:: source_transmittance_mlp
+
+.. autofunction:: source_transmittance_mlp_two_textures
+
 .. autofunction:: sample_with_transmittance
 
 .. autofunction:: source_transmittance_ref
+
+.. autofunction:: source_transmittance_texture_ref
+
+.. autofunction:: source_transmittance_mlp_ref
+
+.. autofunction:: source_transmittance_mlp_two_textures_ref
 
 .. autofunction:: sample_with_transmittance_ref

@@ -430,11 +430,29 @@
 <tr class="row-odd"><td><p><a class="reference internal" href="#drtk.source_transmittance" title="drtk.source_transmittance"><code class="xref py py-obj docutils literal notranslate"><span class="pre">source_transmittance</span></code></a></p></td>
 <td><p>Evaluate transmittance from a source camera or light to mesh points.</p></td>
 </tr>
-<tr class="row-even"><td><p><a class="reference internal" href="#drtk.sample_with_transmittance" title="drtk.sample_with_transmittance"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sample_with_transmittance</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#drtk.source_transmittance_texture" title="drtk.source_transmittance_texture"><code class="xref py py-obj docutils literal notranslate"><span class="pre">source_transmittance_texture</span></code></a></p></td>
+<td><p>Evaluate source transmittance using a textured opacity field.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#drtk.source_transmittance_mlp" title="drtk.source_transmittance_mlp"><code class="xref py py-obj docutils literal notranslate"><span class="pre">source_transmittance_mlp</span></code></a></p></td>
+<td><p>Evaluate source transmittance from a feature texture and an appearance MLP.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#drtk.source_transmittance_mlp_two_textures" title="drtk.source_transmittance_mlp_two_textures"><code class="xref py py-obj docutils literal notranslate"><span class="pre">source_transmittance_mlp_two_textures</span></code></a></p></td>
+<td><p>Evaluate source transmittance from two feature textures and an appearance MLP.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#drtk.sample_with_transmittance" title="drtk.sample_with_transmittance"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sample_with_transmittance</span></code></a></p></td>
 <td><p>Sample an image at surface points, attenuated by source transmittance.</p></td>
 </tr>
-<tr class="row-odd"><td><p><a class="reference internal" href="#drtk.source_transmittance_ref" title="drtk.source_transmittance_ref"><code class="xref py py-obj docutils literal notranslate"><span class="pre">source_transmittance_ref</span></code></a></p></td>
+<tr class="row-even"><td><p><a class="reference internal" href="#drtk.source_transmittance_ref" title="drtk.source_transmittance_ref"><code class="xref py py-obj docutils literal notranslate"><span class="pre">source_transmittance_ref</span></code></a></p></td>
 <td><p>Reference for <a class="reference internal" href="#drtk.source_transmittance" title="drtk.source_transmittance"><code class="xref py py-func docutils literal notranslate"><span class="pre">source_transmittance()</span></code></a>, with smooth gradients only.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#drtk.source_transmittance_texture_ref" title="drtk.source_transmittance_texture_ref"><code class="xref py py-obj docutils literal notranslate"><span class="pre">source_transmittance_texture_ref</span></code></a></p></td>
+<td><p>Reference for <a class="reference internal" href="#drtk.source_transmittance_texture" title="drtk.source_transmittance_texture"><code class="xref py py-func docutils literal notranslate"><span class="pre">source_transmittance_texture()</span></code></a>, with smooth gradients only.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#drtk.source_transmittance_mlp_ref" title="drtk.source_transmittance_mlp_ref"><code class="xref py py-obj docutils literal notranslate"><span class="pre">source_transmittance_mlp_ref</span></code></a></p></td>
+<td><p>Reference for <a class="reference internal" href="#drtk.source_transmittance_mlp" title="drtk.source_transmittance_mlp"><code class="xref py py-func docutils literal notranslate"><span class="pre">source_transmittance_mlp()</span></code></a>, with smooth gradients only.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#drtk.source_transmittance_mlp_two_textures_ref" title="drtk.source_transmittance_mlp_two_textures_ref"><code class="xref py py-obj docutils literal notranslate"><span class="pre">source_transmittance_mlp_two_textures_ref</span></code></a></p></td>
+<td><p>Reference for <a class="reference internal" href="#drtk.source_transmittance_mlp_two_textures" title="drtk.source_transmittance_mlp_two_textures"><code class="xref py py-func docutils literal notranslate"><span class="pre">source_transmittance_mlp_two_textures()</span></code></a>, with smooth gradients only.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#drtk.sample_with_transmittance_ref" title="drtk.sample_with_transmittance_ref"><code class="xref py py-obj docutils literal notranslate"><span class="pre">sample_with_transmittance_ref</span></code></a></p></td>
 <td><p>Reference for <a class="reference internal" href="#drtk.sample_with_transmittance" title="drtk.sample_with_transmittance"><code class="xref py py-func docutils literal notranslate"><span class="pre">sample_with_transmittance()</span></code></a>, supporting CPU and float64.</p></td>
@@ -446,7 +464,7 @@
 The outputs retain the original query order, including points on layers
 behind other surfaces. Use their weights to evaluate shadows or to sample
 image features with attenuation. Gradients propagate to deformation,
-material opacity, and sampled features.</p>
+material opacity, appearance textures and MLP parameters, and sampled features.</p>
 <p>See <a class="reference internal" href="../tutorials/DRTK_Tutorial_source_features.html"><span class="doc">Differentiable visibility</span></a> for an example.</p>
 <section id="evaluating-transmittance">
 <h2>Evaluating transmittance<a class="headerlink" href="#evaluating-transmittance" title="Link to this heading">#</a></h2>
@@ -461,6 +479,52 @@ material opacity, and sampled features.</p>
 It includes the fraction of the sampling footprint inside the image and
 receiving surface. For unit illumination from a light, it gives the shadow
 intensity on that surface.</p>
+</section>
+<section id="opacity-models">
+<h2>Opacity models<a class="headerlink" href="#opacity-models" title="Link to this heading">#</a></h2>
+<p>Choose the transmittance function that matches the mesh’s appearance:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Appearance</p></th>
+<th class="head"><p>Transmittance function</p></th>
+<th class="head"><p>Matching renderer</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Vertex opacity</p></td>
+<td><p><a class="reference internal" href="#drtk.source_transmittance" title="drtk.source_transmittance"><code class="xref py py-func docutils literal notranslate"><span class="pre">source_transmittance()</span></code></a></p></td>
+<td><p>Material-opacity input</p></td>
+</tr>
+<tr class="row-odd"><td><p>RGB or RGBA texture</p></td>
+<td><p><a class="reference internal" href="#drtk.source_transmittance_texture" title="drtk.source_transmittance_texture"><code class="xref py py-func docutils literal notranslate"><span class="pre">source_transmittance_texture()</span></code></a></p></td>
+<td><p><a class="reference internal" href="transparent_render.html#drtk.render_transparent" title="drtk.render_transparent"><code class="xref py py-func docutils literal notranslate"><span class="pre">render_transparent()</span></code></a></p></td>
+</tr>
+<tr class="row-even"><td><p>Feature texture and MLP</p></td>
+<td><p><a class="reference internal" href="#drtk.source_transmittance_mlp" title="drtk.source_transmittance_mlp"><code class="xref py py-func docutils literal notranslate"><span class="pre">source_transmittance_mlp()</span></code></a></p></td>
+<td><p><a class="reference internal" href="transparent_render.html#drtk.render_transparent_mlp" title="drtk.render_transparent_mlp"><code class="xref py py-func docutils literal notranslate"><span class="pre">render_transparent_mlp()</span></code></a></p></td>
+</tr>
+<tr class="row-odd"><td><p>Two feature textures and MLP</p></td>
+<td><p><a class="reference internal" href="#drtk.source_transmittance_mlp_two_textures" title="drtk.source_transmittance_mlp_two_textures"><code class="xref py py-func docutils literal notranslate"><span class="pre">source_transmittance_mlp_two_textures()</span></code></a></p></td>
+<td><p><a class="reference internal" href="transparent_render.html#drtk.render_transparent_mlp_two_textures" title="drtk.render_transparent_mlp_two_textures"><code class="xref py py-func docutils literal notranslate"><span class="pre">render_transparent_mlp_two_textures()</span></code></a></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The textured variants evaluate appearance alpha at each occluding fragment
+and multiply it by interpolated vertex opacity. They use the renderer’s
+perspective-correct UVs, filtering, padding, and alpha activation. Supply the
+same appearance parameters in both calls. RGB channels do not affect
+transmittance, and the receiving face’s own alpha remains excluded.
+Texture resolution is independent of the source image resolution.</p>
+<p>For an RGBA texture whose alpha values are already in <span class="math notranslate nohighlight">\([0,1]\)</span>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">indices</span><span class="p">,</span> <span class="n">weights</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">source_transmittance_texture</span><span class="p">(</span>
+    <span class="n">v_pix</span><span class="p">,</span> <span class="n">faces</span><span class="p">,</span> <span class="n">uv</span><span class="p">,</span> <span class="n">rgba_texture</span><span class="p">,</span> <span class="n">query_faces</span><span class="p">,</span> <span class="n">query_barycentrics</span><span class="p">,</span>
+    <span class="n">height</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span> <span class="n">vertex_opacity</span><span class="o">=</span><span class="n">opacity</span><span class="p">,</span> <span class="n">alpha_activation</span><span class="o">=</span><span class="s2">&quot;clamp&quot;</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>All variants return the same four-item tuple and work with
+<a class="reference internal" href="#drtk.sample_with_transmittance" title="drtk.sample_with_transmittance"><code class="xref py py-func docutils literal notranslate"><span class="pre">sample_with_transmittance()</span></code></a>.</p>
 </section>
 <section id="sampling-features">
 <h2>Sampling features<a class="headerlink" href="#sampling-features" title="Link to this heading">#</a></h2>
@@ -480,7 +544,7 @@ nonmanifold junctions. Occlusion is evaluated at each tap, including
 self-occlusion within a connected mesh.</p>
 <p>The same indices and weights can sample several feature maps with matching
 batch and spatial dimensions. Recompute them when the geometry, topology,
-material opacity, or source camera changes.</p>
+material opacity, appearance parameters, or source camera changes.</p>
 </section>
 <section id="transmittance-and-confidence">
 <h2>Transmittance and confidence<a class="headerlink" href="#transmittance-and-confidence" title="Link to this heading">#</a></h2>
@@ -502,17 +566,21 @@ c_q=\sum_{j=1}^{4}w_{qj}.\]</div>
 hidden query returns zero features and zero confidence. For example, an
 existing surface feature <span class="math notranslate nohighlight">\(A_q\)</span> can fill the missing contribution as
 <span class="math notranslate nohighlight">\(S_q+(1-c_q)A_q\)</span>.</p>
-<p>Use geometric or material opacity for visibility. If opacity is predicted
-from these same sampled features, the dependency is circular. Partial
-visibility supplies a confidence value; features already mixed by transparency
-or a neural receptive field remain mixed.</p>
+<p>Opacity may come from vertex values, a texture, or an appearance MLP. Its
+inputs must be available before feature sampling: predicting opacity from the
+features sampled using that same opacity would create a circular dependency.
+Partial visibility supplies a confidence value; features already mixed by
+transparency or a neural receptive field remain mixed.</p>
 </section>
 <section id="gradients">
 <h2>Gradients<a class="headerlink" href="#gradients" title="Link to this heading">#</a></h2>
 <p>Smooth derivatives propagate through projection, bilinear interpolation,
-material opacity, and feature values. Material opacity is clamped to
-<code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">1]</span></code> with the interior derivative at zero and one, and zero derivative
-outside that range. Coverage boundaries use DRTK’s edge
+material opacity, appearance textures and MLP parameters, and sampled feature
+values. <a class="reference internal" href="#drtk.source_transmittance" title="drtk.source_transmittance"><code class="xref py py-func docutils literal notranslate"><span class="pre">source_transmittance()</span></code></a> clamps material opacity to <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">1]</span></code>
+with the interior derivative at zero and one. The textured variants follow
+their corresponding renderer, including its final zero-alpha ReLU subgradient
+and the opacity gradient at exactly one. Gradients are zero outside the
+material clamp. Coverage boundaries use DRTK’s edge
 estimator, enabled by <code class="docutils literal notranslate"><span class="pre">edge_gradients=True</span></code>. For upstream feature and
 confidence gradients <span class="math notranslate nohighlight">\(g_S,g_c\)</span>, its weight derivative is</p>
 <div class="math notranslate nohighlight">
@@ -537,7 +605,7 @@ twice. A target-view renderer computes its own boundary contribution.</p>
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p>Vertices, query barycentrics, source features, material opacity</p></td>
+<tr class="row-even"><td><p>Vertices, query barycentrics, source features, material opacity, UVs, textures, MLP parameters</p></td>
 <td><p>Smooth derivatives for fixed coverage and ordering.</p></td>
 </tr>
 <tr class="row-odd"><td><p>Occlusion and receiving-surface boundaries</p></td>
@@ -553,7 +621,7 @@ twice. A target-view renderer computes its own boundary contribution.</p>
 </table>
 </div>
 <p>The reference functions support CPU tensors and smooth derivatives. The
-boundary estimator is available in <a class="reference internal" href="#drtk.source_transmittance" title="drtk.source_transmittance"><code class="xref py py-func docutils literal notranslate"><span class="pre">source_transmittance()</span></code></a>.</p>
+boundary estimator is available in all CUDA transmittance variants.</p>
 </section>
 <section id="coordinates-and-data-types">
 <h2>Coordinates and data types<a class="headerlink" href="#coordinates-and-data-types" title="Link to this heading">#</a></h2>
@@ -570,7 +638,7 @@ transform pixel coordinates as
 <p>The transmittance operation requires float32 CUDA geometry and produces float32 weights.
 Sampling accepts float16, bfloat16, and float32 CUDA features, with arbitrary
 channel counts and strides. Accumulation uses float32. Backward may be
-nondeterministic. <code class="docutils literal notranslate"><span class="pre">source_transmittance</span></code> does not support CUDA graph capture.</p>
+nondeterministic. The transmittance operations do not support CUDA graph capture.</p>
 </section>
 <section id="functions">
 <h2>Functions<a class="headerlink" href="#functions" title="Link to this heading">#</a></h2>
@@ -676,6 +744,232 @@ field remain mixed.</p>
 </dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="drtk.source_transmittance_texture">
+<span class="sig-prename descclassname"><span class="pre">drtk.</span></span><span class="sig-name descname"><span class="pre">source_transmittance_texture</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v_pix</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vi</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">uv</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">texture</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">query_face_ids</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">query_barycentrics</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">height</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">width</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">vertex_opacity</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'bilinear'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">padding_mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'border'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha_activation</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'relu_density'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">edge_gradients</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_queries</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/drtk/source_features.html#source_transmittance_texture"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#drtk.source_transmittance_texture" title="Link to this definition">#</a></dt>
+<dd><p>Evaluate source transmittance using a textured opacity field.</p>
+<p>Uses the same perspective-correct UV interpolation, texture filtering, and
+alpha activation as <a class="reference internal" href="transparent_render.html#drtk.render_transparent" title="drtk.render_transparent"><code class="xref py py-func docutils literal notranslate"><span class="pre">render_transparent()</span></code></a>. With an RGBA texture, the
+fourth channel supplies appearance alpha; an RGB texture supplies alpha
+one. Interpolated vertex opacity multiplies this appearance alpha.</p>
+<p>Occluders follow mean-triangle-depth order, with face index breaking ties.
+Queries and surface connectivity follow <a class="reference internal" href="#drtk.source_transmittance" title="drtk.source_transmittance"><code class="xref py py-func docutils literal notranslate"><span class="pre">source_transmittance()</span></code></a>.
+Sum the returned weights for transmittance, or pass them to
+<a class="reference internal" href="#drtk.sample_with_transmittance" title="drtk.sample_with_transmittance"><code class="xref py py-func docutils literal notranslate"><span class="pre">sample_with_transmittance()</span></code></a> to gather attenuated source features.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>v_pix</strong> – Float32 CUDA vertices <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">V,</span> <span class="pre">3)</span></code> in source pixel XY and
+positive camera Z. Integer XY denotes pixel centers.</p></li>
+<li><p><strong>vi</strong> – Int32 faces <code class="docutils literal notranslate"><span class="pre">(F,</span> <span class="pre">3)</span></code> or <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">F,</span> <span class="pre">3)</span></code>. Shared indices define
+connectivity; invalid or degenerate faces are ignored.</p></li>
+<li><p><strong>uv</strong> – Per-vertex texture coordinates <code class="docutils literal notranslate"><span class="pre">(V,</span> <span class="pre">2)</span></code>, <code class="docutils literal notranslate"><span class="pre">(1,</span> <span class="pre">V,</span> <span class="pre">2)</span></code>, or
+<code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">V,</span> <span class="pre">2)</span></code> in <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">1]</span></code>.</p></li>
+<li><p><strong>texture</strong> – RGB or RGBA texture <code class="docutils literal notranslate"><span class="pre">(N</span> <span class="pre">or</span> <span class="pre">1,</span> <span class="pre">3</span> <span class="pre">or</span> <span class="pre">4,</span> <span class="pre">Ht,</span> <span class="pre">Wt)</span></code>. RGB channels
+do not affect visibility. Alpha activation follows texture filtering.</p></li>
+<li><p><strong>query_face_ids</strong> – Int32 receiving-face IDs <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">Q)</span></code>; <code class="docutils literal notranslate"><span class="pre">-1</span></code> marks
+unused queries. The receiving face’s own alpha is excluded.</p></li>
+<li><p><strong>query_barycentrics</strong> – Float32 3D barycentrics <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">Q,</span> <span class="pre">3)</span></code>. Values must
+be nonnegative and sum to one; invalid queries have zero weights.</p></li>
+<li><p><strong>height</strong> – Source feature-image height, independent of texture size.</p></li>
+<li><p><strong>width</strong> – Source feature-image width, independent of texture size.</p></li>
+<li><p><strong>vertex_opacity</strong> – Optional float32 material opacity <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">V)</span></code>, clamped
+to <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">1]</span></code> and multiplied by appearance alpha. Defaults to one.</p></li>
+<li><p><strong>mode</strong> – Texture filtering: <code class="docutils literal notranslate"><span class="pre">&quot;bilinear&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;nearest&quot;</span></code>, or <code class="docutils literal notranslate"><span class="pre">&quot;bicubic&quot;</span></code>.</p></li>
+<li><p><strong>padding_mode</strong> – Texture padding: <code class="docutils literal notranslate"><span class="pre">&quot;border&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;zeros&quot;</span></code>, or
+<code class="docutils literal notranslate"><span class="pre">&quot;reflection&quot;</span></code>. Sampling uses <code class="docutils literal notranslate"><span class="pre">align_corners=False</span></code>.</p></li>
+<li><p><strong>alpha_activation</strong> – <code class="docutils literal notranslate"><span class="pre">&quot;relu_density&quot;</span></code> (default) computes
+<code class="docutils literal notranslate"><span class="pre">1</span> <span class="pre">-</span> <span class="pre">exp(-max(a,</span> <span class="pre">0))</span></code>. Alternatives are <code class="docutils literal notranslate"><span class="pre">&quot;shifted_sigmoid&quot;</span></code>
+(<code class="docutils literal notranslate"><span class="pre">sigmoid(a</span> <span class="pre">-</span> <span class="pre">0.5)</span></code>), <code class="docutils literal notranslate"><span class="pre">&quot;exp_density&quot;</span></code>
+(<code class="docutils literal notranslate"><span class="pre">1</span> <span class="pre">-</span> <span class="pre">exp(-exp(min(a,</span> <span class="pre">15)))</span></code>), and <code class="docutils literal notranslate"><span class="pre">&quot;clamp&quot;</span></code>
+(<code class="docutils literal notranslate"><span class="pre">clamp(a,</span> <span class="pre">0,</span> <span class="pre">1)</span></code>).</p></li>
+<li><p><strong>edge_gradients</strong> – Estimate geometry gradients at occlusion and
+receiving-surface boundaries. Defaults to True. Shared tessellation
+edges and zero-alpha edge traces have no boundary jump.</p></li>
+<li><p><strong>return_queries</strong> – Also return query UV in normalized <code class="docutils literal notranslate"><span class="pre">[-1,</span> <span class="pre">1]</span></code> image
+coordinates and camera depth. Defaults to False.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">(tap_indices,</span> <span class="pre">tap_weights,</span> <span class="pre">query_uv,</span> <span class="pre">query_depth)</span></code>. Indices are
+int32 <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">Q,</span> <span class="pre">4)</span></code> and weights are float32 <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">Q,</span> <span class="pre">4)</span></code>, ordered
+top-left, top-right, bottom-left, bottom-right. Each weight is a
+bilinear coefficient times transmittance; invalid taps have zero
+weight. Indices are flattened as <code class="docutils literal notranslate"><span class="pre">y</span> <span class="pre">*</span> <span class="pre">width</span> <span class="pre">+</span> <span class="pre">x</span></code>; out-of-image or
+unused-query taps have index <code class="docutils literal notranslate"><span class="pre">-1</span></code>. Query UV <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">Q,</span> <span class="pre">2)</span></code> and depth
+<code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">Q)</span></code> are None unless requested.</p>
+</dd>
+</dl>
+<dl>
+<dt>Gradients:</dt><dd><p>Smooth derivatives reach vertices, query barycentrics, UVs, material
+opacity, and appearance parameters. RGB output channels do not affect
+transmittance. Coverage boundaries contribute geometry gradients when
+enabled; do not apply <a class="reference internal" href="edge_grad_estimator.html#drtk.edge_grad_estimator" title="drtk.edge_grad_estimator"><code class="xref py py-func docutils literal notranslate"><span class="pre">edge_grad_estimator()</span></code></a> again to this result.
+Face IDs, connectivity, and depth ordering are discrete. Second
+derivatives are unsupported.</p>
+<p>The alpha activations and endpoint derivatives match the corresponding
+transparent renderer. In particular, final zero alpha has zero smooth
+gradient, while exactly opaque fragments retain their opacity gradient
+unless another opaque fragment blocks the query.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="drtk.source_transmittance_mlp">
+<span class="sig-prename descclassname"><span class="pre">drtk.</span></span><span class="sig-name descname"><span class="pre">source_transmittance_mlp</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v_pix</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vi</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">uv</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">texture</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weights</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">biases</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">query_face_ids</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">query_barycentrics</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">height</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">width</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">vertex_opacity</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">negative_slope</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'bilinear'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">padding_mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'border'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha_activation</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'shifted_relu_density'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">edge_gradients</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_queries</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/drtk/source_features.html#source_transmittance_mlp"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#drtk.source_transmittance_mlp" title="Link to this definition">#</a></dt>
+<dd><p>Evaluate source transmittance from a feature texture and an appearance MLP.</p>
+<p>Uses the alpha output of the appearance model from
+<a class="reference internal" href="transparent_render.html#drtk.render_transparent_mlp" title="drtk.render_transparent_mlp"><code class="xref py py-func docutils literal notranslate"><span class="pre">render_transparent_mlp()</span></code></a>. Features are sampled at perspective-correct
+UVs before MLP evaluation. Use the same appearance inputs, vertex opacity,
+and activation in visibility and rendering to obtain consistent attenuation.</p>
+<p>Occluders follow mean-triangle-depth order, with face index breaking ties.
+Queries and surface connectivity follow <a class="reference internal" href="#drtk.source_transmittance" title="drtk.source_transmittance"><code class="xref py py-func docutils literal notranslate"><span class="pre">source_transmittance()</span></code></a>.
+Sum the returned weights for transmittance, or pass them to
+<a class="reference internal" href="#drtk.sample_with_transmittance" title="drtk.sample_with_transmittance"><code class="xref py py-func docutils literal notranslate"><span class="pre">sample_with_transmittance()</span></code></a> to gather attenuated source features.
+The appearance textures must be available before this sampling step; they
+cannot depend on features sampled using the same transmittance.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>v_pix</strong> – Float32 CUDA vertices <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">V,</span> <span class="pre">3)</span></code> in source pixel XY and
+positive camera Z. Integer XY denotes pixel centers.</p></li>
+<li><p><strong>vi</strong> – Int32 faces <code class="docutils literal notranslate"><span class="pre">(F,</span> <span class="pre">3)</span></code> or <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">F,</span> <span class="pre">3)</span></code>. Shared indices define
+connectivity; invalid or degenerate faces are ignored.</p></li>
+<li><p><strong>uv</strong> – Per-vertex texture coordinates <code class="docutils literal notranslate"><span class="pre">(V,</span> <span class="pre">2)</span></code>, <code class="docutils literal notranslate"><span class="pre">(1,</span> <span class="pre">V,</span> <span class="pre">2)</span></code>, or
+<code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">V,</span> <span class="pre">2)</span></code> in <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">1]</span></code>.</p></li>
+<li><p><strong>texture</strong> – Feature texture <code class="docutils literal notranslate"><span class="pre">(N</span> <span class="pre">or</span> <span class="pre">1,</span> <span class="pre">C,</span> <span class="pre">Ht,</span> <span class="pre">Wt)</span></code>, with <code class="docutils literal notranslate"><span class="pre">1</span> <span class="pre">&lt;=</span> <span class="pre">C</span> <span class="pre">&lt;=</span> <span class="pre">32</span></code>.</p></li>
+<li><p><strong>weights</strong> – Four or five affine weight tensors, with hidden width eight
+and a final <code class="docutils literal notranslate"><span class="pre">(4,</span> <span class="pre">8)</span></code> RGBA layer. Hidden layers use LeakyReLU.</p></li>
+<li><p><strong>biases</strong> – One bias per weight; the final bias has shape <code class="docutils literal notranslate"><span class="pre">(4,)</span></code>.</p></li>
+<li><p><strong>query_face_ids</strong> – Int32 receiving-face IDs <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">Q)</span></code>; <code class="docutils literal notranslate"><span class="pre">-1</span></code> marks
+unused queries. The receiving face’s own alpha is excluded.</p></li>
+<li><p><strong>query_barycentrics</strong> – Float32 3D barycentrics <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">Q,</span> <span class="pre">3)</span></code>. Values must
+be nonnegative and sum to one; invalid queries have zero weights.</p></li>
+<li><p><strong>height</strong> – Source feature-image height, independent of texture size.</p></li>
+<li><p><strong>width</strong> – Source feature-image width, independent of texture size.</p></li>
+<li><p><strong>vertex_opacity</strong> – Optional float32 material opacity <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">V)</span></code>, clamped
+to <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">1]</span></code> and multiplied by appearance alpha. Defaults to one.</p></li>
+<li><p><strong>negative_slope</strong> – Hidden LeakyReLU slope, in <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">1]</span></code>. Defaults to 0.2.</p></li>
+<li><p><strong>mode</strong> – Texture filtering: <code class="docutils literal notranslate"><span class="pre">&quot;bilinear&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;nearest&quot;</span></code>, or <code class="docutils literal notranslate"><span class="pre">&quot;bicubic&quot;</span></code>.</p></li>
+<li><p><strong>padding_mode</strong> – Texture padding: <code class="docutils literal notranslate"><span class="pre">&quot;border&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;zeros&quot;</span></code>, or
+<code class="docutils literal notranslate"><span class="pre">&quot;reflection&quot;</span></code>. Sampling uses <code class="docutils literal notranslate"><span class="pre">align_corners=False</span></code>.</p></li>
+<li><p><strong>alpha_activation</strong> – <code class="docutils literal notranslate"><span class="pre">&quot;shifted_relu_density&quot;</span></code> (default) computes
+<code class="docutils literal notranslate"><span class="pre">1</span> <span class="pre">-</span> <span class="pre">exp(-max(x</span> <span class="pre">+</span> <span class="pre">0.5,</span> <span class="pre">0))</span></code> from the fourth MLP output.
+Alternatives are <code class="docutils literal notranslate"><span class="pre">&quot;sigmoid&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;exp_density&quot;</span></code>
+(<code class="docutils literal notranslate"><span class="pre">1</span> <span class="pre">-</span> <span class="pre">exp(-exp(min(x,</span> <span class="pre">15)))</span></code>), and <code class="docutils literal notranslate"><span class="pre">&quot;shifted_clamp&quot;</span></code>
+(<code class="docutils literal notranslate"><span class="pre">clamp(x</span> <span class="pre">+</span> <span class="pre">0.5,</span> <span class="pre">0,</span> <span class="pre">1)</span></code>).</p></li>
+<li><p><strong>edge_gradients</strong> – Estimate geometry gradients at occlusion and
+receiving-surface boundaries. Defaults to True. Shared tessellation
+edges and zero-alpha edge traces have no boundary jump.</p></li>
+<li><p><strong>return_queries</strong> – Also return query UV in normalized <code class="docutils literal notranslate"><span class="pre">[-1,</span> <span class="pre">1]</span></code> image
+coordinates and camera depth. Defaults to False.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">(tap_indices,</span> <span class="pre">tap_weights,</span> <span class="pre">query_uv,</span> <span class="pre">query_depth)</span></code>. Indices are
+int32 <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">Q,</span> <span class="pre">4)</span></code> and weights are float32 <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">Q,</span> <span class="pre">4)</span></code>, ordered
+top-left, top-right, bottom-left, bottom-right. Each weight is a
+bilinear coefficient times transmittance; invalid taps have zero
+weight. Indices are flattened as <code class="docutils literal notranslate"><span class="pre">y</span> <span class="pre">*</span> <span class="pre">width</span> <span class="pre">+</span> <span class="pre">x</span></code>; out-of-image or
+unused-query taps have index <code class="docutils literal notranslate"><span class="pre">-1</span></code>. Query UV <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">Q,</span> <span class="pre">2)</span></code> and depth
+<code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">Q)</span></code> are None unless requested.</p>
+</dd>
+</dl>
+<dl>
+<dt>Gradients:</dt><dd><p>Smooth derivatives reach vertices, query barycentrics, UVs, material
+opacity, and appearance parameters. RGB output channels do not affect
+transmittance. Coverage boundaries contribute geometry gradients when
+enabled; do not apply <a class="reference internal" href="edge_grad_estimator.html#drtk.edge_grad_estimator" title="drtk.edge_grad_estimator"><code class="xref py py-func docutils literal notranslate"><span class="pre">edge_grad_estimator()</span></code></a> again to this result.
+Face IDs, connectivity, and depth ordering are discrete. Second
+derivatives are unsupported.</p>
+<p>The alpha activations and endpoint derivatives match the corresponding
+transparent renderer. In particular, final zero alpha has zero smooth
+gradient, while exactly opaque fragments retain their opacity gradient
+unless another opaque fragment blocks the query.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="drtk.source_transmittance_mlp_two_textures">
+<span class="sig-prename descclassname"><span class="pre">drtk.</span></span><span class="sig-name descname"><span class="pre">source_transmittance_mlp_two_textures</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v_pix</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vi</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">uv0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">uv1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">texture0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">texture1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weights</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">biases</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">query_face_ids</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">query_barycentrics</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">height</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">width</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">vertex_opacity</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">negative_slope</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'bilinear'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">padding_mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'border'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha_activation</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'shifted_relu_density'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">edge_gradients</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_queries</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/drtk/source_features.html#source_transmittance_mlp_two_textures"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#drtk.source_transmittance_mlp_two_textures" title="Link to this definition">#</a></dt>
+<dd><p>Evaluate source transmittance from two feature textures and an appearance MLP.</p>
+<p>Samples both textures with their own perspective-correct UVs, concatenates
+the features, and uses the alpha output of <a class="reference internal" href="transparent_render.html#drtk.render_transparent_mlp_two_textures" title="drtk.render_transparent_mlp_two_textures"><code class="xref py py-func docutils literal notranslate"><span class="pre">render_transparent_mlp_two_textures()</span></code></a>’s
+appearance model. Use the same textures, UVs, MLP, vertex opacity, and
+activation in visibility and rendering to obtain consistent attenuation.</p>
+<p>Occluders follow mean-triangle-depth order, with face index breaking ties.
+Queries and surface connectivity follow <a class="reference internal" href="#drtk.source_transmittance" title="drtk.source_transmittance"><code class="xref py py-func docutils literal notranslate"><span class="pre">source_transmittance()</span></code></a>.
+Sum the returned weights for transmittance, or pass them to
+<a class="reference internal" href="#drtk.sample_with_transmittance" title="drtk.sample_with_transmittance"><code class="xref py py-func docutils literal notranslate"><span class="pre">sample_with_transmittance()</span></code></a> to gather attenuated source features.
+The appearance textures must be available before this sampling step; they
+cannot depend on features sampled using the same transmittance.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>v_pix</strong> – Float32 CUDA vertices <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">V,</span> <span class="pre">3)</span></code> in source pixel XY and
+positive camera Z. Integer XY denotes pixel centers.</p></li>
+<li><p><strong>vi</strong> – Int32 faces <code class="docutils literal notranslate"><span class="pre">(F,</span> <span class="pre">3)</span></code> or <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">F,</span> <span class="pre">3)</span></code>. Shared indices define
+connectivity; invalid or degenerate faces are ignored.</p></li>
+<li><p><strong>uv0</strong> – First texture coordinates <code class="docutils literal notranslate"><span class="pre">(V,</span> <span class="pre">2)</span></code>, <code class="docutils literal notranslate"><span class="pre">(1,</span> <span class="pre">V,</span> <span class="pre">2)</span></code>, or
+<code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">V,</span> <span class="pre">2)</span></code> in <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">1]</span></code>.</p></li>
+<li><p><strong>uv1</strong> – Second texture coordinates, with the same shape conventions.</p></li>
+<li><p><strong>texture0</strong> – First feature texture <code class="docutils literal notranslate"><span class="pre">(N</span> <span class="pre">or</span> <span class="pre">1,</span> <span class="pre">C0,</span> <span class="pre">H0,</span> <span class="pre">W0)</span></code>.</p></li>
+<li><p><strong>texture1</strong> – Second feature texture <code class="docutils literal notranslate"><span class="pre">(N</span> <span class="pre">or</span> <span class="pre">1,</span> <span class="pre">C1,</span> <span class="pre">H1,</span> <span class="pre">W1)</span></code>. The combined
+channel count must be in <code class="docutils literal notranslate"><span class="pre">[1,</span> <span class="pre">32]</span></code>; resolutions may differ.</p></li>
+<li><p><strong>weights</strong> – Four or five affine weight tensors, with hidden width eight
+and a final <code class="docutils literal notranslate"><span class="pre">(4,</span> <span class="pre">8)</span></code> RGBA layer. Hidden layers use LeakyReLU.</p></li>
+<li><p><strong>biases</strong> – One bias per weight; the final bias has shape <code class="docutils literal notranslate"><span class="pre">(4,)</span></code>.</p></li>
+<li><p><strong>query_face_ids</strong> – Int32 receiving-face IDs <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">Q)</span></code>; <code class="docutils literal notranslate"><span class="pre">-1</span></code> marks
+unused queries. The receiving face’s own alpha is excluded.</p></li>
+<li><p><strong>query_barycentrics</strong> – Float32 3D barycentrics <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">Q,</span> <span class="pre">3)</span></code>. Values must
+be nonnegative and sum to one; invalid queries have zero weights.</p></li>
+<li><p><strong>height</strong> – Source feature-image height, independent of texture size.</p></li>
+<li><p><strong>width</strong> – Source feature-image width, independent of texture size.</p></li>
+<li><p><strong>vertex_opacity</strong> – Optional float32 material opacity <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">V)</span></code>, clamped
+to <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">1]</span></code> and multiplied by appearance alpha. Defaults to one.</p></li>
+<li><p><strong>negative_slope</strong> – Hidden LeakyReLU slope, in <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">1]</span></code>. Defaults to 0.2.</p></li>
+<li><p><strong>mode</strong> – Texture filtering: <code class="docutils literal notranslate"><span class="pre">&quot;bilinear&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;nearest&quot;</span></code>, or <code class="docutils literal notranslate"><span class="pre">&quot;bicubic&quot;</span></code>.</p></li>
+<li><p><strong>padding_mode</strong> – Texture padding: <code class="docutils literal notranslate"><span class="pre">&quot;border&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;zeros&quot;</span></code>, or
+<code class="docutils literal notranslate"><span class="pre">&quot;reflection&quot;</span></code>. Sampling uses <code class="docutils literal notranslate"><span class="pre">align_corners=False</span></code>.</p></li>
+<li><p><strong>alpha_activation</strong> – <code class="docutils literal notranslate"><span class="pre">&quot;shifted_relu_density&quot;</span></code> (default) computes
+<code class="docutils literal notranslate"><span class="pre">1</span> <span class="pre">-</span> <span class="pre">exp(-max(x</span> <span class="pre">+</span> <span class="pre">0.5,</span> <span class="pre">0))</span></code> from the fourth MLP output.
+Alternatives are <code class="docutils literal notranslate"><span class="pre">&quot;sigmoid&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;exp_density&quot;</span></code>
+(<code class="docutils literal notranslate"><span class="pre">1</span> <span class="pre">-</span> <span class="pre">exp(-exp(min(x,</span> <span class="pre">15)))</span></code>), and <code class="docutils literal notranslate"><span class="pre">&quot;shifted_clamp&quot;</span></code>
+(<code class="docutils literal notranslate"><span class="pre">clamp(x</span> <span class="pre">+</span> <span class="pre">0.5,</span> <span class="pre">0,</span> <span class="pre">1)</span></code>).</p></li>
+<li><p><strong>edge_gradients</strong> – Estimate geometry gradients at occlusion and
+receiving-surface boundaries. Defaults to True. Shared tessellation
+edges and zero-alpha edge traces have no boundary jump.</p></li>
+<li><p><strong>return_queries</strong> – Also return query UV in normalized <code class="docutils literal notranslate"><span class="pre">[-1,</span> <span class="pre">1]</span></code> image
+coordinates and camera depth. Defaults to False.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">(tap_indices,</span> <span class="pre">tap_weights,</span> <span class="pre">query_uv,</span> <span class="pre">query_depth)</span></code>. Indices are
+int32 <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">Q,</span> <span class="pre">4)</span></code> and weights are float32 <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">Q,</span> <span class="pre">4)</span></code>, ordered
+top-left, top-right, bottom-left, bottom-right. Each weight is a
+bilinear coefficient times transmittance; invalid taps have zero
+weight. Indices are flattened as <code class="docutils literal notranslate"><span class="pre">y</span> <span class="pre">*</span> <span class="pre">width</span> <span class="pre">+</span> <span class="pre">x</span></code>; out-of-image or
+unused-query taps have index <code class="docutils literal notranslate"><span class="pre">-1</span></code>. Query UV <code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">Q,</span> <span class="pre">2)</span></code> and depth
+<code class="docutils literal notranslate"><span class="pre">(N,</span> <span class="pre">Q)</span></code> are None unless requested.</p>
+</dd>
+</dl>
+<dl>
+<dt>Gradients:</dt><dd><p>Smooth derivatives reach vertices, query barycentrics, UVs, material
+opacity, and appearance parameters. RGB output channels do not affect
+transmittance. Coverage boundaries contribute geometry gradients when
+enabled; do not apply <a class="reference internal" href="edge_grad_estimator.html#drtk.edge_grad_estimator" title="drtk.edge_grad_estimator"><code class="xref py py-func docutils literal notranslate"><span class="pre">edge_grad_estimator()</span></code></a> again to this result.
+Face IDs, connectivity, and depth ordering are discrete. Second
+derivatives are unsupported.</p>
+<p>The alpha activations and endpoint derivatives match the corresponding
+transparent renderer. In particular, final zero alpha has zero smooth
+gradient, while exactly opaque fragments retain their opacity gradient
+unless another opaque fragment blocks the query.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="drtk.sample_with_transmittance">
 <span class="sig-prename descclassname"><span class="pre">drtk.</span></span><span class="sig-name descname"><span class="pre">sample_with_transmittance</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">image</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tap_indices</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tap_weights</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/drtk/source_features.html#sample_with_transmittance"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#drtk.sample_with_transmittance" title="Link to this definition">#</a></dt>
 <dd><p>Sample an image at surface points, attenuated by source transmittance.</p>
@@ -725,6 +1019,24 @@ weights, including zero weights with valid indices.</p>
 </dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="drtk.source_transmittance_texture_ref">
+<span class="sig-prename descclassname"><span class="pre">drtk.</span></span><span class="sig-name descname"><span class="pre">source_transmittance_texture_ref</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v_pix</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vi</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">uv</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">texture</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">query_face_ids</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">query_barycentrics</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">height</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">width</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">vertex_opacity</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'bilinear'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">padding_mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'border'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha_activation</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'relu_density'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">edge_gradients</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_queries</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/drtk/source_features.html#source_transmittance_texture_ref"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#drtk.source_transmittance_texture_ref" title="Link to this definition">#</a></dt>
+<dd><p>Reference for <a class="reference internal" href="#drtk.source_transmittance_texture" title="drtk.source_transmittance_texture"><code class="xref py py-func docutils literal notranslate"><span class="pre">source_transmittance_texture()</span></code></a>, with smooth gradients only.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="drtk.source_transmittance_mlp_ref">
+<span class="sig-prename descclassname"><span class="pre">drtk.</span></span><span class="sig-name descname"><span class="pre">source_transmittance_mlp_ref</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v_pix</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vi</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">uv</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">texture</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weights</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">biases</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">query_face_ids</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">query_barycentrics</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">height</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">width</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">vertex_opacity</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">negative_slope</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'bilinear'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">padding_mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'border'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha_activation</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'shifted_relu_density'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">edge_gradients</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_queries</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/drtk/source_features.html#source_transmittance_mlp_ref"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#drtk.source_transmittance_mlp_ref" title="Link to this definition">#</a></dt>
+<dd><p>Reference for <a class="reference internal" href="#drtk.source_transmittance_mlp" title="drtk.source_transmittance_mlp"><code class="xref py py-func docutils literal notranslate"><span class="pre">source_transmittance_mlp()</span></code></a>, with smooth gradients only.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="drtk.source_transmittance_mlp_two_textures_ref">
+<span class="sig-prename descclassname"><span class="pre">drtk.</span></span><span class="sig-name descname"><span class="pre">source_transmittance_mlp_two_textures_ref</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">v_pix</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">vi</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">uv0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">uv1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">texture0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">texture1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weights</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">biases</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">query_face_ids</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">query_barycentrics</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">height</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">width</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">vertex_opacity</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">negative_slope</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'bilinear'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">padding_mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'border'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha_activation</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'shifted_relu_density'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">edge_gradients</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_queries</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/drtk/source_features.html#source_transmittance_mlp_two_textures_ref"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#drtk.source_transmittance_mlp_two_textures_ref" title="Link to this definition">#</a></dt>
+<dd><p>Reference for <a class="reference internal" href="#drtk.source_transmittance_mlp_two_textures" title="drtk.source_transmittance_mlp_two_textures"><code class="xref py py-func docutils literal notranslate"><span class="pre">source_transmittance_mlp_two_textures()</span></code></a>, with smooth gradients only.</p>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="drtk.sample_with_transmittance_ref">
 <span class="sig-prename descclassname"><span class="pre">drtk.</span></span><span class="sig-name descname"><span class="pre">sample_with_transmittance_ref</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">image</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tap_indices</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tap_weights</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/drtk/source_features.html#sample_with_transmittance_ref"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#drtk.sample_with_transmittance_ref" title="Link to this definition">#</a></dt>
 <dd><p>Reference for <a class="reference internal" href="#drtk.sample_with_transmittance" title="drtk.sample_with_transmittance"><code class="xref py py-func docutils literal notranslate"><span class="pre">sample_with_transmittance()</span></code></a>, supporting CPU and float64.</p>
@@ -757,14 +1069,21 @@ weights, including zero weights with valid indices.</p>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#evaluating-transmittance">Evaluating transmittance</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#opacity-models">Opacity models</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#sampling-features">Sampling features</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#transmittance-and-confidence">Transmittance and confidence</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#gradients">Gradients</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#coordinates-and-data-types">Coordinates and data types</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#functions">Functions</a><ul class="nav section-nav flex-column">
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.source_transmittance"><code class="docutils literal notranslate"><span class="pre">source_transmittance()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.source_transmittance_texture"><code class="docutils literal notranslate"><span class="pre">source_transmittance_texture()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.source_transmittance_mlp"><code class="docutils literal notranslate"><span class="pre">source_transmittance_mlp()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.source_transmittance_mlp_two_textures"><code class="docutils literal notranslate"><span class="pre">source_transmittance_mlp_two_textures()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.sample_with_transmittance"><code class="docutils literal notranslate"><span class="pre">sample_with_transmittance()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.source_transmittance_ref"><code class="docutils literal notranslate"><span class="pre">source_transmittance_ref()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.source_transmittance_texture_ref"><code class="docutils literal notranslate"><span class="pre">source_transmittance_texture_ref()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.source_transmittance_mlp_ref"><code class="docutils literal notranslate"><span class="pre">source_transmittance_mlp_ref()</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.source_transmittance_mlp_two_textures_ref"><code class="docutils literal notranslate"><span class="pre">source_transmittance_mlp_two_textures_ref()</span></code></a></li>
 <li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#drtk.sample_with_transmittance_ref"><code class="docutils literal notranslate"><span class="pre">sample_with_transmittance_ref()</span></code></a></li>
 </ul>
 </li>

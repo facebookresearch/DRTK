@@ -164,6 +164,52 @@ the initial shape and position. The finite shadow grid limits geometric precisio
 an arbitrary object. Multiple lights constrain more shape directions than
 a single shadow.
 
+Textured and learned opacity
+----------------------------
+
+A patterned or spatially varying surface needs the same opacity field in
+its shadow calculation and its rendered appearance. Use
+:func:`drtk.source_transmittance_texture` with the texture and UVs passed to
+:func:`drtk.render_transparent`:
+
+.. code-block:: python
+
+   indices, weights, _, _ = drtk.source_transmittance_texture(
+       v_light, faces, uv, rgba_texture,
+       receiver_faces, receiver_barycentrics, light_height, light_width,
+       vertex_opacity=material_opacity, alpha_activation="clamp",
+   )
+   shadow = weights.sum(-1).reshape(num_lights, H0, W0)
+   loss = (shadow - target_shadows).square().mean()
+   loss.backward()
+
+Here ``"clamp"`` treats the fourth texture channel as opacity. The default,
+``"relu_density"``, instead maps a nonnegative density to opacity. Both the
+visibility calculation and the renderer must use the same activation.
+Gradients from the shadow loss reach the texture, its UVs, material opacity,
+and geometry. Texture filtering occurs before alpha activation.
+
+For neural appearance, use :func:`drtk.source_transmittance_mlp` or
+:func:`drtk.source_transmittance_mlp_two_textures` with the same feature
+textures and MLP as the matching transparent renderer. For example, an
+original UV map and a deformed UV map can sample two feature fields:
+
+.. code-block:: python
+
+   indices, weights, _, _ = drtk.source_transmittance_mlp_two_textures(
+       v_light, faces, original_uv, deformed_uv,
+       original_features, deformed_features, mlp_weights, mlp_biases,
+       receiver_faces, receiver_barycentrics, light_height, light_width,
+       vertex_opacity=material_opacity,
+   )
+   shadow = weights.sum(-1).reshape(num_lights, H0, W0)
+   (shadow - target_shadows).square().mean().backward()
+
+The shadow loss differentiates both feature fields, both UV maps, and the
+MLP's opacity prediction. The RGB outputs do not affect transmittance.
+These appearance features must exist before evaluating visibility. Features
+gathered with the resulting weights can feed a later refinement stage.
+
 From lights to camera features
 -------------------------------
 

@@ -383,10 +383,22 @@
 
 <span class="c1"># pyre-strict</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Tuple</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Tuple</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">th</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">drtk.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_torch_ops</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.transparent_render</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">_activate_texture_alpha</span><span class="p">,</span>
+    <span class="n">_clamp_with_inclusive_grad</span><span class="p">,</span>
+    <span class="n">_interpolate_triangle_attribute</span><span class="p">,</span>
+    <span class="n">_sample_texture</span><span class="p">,</span>
+    <span class="n">_tiny_mlp</span><span class="p">,</span>
+    <span class="n">_validate_mlp</span><span class="p">,</span>
+    <span class="n">_validate_mlp_activation_options</span><span class="p">,</span>
+    <span class="n">_validate_sampling_options</span><span class="p">,</span>
+    <span class="n">_validate_texture_activation_options</span><span class="p">,</span>
+<span class="p">)</span>
 
 <span class="n">load_torch_ops</span><span class="p">(</span><span class="s2">&quot;drtk.transparent_render_ext&quot;</span><span class="p">)</span>
 
@@ -528,6 +540,476 @@
         <span class="n">weights</span><span class="p">,</span>
         <span class="n">uv</span> <span class="k">if</span> <span class="n">return_queries</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">depth</span> <span class="k">if</span> <span class="n">return_queries</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="source_transmittance_texture">
+<a class="viewcode-back" href="../../api_reference/source_features.html#drtk.source_transmittance_texture">[docs]</a>
+<span class="nd">@th</span><span class="o">.</span><span class="n">compiler</span><span class="o">.</span><span class="n">disable</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">source_transmittance_texture</span><span class="p">(</span>
+    <span class="n">v_pix</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">vi</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">uv</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">texture</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">query_face_ids</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">query_barycentrics</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">height</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">width</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">vertex_opacity</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;bilinear&quot;</span><span class="p">,</span>
+    <span class="n">padding_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;border&quot;</span><span class="p">,</span>
+    <span class="n">alpha_activation</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;relu_density&quot;</span><span class="p">,</span>
+    <span class="n">edge_gradients</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">return_queries</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Evaluate source transmittance using a textured opacity field.</span>
+
+<span class="sd">    Uses the same perspective-correct UV interpolation, texture filtering, and</span>
+<span class="sd">    alpha activation as :func:`render_transparent`. With an RGBA texture, the</span>
+<span class="sd">    fourth channel supplies appearance alpha; an RGB texture supplies alpha</span>
+<span class="sd">    one. Interpolated vertex opacity multiplies this appearance alpha.</span>
+
+<span class="sd">    Occluders follow mean-triangle-depth order, with face index breaking ties.</span>
+<span class="sd">    Queries and surface connectivity follow :func:`source_transmittance`.</span>
+<span class="sd">    Sum the returned weights for transmittance, or pass them to</span>
+<span class="sd">    :func:`sample_with_transmittance` to gather attenuated source features.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        v_pix: Float32 CUDA vertices ``(N, V, 3)`` in source pixel XY and</span>
+<span class="sd">            positive camera Z. Integer XY denotes pixel centers.</span>
+<span class="sd">        vi: Int32 faces ``(F, 3)`` or ``(N, F, 3)``. Shared indices define</span>
+<span class="sd">            connectivity; invalid or degenerate faces are ignored.</span>
+<span class="sd">        uv: Per-vertex texture coordinates ``(V, 2)``, ``(1, V, 2)``, or</span>
+<span class="sd">            ``(N, V, 2)`` in ``[0, 1]``.</span>
+<span class="sd">        texture: RGB or RGBA texture ``(N or 1, 3 or 4, Ht, Wt)``. RGB channels</span>
+<span class="sd">            do not affect visibility. Alpha activation follows texture filtering.</span>
+<span class="sd">        query_face_ids: Int32 receiving-face IDs ``(N, Q)``; ``-1`` marks</span>
+<span class="sd">            unused queries. The receiving face&#39;s own alpha is excluded.</span>
+<span class="sd">        query_barycentrics: Float32 3D barycentrics ``(N, Q, 3)``. Values must</span>
+<span class="sd">            be nonnegative and sum to one; invalid queries have zero weights.</span>
+<span class="sd">        height: Source feature-image height, independent of texture size.</span>
+<span class="sd">        width: Source feature-image width, independent of texture size.</span>
+<span class="sd">        vertex_opacity: Optional float32 material opacity ``(N, V)``, clamped</span>
+<span class="sd">            to ``[0, 1]`` and multiplied by appearance alpha. Defaults to one.</span>
+<span class="sd">        mode: Texture filtering: ``&quot;bilinear&quot;``, ``&quot;nearest&quot;``, or ``&quot;bicubic&quot;``.</span>
+<span class="sd">        padding_mode: Texture padding: ``&quot;border&quot;``, ``&quot;zeros&quot;``, or</span>
+<span class="sd">            ``&quot;reflection&quot;``. Sampling uses ``align_corners=False``.</span>
+<span class="sd">        alpha_activation: ``&quot;relu_density&quot;`` (default) computes</span>
+<span class="sd">            ``1 - exp(-max(a, 0))``. Alternatives are ``&quot;shifted_sigmoid&quot;``</span>
+<span class="sd">            (``sigmoid(a - 0.5)``), ``&quot;exp_density&quot;``</span>
+<span class="sd">            (``1 - exp(-exp(min(a, 15)))``), and ``&quot;clamp&quot;``</span>
+<span class="sd">            (``clamp(a, 0, 1)``).</span>
+<span class="sd">        edge_gradients: Estimate geometry gradients at occlusion and</span>
+<span class="sd">            receiving-surface boundaries. Defaults to True. Shared tessellation</span>
+<span class="sd">            edges and zero-alpha edge traces have no boundary jump.</span>
+<span class="sd">        return_queries: Also return query UV in normalized ``[-1, 1]`` image</span>
+<span class="sd">            coordinates and camera depth. Defaults to False.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        ``(tap_indices, tap_weights, query_uv, query_depth)``. Indices are</span>
+<span class="sd">        int32 ``(N, Q, 4)`` and weights are float32 ``(N, Q, 4)``, ordered</span>
+<span class="sd">        top-left, top-right, bottom-left, bottom-right. Each weight is a</span>
+<span class="sd">        bilinear coefficient times transmittance; invalid taps have zero</span>
+<span class="sd">        weight. Indices are flattened as ``y * width + x``; out-of-image or</span>
+<span class="sd">        unused-query taps have index ``-1``. Query UV ``(N, Q, 2)`` and depth</span>
+<span class="sd">        ``(N, Q)`` are None unless requested.</span>
+
+<span class="sd">    Gradients:</span>
+<span class="sd">        Smooth derivatives reach vertices, query barycentrics, UVs, material</span>
+<span class="sd">        opacity, and appearance parameters. RGB output channels do not affect</span>
+<span class="sd">        transmittance. Coverage boundaries contribute geometry gradients when</span>
+<span class="sd">        enabled; do not apply :func:`edge_grad_estimator` again to this result.</span>
+<span class="sd">        Face IDs, connectivity, and depth ordering are discrete. Second</span>
+<span class="sd">        derivatives are unsupported.</span>
+
+<span class="sd">        The alpha activations and endpoint derivatives match the corresponding</span>
+<span class="sd">        transparent renderer. In particular, final zero alpha has zero smooth</span>
+<span class="sd">        gradient, while exactly opaque fragments retain their opacity gradient</span>
+<span class="sd">        unless another opaque fragment blocks the query.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">_source_appearance</span><span class="p">(</span>
+        <span class="n">v_pix</span><span class="p">,</span>
+        <span class="n">vi</span><span class="p">,</span>
+        <span class="n">query_face_ids</span><span class="p">,</span>
+        <span class="n">query_barycentrics</span><span class="p">,</span>
+        <span class="n">height</span><span class="p">,</span>
+        <span class="n">width</span><span class="p">,</span>
+        <span class="p">[</span><span class="n">uv</span><span class="p">,</span> <span class="n">texture</span><span class="p">],</span>
+        <span class="n">mlp</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">vertex_opacity</span><span class="o">=</span><span class="n">vertex_opacity</span><span class="p">,</span>
+        <span class="n">negative_slope</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span>
+        <span class="n">mode</span><span class="o">=</span><span class="n">mode</span><span class="p">,</span>
+        <span class="n">padding_mode</span><span class="o">=</span><span class="n">padding_mode</span><span class="p">,</span>
+        <span class="n">alpha_activation</span><span class="o">=</span><span class="n">alpha_activation</span><span class="p">,</span>
+        <span class="n">edge_gradients</span><span class="o">=</span><span class="n">edge_gradients</span><span class="p">,</span>
+        <span class="n">return_queries</span><span class="o">=</span><span class="n">return_queries</span><span class="p">,</span>
+        <span class="n">native</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="source_transmittance_texture_ref">
+<a class="viewcode-back" href="../../api_reference/source_features.html#drtk.source_transmittance_texture_ref">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">source_transmittance_texture_ref</span><span class="p">(</span>
+    <span class="n">v_pix</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">vi</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">uv</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">texture</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">query_face_ids</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">query_barycentrics</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">height</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">width</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">vertex_opacity</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;bilinear&quot;</span><span class="p">,</span>
+    <span class="n">padding_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;border&quot;</span><span class="p">,</span>
+    <span class="n">alpha_activation</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;relu_density&quot;</span><span class="p">,</span>
+    <span class="n">edge_gradients</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">return_queries</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Reference for :func:`source_transmittance_texture`, with smooth gradients only.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">_source_appearance</span><span class="p">(</span>
+        <span class="n">v_pix</span><span class="p">,</span>
+        <span class="n">vi</span><span class="p">,</span>
+        <span class="n">query_face_ids</span><span class="p">,</span>
+        <span class="n">query_barycentrics</span><span class="p">,</span>
+        <span class="n">height</span><span class="p">,</span>
+        <span class="n">width</span><span class="p">,</span>
+        <span class="p">[</span><span class="n">uv</span><span class="p">,</span> <span class="n">texture</span><span class="p">],</span>
+        <span class="n">mlp</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="n">vertex_opacity</span><span class="o">=</span><span class="n">vertex_opacity</span><span class="p">,</span>
+        <span class="n">negative_slope</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span>
+        <span class="n">mode</span><span class="o">=</span><span class="n">mode</span><span class="p">,</span>
+        <span class="n">padding_mode</span><span class="o">=</span><span class="n">padding_mode</span><span class="p">,</span>
+        <span class="n">alpha_activation</span><span class="o">=</span><span class="n">alpha_activation</span><span class="p">,</span>
+        <span class="n">edge_gradients</span><span class="o">=</span><span class="n">edge_gradients</span><span class="p">,</span>
+        <span class="n">return_queries</span><span class="o">=</span><span class="n">return_queries</span><span class="p">,</span>
+        <span class="n">native</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="source_transmittance_mlp">
+<a class="viewcode-back" href="../../api_reference/source_features.html#drtk.source_transmittance_mlp">[docs]</a>
+<span class="nd">@th</span><span class="o">.</span><span class="n">compiler</span><span class="o">.</span><span class="n">disable</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">source_transmittance_mlp</span><span class="p">(</span>
+    <span class="n">v_pix</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">vi</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">uv</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">texture</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">weights</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
+    <span class="n">biases</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
+    <span class="n">query_face_ids</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">query_barycentrics</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">height</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">width</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">vertex_opacity</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">negative_slope</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.2</span><span class="p">,</span>
+    <span class="n">mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;bilinear&quot;</span><span class="p">,</span>
+    <span class="n">padding_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;border&quot;</span><span class="p">,</span>
+    <span class="n">alpha_activation</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;shifted_relu_density&quot;</span><span class="p">,</span>
+    <span class="n">edge_gradients</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">return_queries</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Evaluate source transmittance from a feature texture and an appearance MLP.</span>
+
+<span class="sd">    Uses the alpha output of the appearance model from</span>
+<span class="sd">    :func:`render_transparent_mlp`. Features are sampled at perspective-correct</span>
+<span class="sd">    UVs before MLP evaluation. Use the same appearance inputs, vertex opacity,</span>
+<span class="sd">    and activation in visibility and rendering to obtain consistent attenuation.</span>
+
+<span class="sd">    Occluders follow mean-triangle-depth order, with face index breaking ties.</span>
+<span class="sd">    Queries and surface connectivity follow :func:`source_transmittance`.</span>
+<span class="sd">    Sum the returned weights for transmittance, or pass them to</span>
+<span class="sd">    :func:`sample_with_transmittance` to gather attenuated source features.</span>
+<span class="sd">    The appearance textures must be available before this sampling step; they</span>
+<span class="sd">    cannot depend on features sampled using the same transmittance.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        v_pix: Float32 CUDA vertices ``(N, V, 3)`` in source pixel XY and</span>
+<span class="sd">            positive camera Z. Integer XY denotes pixel centers.</span>
+<span class="sd">        vi: Int32 faces ``(F, 3)`` or ``(N, F, 3)``. Shared indices define</span>
+<span class="sd">            connectivity; invalid or degenerate faces are ignored.</span>
+<span class="sd">        uv: Per-vertex texture coordinates ``(V, 2)``, ``(1, V, 2)``, or</span>
+<span class="sd">            ``(N, V, 2)`` in ``[0, 1]``.</span>
+<span class="sd">        texture: Feature texture ``(N or 1, C, Ht, Wt)``, with ``1 &lt;= C &lt;= 32``.</span>
+<span class="sd">        weights: Four or five affine weight tensors, with hidden width eight</span>
+<span class="sd">            and a final ``(4, 8)`` RGBA layer. Hidden layers use LeakyReLU.</span>
+<span class="sd">        biases: One bias per weight; the final bias has shape ``(4,)``.</span>
+<span class="sd">        query_face_ids: Int32 receiving-face IDs ``(N, Q)``; ``-1`` marks</span>
+<span class="sd">            unused queries. The receiving face&#39;s own alpha is excluded.</span>
+<span class="sd">        query_barycentrics: Float32 3D barycentrics ``(N, Q, 3)``. Values must</span>
+<span class="sd">            be nonnegative and sum to one; invalid queries have zero weights.</span>
+<span class="sd">        height: Source feature-image height, independent of texture size.</span>
+<span class="sd">        width: Source feature-image width, independent of texture size.</span>
+<span class="sd">        vertex_opacity: Optional float32 material opacity ``(N, V)``, clamped</span>
+<span class="sd">            to ``[0, 1]`` and multiplied by appearance alpha. Defaults to one.</span>
+<span class="sd">        negative_slope: Hidden LeakyReLU slope, in ``[0, 1]``. Defaults to 0.2.</span>
+<span class="sd">        mode: Texture filtering: ``&quot;bilinear&quot;``, ``&quot;nearest&quot;``, or ``&quot;bicubic&quot;``.</span>
+<span class="sd">        padding_mode: Texture padding: ``&quot;border&quot;``, ``&quot;zeros&quot;``, or</span>
+<span class="sd">            ``&quot;reflection&quot;``. Sampling uses ``align_corners=False``.</span>
+<span class="sd">        alpha_activation: ``&quot;shifted_relu_density&quot;`` (default) computes</span>
+<span class="sd">            ``1 - exp(-max(x + 0.5, 0))`` from the fourth MLP output.</span>
+<span class="sd">            Alternatives are ``&quot;sigmoid&quot;``, ``&quot;exp_density&quot;``</span>
+<span class="sd">            (``1 - exp(-exp(min(x, 15)))``), and ``&quot;shifted_clamp&quot;``</span>
+<span class="sd">            (``clamp(x + 0.5, 0, 1)``).</span>
+<span class="sd">        edge_gradients: Estimate geometry gradients at occlusion and</span>
+<span class="sd">            receiving-surface boundaries. Defaults to True. Shared tessellation</span>
+<span class="sd">            edges and zero-alpha edge traces have no boundary jump.</span>
+<span class="sd">        return_queries: Also return query UV in normalized ``[-1, 1]`` image</span>
+<span class="sd">            coordinates and camera depth. Defaults to False.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        ``(tap_indices, tap_weights, query_uv, query_depth)``. Indices are</span>
+<span class="sd">        int32 ``(N, Q, 4)`` and weights are float32 ``(N, Q, 4)``, ordered</span>
+<span class="sd">        top-left, top-right, bottom-left, bottom-right. Each weight is a</span>
+<span class="sd">        bilinear coefficient times transmittance; invalid taps have zero</span>
+<span class="sd">        weight. Indices are flattened as ``y * width + x``; out-of-image or</span>
+<span class="sd">        unused-query taps have index ``-1``. Query UV ``(N, Q, 2)`` and depth</span>
+<span class="sd">        ``(N, Q)`` are None unless requested.</span>
+
+<span class="sd">    Gradients:</span>
+<span class="sd">        Smooth derivatives reach vertices, query barycentrics, UVs, material</span>
+<span class="sd">        opacity, and appearance parameters. RGB output channels do not affect</span>
+<span class="sd">        transmittance. Coverage boundaries contribute geometry gradients when</span>
+<span class="sd">        enabled; do not apply :func:`edge_grad_estimator` again to this result.</span>
+<span class="sd">        Face IDs, connectivity, and depth ordering are discrete. Second</span>
+<span class="sd">        derivatives are unsupported.</span>
+
+<span class="sd">        The alpha activations and endpoint derivatives match the corresponding</span>
+<span class="sd">        transparent renderer. In particular, final zero alpha has zero smooth</span>
+<span class="sd">        gradient, while exactly opaque fragments retain their opacity gradient</span>
+<span class="sd">        unless another opaque fragment blocks the query.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">_source_appearance</span><span class="p">(</span>
+        <span class="n">v_pix</span><span class="p">,</span>
+        <span class="n">vi</span><span class="p">,</span>
+        <span class="n">query_face_ids</span><span class="p">,</span>
+        <span class="n">query_barycentrics</span><span class="p">,</span>
+        <span class="n">height</span><span class="p">,</span>
+        <span class="n">width</span><span class="p">,</span>
+        <span class="p">[</span><span class="n">uv</span><span class="p">,</span> <span class="n">uv</span><span class="p">,</span> <span class="n">texture</span><span class="p">,</span> <span class="n">texture</span><span class="o">.</span><span class="n">new_empty</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)),</span> <span class="o">*</span><span class="n">weights</span><span class="p">,</span> <span class="o">*</span><span class="n">biases</span><span class="p">],</span>
+        <span class="n">mlp</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">vertex_opacity</span><span class="o">=</span><span class="n">vertex_opacity</span><span class="p">,</span>
+        <span class="n">negative_slope</span><span class="o">=</span><span class="n">negative_slope</span><span class="p">,</span>
+        <span class="n">mode</span><span class="o">=</span><span class="n">mode</span><span class="p">,</span>
+        <span class="n">padding_mode</span><span class="o">=</span><span class="n">padding_mode</span><span class="p">,</span>
+        <span class="n">alpha_activation</span><span class="o">=</span><span class="n">alpha_activation</span><span class="p">,</span>
+        <span class="n">edge_gradients</span><span class="o">=</span><span class="n">edge_gradients</span><span class="p">,</span>
+        <span class="n">return_queries</span><span class="o">=</span><span class="n">return_queries</span><span class="p">,</span>
+        <span class="n">native</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="source_transmittance_mlp_ref">
+<a class="viewcode-back" href="../../api_reference/source_features.html#drtk.source_transmittance_mlp_ref">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">source_transmittance_mlp_ref</span><span class="p">(</span>
+    <span class="n">v_pix</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">vi</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">uv</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">texture</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">weights</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
+    <span class="n">biases</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
+    <span class="n">query_face_ids</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">query_barycentrics</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">height</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">width</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">vertex_opacity</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">negative_slope</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.2</span><span class="p">,</span>
+    <span class="n">mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;bilinear&quot;</span><span class="p">,</span>
+    <span class="n">padding_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;border&quot;</span><span class="p">,</span>
+    <span class="n">alpha_activation</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;shifted_relu_density&quot;</span><span class="p">,</span>
+    <span class="n">edge_gradients</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">return_queries</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Reference for :func:`source_transmittance_mlp`, with smooth gradients only.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">_source_appearance</span><span class="p">(</span>
+        <span class="n">v_pix</span><span class="p">,</span>
+        <span class="n">vi</span><span class="p">,</span>
+        <span class="n">query_face_ids</span><span class="p">,</span>
+        <span class="n">query_barycentrics</span><span class="p">,</span>
+        <span class="n">height</span><span class="p">,</span>
+        <span class="n">width</span><span class="p">,</span>
+        <span class="p">[</span><span class="n">uv</span><span class="p">,</span> <span class="n">uv</span><span class="p">,</span> <span class="n">texture</span><span class="p">,</span> <span class="n">texture</span><span class="o">.</span><span class="n">new_empty</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)),</span> <span class="o">*</span><span class="n">weights</span><span class="p">,</span> <span class="o">*</span><span class="n">biases</span><span class="p">],</span>
+        <span class="n">mlp</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">vertex_opacity</span><span class="o">=</span><span class="n">vertex_opacity</span><span class="p">,</span>
+        <span class="n">negative_slope</span><span class="o">=</span><span class="n">negative_slope</span><span class="p">,</span>
+        <span class="n">mode</span><span class="o">=</span><span class="n">mode</span><span class="p">,</span>
+        <span class="n">padding_mode</span><span class="o">=</span><span class="n">padding_mode</span><span class="p">,</span>
+        <span class="n">alpha_activation</span><span class="o">=</span><span class="n">alpha_activation</span><span class="p">,</span>
+        <span class="n">edge_gradients</span><span class="o">=</span><span class="n">edge_gradients</span><span class="p">,</span>
+        <span class="n">return_queries</span><span class="o">=</span><span class="n">return_queries</span><span class="p">,</span>
+        <span class="n">native</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="source_transmittance_mlp_two_textures">
+<a class="viewcode-back" href="../../api_reference/source_features.html#drtk.source_transmittance_mlp_two_textures">[docs]</a>
+<span class="nd">@th</span><span class="o">.</span><span class="n">compiler</span><span class="o">.</span><span class="n">disable</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">source_transmittance_mlp_two_textures</span><span class="p">(</span>
+    <span class="n">v_pix</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">vi</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">uv0</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">uv1</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">texture0</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">texture1</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">weights</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
+    <span class="n">biases</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
+    <span class="n">query_face_ids</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">query_barycentrics</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">height</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">width</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">vertex_opacity</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">negative_slope</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.2</span><span class="p">,</span>
+    <span class="n">mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;bilinear&quot;</span><span class="p">,</span>
+    <span class="n">padding_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;border&quot;</span><span class="p">,</span>
+    <span class="n">alpha_activation</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;shifted_relu_density&quot;</span><span class="p">,</span>
+    <span class="n">edge_gradients</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">return_queries</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Evaluate source transmittance from two feature textures and an appearance MLP.</span>
+
+<span class="sd">    Samples both textures with their own perspective-correct UVs, concatenates</span>
+<span class="sd">    the features, and uses the alpha output of :func:`render_transparent_mlp_two_textures`&#39;s</span>
+<span class="sd">    appearance model. Use the same textures, UVs, MLP, vertex opacity, and</span>
+<span class="sd">    activation in visibility and rendering to obtain consistent attenuation.</span>
+
+<span class="sd">    Occluders follow mean-triangle-depth order, with face index breaking ties.</span>
+<span class="sd">    Queries and surface connectivity follow :func:`source_transmittance`.</span>
+<span class="sd">    Sum the returned weights for transmittance, or pass them to</span>
+<span class="sd">    :func:`sample_with_transmittance` to gather attenuated source features.</span>
+<span class="sd">    The appearance textures must be available before this sampling step; they</span>
+<span class="sd">    cannot depend on features sampled using the same transmittance.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        v_pix: Float32 CUDA vertices ``(N, V, 3)`` in source pixel XY and</span>
+<span class="sd">            positive camera Z. Integer XY denotes pixel centers.</span>
+<span class="sd">        vi: Int32 faces ``(F, 3)`` or ``(N, F, 3)``. Shared indices define</span>
+<span class="sd">            connectivity; invalid or degenerate faces are ignored.</span>
+<span class="sd">        uv0: First texture coordinates ``(V, 2)``, ``(1, V, 2)``, or</span>
+<span class="sd">            ``(N, V, 2)`` in ``[0, 1]``.</span>
+<span class="sd">        uv1: Second texture coordinates, with the same shape conventions.</span>
+<span class="sd">        texture0: First feature texture ``(N or 1, C0, H0, W0)``.</span>
+<span class="sd">        texture1: Second feature texture ``(N or 1, C1, H1, W1)``. The combined</span>
+<span class="sd">            channel count must be in ``[1, 32]``; resolutions may differ.</span>
+<span class="sd">        weights: Four or five affine weight tensors, with hidden width eight</span>
+<span class="sd">            and a final ``(4, 8)`` RGBA layer. Hidden layers use LeakyReLU.</span>
+<span class="sd">        biases: One bias per weight; the final bias has shape ``(4,)``.</span>
+<span class="sd">        query_face_ids: Int32 receiving-face IDs ``(N, Q)``; ``-1`` marks</span>
+<span class="sd">            unused queries. The receiving face&#39;s own alpha is excluded.</span>
+<span class="sd">        query_barycentrics: Float32 3D barycentrics ``(N, Q, 3)``. Values must</span>
+<span class="sd">            be nonnegative and sum to one; invalid queries have zero weights.</span>
+<span class="sd">        height: Source feature-image height, independent of texture size.</span>
+<span class="sd">        width: Source feature-image width, independent of texture size.</span>
+<span class="sd">        vertex_opacity: Optional float32 material opacity ``(N, V)``, clamped</span>
+<span class="sd">            to ``[0, 1]`` and multiplied by appearance alpha. Defaults to one.</span>
+<span class="sd">        negative_slope: Hidden LeakyReLU slope, in ``[0, 1]``. Defaults to 0.2.</span>
+<span class="sd">        mode: Texture filtering: ``&quot;bilinear&quot;``, ``&quot;nearest&quot;``, or ``&quot;bicubic&quot;``.</span>
+<span class="sd">        padding_mode: Texture padding: ``&quot;border&quot;``, ``&quot;zeros&quot;``, or</span>
+<span class="sd">            ``&quot;reflection&quot;``. Sampling uses ``align_corners=False``.</span>
+<span class="sd">        alpha_activation: ``&quot;shifted_relu_density&quot;`` (default) computes</span>
+<span class="sd">            ``1 - exp(-max(x + 0.5, 0))`` from the fourth MLP output.</span>
+<span class="sd">            Alternatives are ``&quot;sigmoid&quot;``, ``&quot;exp_density&quot;``</span>
+<span class="sd">            (``1 - exp(-exp(min(x, 15)))``), and ``&quot;shifted_clamp&quot;``</span>
+<span class="sd">            (``clamp(x + 0.5, 0, 1)``).</span>
+<span class="sd">        edge_gradients: Estimate geometry gradients at occlusion and</span>
+<span class="sd">            receiving-surface boundaries. Defaults to True. Shared tessellation</span>
+<span class="sd">            edges and zero-alpha edge traces have no boundary jump.</span>
+<span class="sd">        return_queries: Also return query UV in normalized ``[-1, 1]`` image</span>
+<span class="sd">            coordinates and camera depth. Defaults to False.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        ``(tap_indices, tap_weights, query_uv, query_depth)``. Indices are</span>
+<span class="sd">        int32 ``(N, Q, 4)`` and weights are float32 ``(N, Q, 4)``, ordered</span>
+<span class="sd">        top-left, top-right, bottom-left, bottom-right. Each weight is a</span>
+<span class="sd">        bilinear coefficient times transmittance; invalid taps have zero</span>
+<span class="sd">        weight. Indices are flattened as ``y * width + x``; out-of-image or</span>
+<span class="sd">        unused-query taps have index ``-1``. Query UV ``(N, Q, 2)`` and depth</span>
+<span class="sd">        ``(N, Q)`` are None unless requested.</span>
+
+<span class="sd">    Gradients:</span>
+<span class="sd">        Smooth derivatives reach vertices, query barycentrics, UVs, material</span>
+<span class="sd">        opacity, and appearance parameters. RGB output channels do not affect</span>
+<span class="sd">        transmittance. Coverage boundaries contribute geometry gradients when</span>
+<span class="sd">        enabled; do not apply :func:`edge_grad_estimator` again to this result.</span>
+<span class="sd">        Face IDs, connectivity, and depth ordering are discrete. Second</span>
+<span class="sd">        derivatives are unsupported.</span>
+
+<span class="sd">        The alpha activations and endpoint derivatives match the corresponding</span>
+<span class="sd">        transparent renderer. In particular, final zero alpha has zero smooth</span>
+<span class="sd">        gradient, while exactly opaque fragments retain their opacity gradient</span>
+<span class="sd">        unless another opaque fragment blocks the query.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">_source_appearance</span><span class="p">(</span>
+        <span class="n">v_pix</span><span class="p">,</span>
+        <span class="n">vi</span><span class="p">,</span>
+        <span class="n">query_face_ids</span><span class="p">,</span>
+        <span class="n">query_barycentrics</span><span class="p">,</span>
+        <span class="n">height</span><span class="p">,</span>
+        <span class="n">width</span><span class="p">,</span>
+        <span class="p">[</span><span class="n">uv0</span><span class="p">,</span> <span class="n">uv1</span><span class="p">,</span> <span class="n">texture0</span><span class="p">,</span> <span class="n">texture1</span><span class="p">,</span> <span class="o">*</span><span class="n">weights</span><span class="p">,</span> <span class="o">*</span><span class="n">biases</span><span class="p">],</span>
+        <span class="n">mlp</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">vertex_opacity</span><span class="o">=</span><span class="n">vertex_opacity</span><span class="p">,</span>
+        <span class="n">negative_slope</span><span class="o">=</span><span class="n">negative_slope</span><span class="p">,</span>
+        <span class="n">mode</span><span class="o">=</span><span class="n">mode</span><span class="p">,</span>
+        <span class="n">padding_mode</span><span class="o">=</span><span class="n">padding_mode</span><span class="p">,</span>
+        <span class="n">alpha_activation</span><span class="o">=</span><span class="n">alpha_activation</span><span class="p">,</span>
+        <span class="n">edge_gradients</span><span class="o">=</span><span class="n">edge_gradients</span><span class="p">,</span>
+        <span class="n">return_queries</span><span class="o">=</span><span class="n">return_queries</span><span class="p">,</span>
+        <span class="n">native</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="source_transmittance_mlp_two_textures_ref">
+<a class="viewcode-back" href="../../api_reference/source_features.html#drtk.source_transmittance_mlp_two_textures_ref">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">source_transmittance_mlp_two_textures_ref</span><span class="p">(</span>
+    <span class="n">v_pix</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">vi</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">uv0</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">uv1</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">texture0</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">texture1</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">weights</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
+    <span class="n">biases</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
+    <span class="n">query_face_ids</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">query_barycentrics</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">height</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">width</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">vertex_opacity</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">negative_slope</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.2</span><span class="p">,</span>
+    <span class="n">mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;bilinear&quot;</span><span class="p">,</span>
+    <span class="n">padding_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;border&quot;</span><span class="p">,</span>
+    <span class="n">alpha_activation</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;shifted_relu_density&quot;</span><span class="p">,</span>
+    <span class="n">edge_gradients</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">return_queries</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Reference for :func:`source_transmittance_mlp_two_textures`, with smooth gradients only.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">_source_appearance</span><span class="p">(</span>
+        <span class="n">v_pix</span><span class="p">,</span>
+        <span class="n">vi</span><span class="p">,</span>
+        <span class="n">query_face_ids</span><span class="p">,</span>
+        <span class="n">query_barycentrics</span><span class="p">,</span>
+        <span class="n">height</span><span class="p">,</span>
+        <span class="n">width</span><span class="p">,</span>
+        <span class="p">[</span><span class="n">uv0</span><span class="p">,</span> <span class="n">uv1</span><span class="p">,</span> <span class="n">texture0</span><span class="p">,</span> <span class="n">texture1</span><span class="p">,</span> <span class="o">*</span><span class="n">weights</span><span class="p">,</span> <span class="o">*</span><span class="n">biases</span><span class="p">],</span>
+        <span class="n">mlp</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">vertex_opacity</span><span class="o">=</span><span class="n">vertex_opacity</span><span class="p">,</span>
+        <span class="n">negative_slope</span><span class="o">=</span><span class="n">negative_slope</span><span class="p">,</span>
+        <span class="n">mode</span><span class="o">=</span><span class="n">mode</span><span class="p">,</span>
+        <span class="n">padding_mode</span><span class="o">=</span><span class="n">padding_mode</span><span class="p">,</span>
+        <span class="n">alpha_activation</span><span class="o">=</span><span class="n">alpha_activation</span><span class="p">,</span>
+        <span class="n">edge_gradients</span><span class="o">=</span><span class="n">edge_gradients</span><span class="p">,</span>
+        <span class="n">return_queries</span><span class="o">=</span><span class="n">return_queries</span><span class="p">,</span>
+        <span class="n">native</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
     <span class="p">)</span></div>
 
 
@@ -763,6 +1245,34 @@
     <span class="n">return_queries</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Reference for :func:`source_transmittance`, with smooth gradients only.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">_source_transmittance_ref_impl</span><span class="p">(</span>
+        <span class="n">v_pix</span><span class="p">,</span>
+        <span class="n">vi</span><span class="p">,</span>
+        <span class="n">query_face_ids</span><span class="p">,</span>
+        <span class="n">query_barycentrics</span><span class="p">,</span>
+        <span class="n">height</span><span class="p">,</span>
+        <span class="n">width</span><span class="p">,</span>
+        <span class="n">vertex_opacity</span><span class="o">=</span><span class="n">vertex_opacity</span><span class="p">,</span>
+        <span class="n">edge_gradients</span><span class="o">=</span><span class="n">edge_gradients</span><span class="p">,</span>
+        <span class="n">return_queries</span><span class="o">=</span><span class="n">return_queries</span><span class="p">,</span>
+    <span class="p">)</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_source_transmittance_ref_impl</span><span class="p">(</span>
+    <span class="n">v_pix</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">vi</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">query_face_ids</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">query_barycentrics</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">height</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">width</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">vertex_opacity</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
+    <span class="n">edge_gradients</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+    <span class="n">return_queries</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+    <span class="n">appearance_alpha</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Callable</span><span class="p">[[</span><span class="nb">int</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">appearance_zero</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]]:</span>
     <span class="k">if</span> <span class="n">edge_gradients</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;the reference implements smooth gradients only&quot;</span><span class="p">)</span>
     <span class="n">vi</span><span class="p">,</span> <span class="n">opacity</span> <span class="o">=</span> <span class="n">_prepare</span><span class="p">(</span>
@@ -781,6 +1291,8 @@
         <span class="o">+</span> <span class="n">query_barycentrics</span><span class="o">.</span><span class="n">nan_to_num</span><span class="p">()</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
         <span class="o">+</span> <span class="n">opacity</span><span class="o">.</span><span class="n">nan_to_num</span><span class="p">()</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
     <span class="p">)</span> <span class="o">*</span> <span class="mi">0</span>
+    <span class="k">if</span> <span class="n">appearance_zero</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">zero</span> <span class="o">=</span> <span class="n">zero</span> <span class="o">+</span> <span class="n">appearance_zero</span>
     <span class="n">indices</span><span class="p">,</span> <span class="n">weights</span><span class="p">,</span> <span class="n">uvs</span><span class="p">,</span> <span class="n">depths</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[],</span> <span class="p">[],</span> <span class="p">[]</span>
     <span class="k">for</span> <span class="n">batch</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
         <span class="n">v</span><span class="p">,</span> <span class="n">faces</span><span class="p">,</span> <span class="n">op</span> <span class="o">=</span> <span class="n">v_pix</span><span class="p">[</span><span class="n">batch</span><span class="p">],</span> <span class="n">vi</span><span class="p">[</span><span class="n">batch</span><span class="p">],</span> <span class="n">opacity</span><span class="p">[</span><span class="n">batch</span><span class="p">]</span>
@@ -845,14 +1357,20 @@
                             <span class="n">th</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">alpha</span><span class="p">),</span>
                             <span class="n">th</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">alpha</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">alpha</span><span class="p">),</span> <span class="n">alpha</span><span class="p">),</span>
                         <span class="p">)</span>
+                        <span class="k">if</span> <span class="n">appearance_alpha</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                            <span class="n">alpha</span> <span class="o">=</span> <span class="n">_clamp_with_inclusive_grad</span><span class="p">(</span>
+                                <span class="n">th</span><span class="o">.</span><span class="n">relu</span><span class="p">(</span>
+                                    <span class="n">alpha</span> <span class="o">*</span> <span class="n">appearance_alpha</span><span class="p">(</span><span class="n">batch</span><span class="p">,</span> <span class="n">faces</span><span class="p">[</span><span class="n">other</span><span class="p">],</span> <span class="n">pb</span><span class="p">)</span>
+                                <span class="p">),</span>
+                                <span class="n">max_value</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+                            <span class="p">)</span>
                         <span class="n">transmittance</span> <span class="o">=</span> <span class="n">transmittance</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">alpha</span><span class="p">)</span>
                 <span class="n">weights</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">b</span> <span class="o">*</span> <span class="n">transmittance</span><span class="p">)</span>
     <span class="n">idx</span> <span class="o">=</span> <span class="n">th</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">indices</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">th</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">v_pix</span><span class="o">.</span><span class="n">device</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
     <span class="n">w</span> <span class="o">=</span> <span class="n">th</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span><span class="n">weights</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span> <span class="k">if</span> <span class="n">weights</span> <span class="k">else</span> <span class="n">zero</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
     <span class="n">uv</span> <span class="o">=</span> <span class="n">th</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span><span class="n">uvs</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="k">if</span> <span class="n">uvs</span> <span class="k">else</span> <span class="n">zero</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">q</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
     <span class="n">z</span> <span class="o">=</span> <span class="n">th</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span><span class="n">depths</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">q</span><span class="p">)</span> <span class="k">if</span> <span class="n">depths</span> <span class="k">else</span> <span class="n">zero</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">q</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">idx</span><span class="p">,</span> <span class="n">w</span><span class="p">,</span> <span class="n">uv</span> <span class="k">if</span> <span class="n">return_queries</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span> <span class="n">z</span> <span class="k">if</span> <span class="n">return_queries</span> <span class="k">else</span> <span class="kc">None</span></div>
-
+    <span class="k">return</span> <span class="n">idx</span><span class="p">,</span> <span class="n">w</span><span class="p">,</span> <span class="n">uv</span> <span class="k">if</span> <span class="n">return_queries</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span> <span class="n">z</span> <span class="k">if</span> <span class="n">return_queries</span> <span class="k">else</span> <span class="kc">None</span>
 
 
 <div class="viewcode-block" id="sample_with_transmittance_ref">
@@ -872,6 +1390,150 @@
     <span class="n">weights</span> <span class="o">=</span> <span class="n">tap_weights</span> <span class="o">*</span> <span class="n">valid</span>
     <span class="k">return</span> <span class="p">(</span><span class="n">samples</span> <span class="o">*</span> <span class="n">weights</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">])</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">),</span> <span class="n">weights</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)[:,</span> <span class="kc">None</span><span class="p">]</span></div>
 
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_prepare_source_appearance</span><span class="p">(</span>
+    <span class="n">v</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">appearance</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
+    <span class="n">mlp</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+    <span class="n">native</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]:</span>
+    <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">device</span> <span class="o">!=</span> <span class="n">v</span><span class="o">.</span><span class="n">device</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">x</span><span class="o">.</span><span class="n">is_floating_point</span><span class="p">()</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">appearance</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;appearance tensors must be floating point on the geometry device&quot;</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">native</span> <span class="ow">and</span> <span class="nb">any</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">dtype</span> <span class="o">!=</span> <span class="n">v</span><span class="o">.</span><span class="n">dtype</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">appearance</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;reference appearance tensors must share the geometry dtype&quot;</span><span class="p">)</span>
+    <span class="n">uv_count</span> <span class="o">=</span> <span class="mi">2</span> <span class="k">if</span> <span class="n">mlp</span> <span class="k">else</span> <span class="mi">1</span>
+    <span class="n">prepared</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">uv</span> <span class="ow">in</span> <span class="n">appearance</span><span class="p">[:</span><span class="n">uv_count</span><span class="p">]:</span>
+        <span class="k">if</span> <span class="n">uv</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="n">uv</span> <span class="o">=</span> <span class="n">uv</span><span class="p">[</span><span class="kc">None</span><span class="p">]</span>
+        <span class="k">if</span> <span class="p">(</span>
+            <span class="n">uv</span><span class="o">.</span><span class="n">ndim</span> <span class="o">!=</span> <span class="mi">3</span>
+            <span class="ow">or</span> <span class="n">uv</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="ow">or</span> <span class="n">uv</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="o">!=</span> <span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="mi">2</span><span class="p">)</span>
+        <span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;UVs must have shape (V, 2), (1, V, 2), or (N, V, 2)&quot;</span><span class="p">)</span>
+        <span class="n">prepared</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">uv</span><span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">v</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">))</span>
+    <span class="n">prepared</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">appearance</span><span class="p">[</span><span class="n">uv_count</span><span class="p">:])</span>
+    <span class="n">textures</span> <span class="o">=</span> <span class="n">prepared</span><span class="p">[</span><span class="mi">2</span><span class="p">:</span><span class="mi">4</span><span class="p">]</span> <span class="k">if</span> <span class="n">mlp</span> <span class="k">else</span> <span class="n">prepared</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="mi">2</span><span class="p">]</span>
+    <span class="k">for</span> <span class="n">texture</span> <span class="ow">in</span> <span class="n">textures</span><span class="p">:</span>
+        <span class="k">if</span> <span class="p">(</span>
+            <span class="n">texture</span><span class="o">.</span><span class="n">ndim</span> <span class="o">!=</span> <span class="mi">4</span>
+            <span class="ow">or</span> <span class="n">texture</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">v</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="ow">or</span> <span class="nb">min</span><span class="p">(</span><span class="n">texture</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">2</span><span class="p">:])</span> <span class="o">&lt;=</span> <span class="mi">0</span>
+        <span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;textures must have shape (N or 1, C, Ht, Wt) with positive spatial dimensions&quot;</span>
+            <span class="p">)</span>
+    <span class="k">if</span> <span class="n">mlp</span><span class="p">:</span>
+        <span class="n">layers</span> <span class="o">=</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">prepared</span><span class="p">)</span> <span class="o">-</span> <span class="mi">4</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span>
+        <span class="n">_validate_mlp</span><span class="p">(</span>
+            <span class="n">textures</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">textures</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+            <span class="n">prepared</span><span class="p">[</span><span class="mi">4</span> <span class="p">:</span> <span class="mi">4</span> <span class="o">+</span> <span class="n">layers</span><span class="p">],</span>
+            <span class="n">prepared</span><span class="p">[</span><span class="mi">4</span> <span class="o">+</span> <span class="n">layers</span> <span class="p">:],</span>
+        <span class="p">)</span>
+    <span class="k">elif</span> <span class="n">textures</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;texture must have three or four channels&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">prepared</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_source_appearance</span><span class="p">(</span>
+    <span class="n">v</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">vi</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">qf</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">qb</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+    <span class="n">height</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">width</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">appearance</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">mlp</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+    <span class="n">vertex_opacity</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span>
+    <span class="n">negative_slope</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">mode</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">padding_mode</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">alpha_activation</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">edge_gradients</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+    <span class="n">return_queries</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+    <span class="n">native</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">],</span> <span class="n">Optional</span><span class="p">[</span><span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]]:</span>
+    <span class="n">vi</span><span class="p">,</span> <span class="n">opacity</span> <span class="o">=</span> <span class="n">_prepare</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">vi</span><span class="p">,</span> <span class="n">qf</span><span class="p">,</span> <span class="n">qb</span><span class="p">,</span> <span class="n">height</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span> <span class="n">vertex_opacity</span><span class="p">,</span> <span class="n">native</span><span class="o">=</span><span class="n">native</span><span class="p">)</span>
+    <span class="n">mode_enum</span><span class="p">,</span> <span class="n">padding_enum</span> <span class="o">=</span> <span class="n">_validate_sampling_options</span><span class="p">(</span><span class="n">mode</span><span class="p">,</span> <span class="n">padding_mode</span><span class="p">)</span>
+    <span class="n">_</span><span class="p">,</span> <span class="n">activation_enum</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">_validate_mlp_activation_options</span><span class="p">(</span><span class="s2">&quot;shifted_relu&quot;</span><span class="p">,</span> <span class="n">alpha_activation</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">mlp</span>
+        <span class="k">else</span> <span class="n">_validate_texture_activation_options</span><span class="p">(</span><span class="s2">&quot;identity&quot;</span><span class="p">,</span> <span class="n">alpha_activation</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="mf">0.0</span> <span class="o">&lt;=</span> <span class="n">negative_slope</span> <span class="o">&lt;=</span> <span class="mf">1.0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;negative_slope must be finite and in [0, 1]&quot;</span><span class="p">)</span>
+    <span class="n">prepared</span> <span class="o">=</span> <span class="n">_prepare_source_appearance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">appearance</span><span class="p">,</span> <span class="n">mlp</span><span class="p">,</span> <span class="n">native</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">native</span><span class="p">:</span>
+        <span class="n">outputs</span> <span class="o">=</span> <span class="n">th</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">source_features_ext</span><span class="o">.</span><span class="n">stencil_appearance</span><span class="p">(</span>
+            <span class="n">v</span><span class="o">.</span><span class="n">contiguous</span><span class="p">(),</span>
+            <span class="n">vi</span><span class="p">,</span>
+            <span class="n">qf</span><span class="o">.</span><span class="n">contiguous</span><span class="p">(),</span>
+            <span class="n">qb</span><span class="o">.</span><span class="n">contiguous</span><span class="p">(),</span>
+            <span class="n">opacity</span><span class="p">,</span>
+            <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">float</span><span class="p">()</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">prepared</span><span class="p">],</span>
+            <span class="n">height</span><span class="p">,</span>
+            <span class="n">width</span><span class="p">,</span>
+            <span class="n">mlp</span><span class="p">,</span>
+            <span class="n">negative_slope</span><span class="p">,</span>
+            <span class="n">mode_enum</span><span class="p">,</span>
+            <span class="n">padding_enum</span><span class="p">,</span>
+            <span class="n">activation_enum</span><span class="p">,</span>
+            <span class="n">edge_gradients</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="n">outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+            <span class="n">outputs</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+            <span class="n">outputs</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="k">if</span> <span class="n">return_queries</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="n">outputs</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="k">if</span> <span class="n">return_queries</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="n">uv_count</span> <span class="o">=</span> <span class="mi">2</span> <span class="k">if</span> <span class="n">mlp</span> <span class="k">else</span> <span class="mi">1</span>
+    <span class="n">textures</span> <span class="o">=</span> <span class="n">prepared</span><span class="p">[</span><span class="mi">2</span><span class="p">:</span><span class="mi">4</span><span class="p">]</span> <span class="k">if</span> <span class="n">mlp</span> <span class="k">else</span> <span class="n">prepared</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="mi">2</span><span class="p">]</span>
+    <span class="n">layers</span> <span class="o">=</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">prepared</span><span class="p">)</span> <span class="o">-</span> <span class="mi">4</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">evaluate</span><span class="p">(</span><span class="n">batch</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">face</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">bary</span><span class="p">:</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">th</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+        <span class="n">samples</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">uv</span><span class="p">,</span> <span class="n">texture</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">prepared</span><span class="p">[:</span><span class="n">uv_count</span><span class="p">],</span> <span class="n">textures</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">texture</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">coords</span> <span class="o">=</span> <span class="n">_interpolate_triangle_attribute</span><span class="p">(</span>
+                <span class="n">uv</span><span class="p">[</span><span class="n">batch</span><span class="p">],</span> <span class="n">face</span><span class="p">,</span> <span class="n">bary</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>
+            <span class="p">)</span>
+            <span class="n">tb</span> <span class="o">=</span> <span class="n">texture</span><span class="p">[</span><span class="n">batch</span> <span class="p">:</span> <span class="n">batch</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="n">texture</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">texture</span>
+            <span class="n">samples</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">_sample_texture</span><span class="p">(</span><span class="n">tb</span><span class="p">,</span> <span class="n">coords</span><span class="p">,</span> <span class="n">mode</span><span class="p">,</span> <span class="n">padding_mode</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">mlp</span><span class="p">:</span>
+            <span class="n">rgba</span> <span class="o">=</span> <span class="n">_tiny_mlp</span><span class="p">(</span>
+                <span class="n">th</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span><span class="n">samples</span><span class="p">),</span>
+                <span class="n">prepared</span><span class="p">[</span><span class="mi">4</span> <span class="p">:</span> <span class="mi">4</span> <span class="o">+</span> <span class="n">layers</span><span class="p">],</span>
+                <span class="n">prepared</span><span class="p">[</span><span class="mi">4</span> <span class="o">+</span> <span class="n">layers</span> <span class="p">:],</span>
+                <span class="n">negative_slope</span><span class="p">,</span>
+                <span class="s2">&quot;shifted_relu&quot;</span><span class="p">,</span>
+                <span class="n">alpha_activation</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="k">return</span> <span class="n">rgba</span><span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">textures</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">bary</span><span class="o">.</span><span class="n">new_ones</span><span class="p">(())</span>
+        <span class="k">return</span> <span class="n">_activate_texture_alpha</span><span class="p">(</span><span class="n">samples</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">3</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">alpha_activation</span><span class="p">)</span>
+
+    <span class="n">zero</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">((</span><span class="n">x</span><span class="o">.</span><span class="n">nan_to_num</span><span class="p">()</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">*</span> <span class="mi">0</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">prepared</span><span class="p">),</span> <span class="n">v</span><span class="o">.</span><span class="n">new_zeros</span><span class="p">(()))</span>
+    <span class="k">return</span> <span class="n">_source_transmittance_ref_impl</span><span class="p">(</span>
+        <span class="n">v</span><span class="p">,</span>
+        <span class="n">vi</span><span class="p">,</span>
+        <span class="n">qf</span><span class="p">,</span>
+        <span class="n">qb</span><span class="p">,</span>
+        <span class="n">height</span><span class="p">,</span>
+        <span class="n">width</span><span class="p">,</span>
+        <span class="n">vertex_opacity</span><span class="o">=</span><span class="n">opacity</span><span class="p">,</span>
+        <span class="n">edge_gradients</span><span class="o">=</span><span class="n">edge_gradients</span><span class="p">,</span>
+        <span class="n">return_queries</span><span class="o">=</span><span class="n">return_queries</span><span class="p">,</span>
+        <span class="n">appearance_alpha</span><span class="o">=</span><span class="n">evaluate</span><span class="p">,</span>
+        <span class="n">appearance_zero</span><span class="o">=</span><span class="n">zero</span><span class="p">,</span>
+    <span class="p">)</span>
 </pre></div>
 
                 </article>

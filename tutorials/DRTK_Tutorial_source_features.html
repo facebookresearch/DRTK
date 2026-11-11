@@ -548,6 +548,46 @@ the initial shape and position. The finite shadow grid limits geometric precisio
 an arbitrary object. Multiple lights constrain more shape directions than
 a single shadow.</p>
 </section>
+<section id="textured-and-learned-opacity">
+<h2>Textured and learned opacity<a class="headerlink" href="#textured-and-learned-opacity" title="Link to this heading">#</a></h2>
+<p>A patterned or spatially varying surface needs the same opacity field in
+its shadow calculation and its rendered appearance. Use
+<a class="reference internal" href="../api_reference/source_features.html#drtk.source_transmittance_texture" title="drtk.source_transmittance_texture"><code class="xref py py-func docutils literal notranslate"><span class="pre">drtk.source_transmittance_texture()</span></code></a> with the texture and UVs passed to
+<a class="reference internal" href="../api_reference/transparent_render.html#drtk.render_transparent" title="drtk.render_transparent"><code class="xref py py-func docutils literal notranslate"><span class="pre">drtk.render_transparent()</span></code></a>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">indices</span><span class="p">,</span> <span class="n">weights</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">drtk</span><span class="o">.</span><span class="n">source_transmittance_texture</span><span class="p">(</span>
+    <span class="n">v_light</span><span class="p">,</span> <span class="n">faces</span><span class="p">,</span> <span class="n">uv</span><span class="p">,</span> <span class="n">rgba_texture</span><span class="p">,</span>
+    <span class="n">receiver_faces</span><span class="p">,</span> <span class="n">receiver_barycentrics</span><span class="p">,</span> <span class="n">light_height</span><span class="p">,</span> <span class="n">light_width</span><span class="p">,</span>
+    <span class="n">vertex_opacity</span><span class="o">=</span><span class="n">material_opacity</span><span class="p">,</span> <span class="n">alpha_activation</span><span class="o">=</span><span class="s2">&quot;clamp&quot;</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">shadow</span> <span class="o">=</span> <span class="n">weights</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">num_lights</span><span class="p">,</span> <span class="n">H0</span><span class="p">,</span> <span class="n">W0</span><span class="p">)</span>
+<span class="n">loss</span> <span class="o">=</span> <span class="p">(</span><span class="n">shadow</span> <span class="o">-</span> <span class="n">target_shadows</span><span class="p">)</span><span class="o">.</span><span class="n">square</span><span class="p">()</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+<span class="n">loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>Here <code class="docutils literal notranslate"><span class="pre">&quot;clamp&quot;</span></code> treats the fourth texture channel as opacity. The default,
+<code class="docutils literal notranslate"><span class="pre">&quot;relu_density&quot;</span></code>, instead maps a nonnegative density to opacity. Both the
+visibility calculation and the renderer must use the same activation.
+Gradients from the shadow loss reach the texture, its UVs, material opacity,
+and geometry. Texture filtering occurs before alpha activation.</p>
+<p>For neural appearance, use <a class="reference internal" href="../api_reference/source_features.html#drtk.source_transmittance_mlp" title="drtk.source_transmittance_mlp"><code class="xref py py-func docutils literal notranslate"><span class="pre">drtk.source_transmittance_mlp()</span></code></a> or
+<a class="reference internal" href="../api_reference/source_features.html#drtk.source_transmittance_mlp_two_textures" title="drtk.source_transmittance_mlp_two_textures"><code class="xref py py-func docutils literal notranslate"><span class="pre">drtk.source_transmittance_mlp_two_textures()</span></code></a> with the same feature
+textures and MLP as the matching transparent renderer. For example, an
+original UV map and a deformed UV map can sample two feature fields:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">indices</span><span class="p">,</span> <span class="n">weights</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">drtk</span><span class="o">.</span><span class="n">source_transmittance_mlp_two_textures</span><span class="p">(</span>
+    <span class="n">v_light</span><span class="p">,</span> <span class="n">faces</span><span class="p">,</span> <span class="n">original_uv</span><span class="p">,</span> <span class="n">deformed_uv</span><span class="p">,</span>
+    <span class="n">original_features</span><span class="p">,</span> <span class="n">deformed_features</span><span class="p">,</span> <span class="n">mlp_weights</span><span class="p">,</span> <span class="n">mlp_biases</span><span class="p">,</span>
+    <span class="n">receiver_faces</span><span class="p">,</span> <span class="n">receiver_barycentrics</span><span class="p">,</span> <span class="n">light_height</span><span class="p">,</span> <span class="n">light_width</span><span class="p">,</span>
+    <span class="n">vertex_opacity</span><span class="o">=</span><span class="n">material_opacity</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">shadow</span> <span class="o">=</span> <span class="n">weights</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">num_lights</span><span class="p">,</span> <span class="n">H0</span><span class="p">,</span> <span class="n">W0</span><span class="p">)</span>
+<span class="p">(</span><span class="n">shadow</span> <span class="o">-</span> <span class="n">target_shadows</span><span class="p">)</span><span class="o">.</span><span class="n">square</span><span class="p">()</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>The shadow loss differentiates both feature fields, both UV maps, and the
+MLP’s opacity prediction. The RGB outputs do not affect transmittance.
+These appearance features must exist before evaluating visibility. Features
+gathered with the resulting weights can feed a later refinement stage.</p>
+</section>
 <section id="from-lights-to-camera-features">
 <h2>From lights to camera features<a class="headerlink" href="#from-lights-to-camera-features" title="Link to this heading">#</a></h2>
 <p>Replace the light with a source camera and its illumination image with an
@@ -608,6 +648,7 @@ and gradient behavior.</p>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#shadows-through-transparent-surfaces">Shadows through transparent surfaces</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#evaluating-shadows-on-the-receiver">Evaluating shadows on the receiver</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#fitting-shape-and-opacity">Fitting shape and opacity</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#textured-and-learned-opacity">Textured and learned opacity</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#from-lights-to-camera-features">From lights to camera features</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#run-the-example">Run the example</a></li>
 </ul>
