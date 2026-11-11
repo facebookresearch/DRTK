@@ -364,7 +364,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Concepts</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="pixel_grid_topology.html">Pixel-grid topology and gradients</a></li>
-<li class="toctree-l1"><a class="reference internal" href="cuda_graphs.html">CUDA graphs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cuda_graphs.html">Avoiding CPU synchronization</a></li>
 </ul>
 </div>
 </nav></div>
@@ -468,7 +468,7 @@ behind other surfaces. Use their weights to evaluate shadows or to sample
 image features with attenuation. Gradients propagate to deformation,
 material opacity, appearance textures and MLP parameters, and sampled features.</p>
 <p>See <a class="reference internal" href="../tutorials/DRTK_Tutorial_source_features.html"><span class="doc">Differentiable visibility</span></a> for an example.
-For repeated calls, see <a class="reference internal" href="cuda_graphs.html"><span class="doc">CUDA graphs</span></a> for capacity selection and replay.</p>
+For repeated calls, see <a class="reference internal" href="cuda_graphs.html"><span class="doc">Avoiding CPU synchronization</span></a> for capacity selection.</p>
 <section id="evaluating-transmittance">
 <h2>Evaluating transmittance<a class="headerlink" href="#evaluating-transmittance" title="Link to this heading">#</a></h2>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">indices</span><span class="p">,</span> <span class="n">weights</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">source_transmittance</span><span class="p">(</span>

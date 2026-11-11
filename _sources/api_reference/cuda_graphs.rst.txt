@@ -1,5 +1,5 @@
-CUDA graphs
-===========
+Avoiding CPU synchronization
+============================
 
 Mesh topology and projected triangle coverage can change the amount of storage
 needed by a call. By default, :func:`drtk.pixel_grid_mesh` reads the largest
@@ -54,16 +54,18 @@ Capacities must cover all inputs that will be replayed; counts observed in a
 single frame are not a bound on later motion or topology changes.
 
 Larger capacities consume more memory and increase padding and sorting work.
-Removing a count readback alone does not guarantee a faster call. CUDA graph
-replay also reduces CPU launch overhead and can be particularly useful when
-many small operations run together.
+Removing a count readback alone does not guarantee a faster call.
 
 Exceeding a capacity raises an asynchronous CUDA device assertion. As with
 other CUDA device assertions, the process must be restarted afterward. The
 operation does not silently drop geometry to fit the requested size.
 
-Capturing a fitting step
-------------------------
+CUDA graph capture
+------------------
+
+Fixed-capacity calls also support ``torch.cuda.CUDAGraph``. Capturing and
+replaying a sequence of GPU operations reduces CPU launch overhead, which can
+be useful when many small operations run together.
 
 This example captures mesh construction, rendering, and gradients. Input
 storage remains fixed; update its contents before replaying the graph.

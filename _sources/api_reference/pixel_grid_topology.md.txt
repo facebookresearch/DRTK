@@ -65,7 +65,7 @@ returned, including `None` for disabled outputs.
 
 With `output_capacity=(Vmax, Fmax)`, these dimensions are supplied explicitly
 instead of being read from the GPU. The padding and gradient rules stay the
-same. See [CUDA graphs](cuda_graphs.rst) for bounds and a captured fitting step.
+same. See [Avoiding CPU synchronization](cuda_graphs.rst) for bounds and usage.
 
 Faces are emitted in increasing stable-ID order, including strips. Removing
 unrelated cells preserves relative tie order for the renderer's equal-depth

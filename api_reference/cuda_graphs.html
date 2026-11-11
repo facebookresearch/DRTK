@@ -7,7 +7,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <title>CUDA graphs &#8212; DRTK  documentation</title>
+    <title>Avoiding CPU synchronization &#8212; DRTK  documentation</title>
   
   
   
@@ -361,7 +361,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Concepts</span></p>
 <ul class="current nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="pixel_grid_topology.html">Pixel-grid topology and gradients</a></li>
-<li class="toctree-l1 current active"><a aria-current="page" class="current reference internal" href="#">CUDA graphs</a></li>
+<li class="toctree-l1 current active"><a aria-current="page" class="current reference internal" href="#">Avoiding CPU synchronization</a></li>
 </ul>
 </div>
 </nav></div>
@@ -405,7 +405,7 @@
     
     <li class="breadcrumb-item"><a href="index.html" class="nav-link">DRTK API</a></li>
     
-    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">CUDA graphs</span></li>
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Avoiding CPU synchronization</span></li>
   </ul>
 </nav>
 </div>
@@ -422,8 +422,8 @@
 <div id="searchbox"></div>
                 <article class="bd-article">
                   
-  <section id="cuda-graphs">
-<h1>CUDA graphs<a class="headerlink" href="#cuda-graphs" title="Link to this heading">#</a></h1>
+  <section id="avoiding-cpu-synchronization">
+<h1>Avoiding CPU synchronization<a class="headerlink" href="#avoiding-cpu-synchronization" title="Link to this heading">#</a></h1>
 <p>Mesh topology and projected triangle coverage can change the amount of storage
 needed by a call. By default, <a class="reference internal" href="pixel_grid_mesh.html#drtk.pixel_grid_mesh" title="drtk.pixel_grid_mesh"><code class="xref py py-func docutils literal notranslate"><span class="pre">drtk.pixel_grid_mesh()</span></code></a> reads the largest
 vertex and face counts back to the CPU before allocating its outputs. The
@@ -476,15 +476,16 @@ Use a tighter bound when the geometry’s projected extent is constrained.
 Capacities must cover all inputs that will be replayed; counts observed in a
 single frame are not a bound on later motion or topology changes.</p>
 <p>Larger capacities consume more memory and increase padding and sorting work.
-Removing a count readback alone does not guarantee a faster call. CUDA graph
-replay also reduces CPU launch overhead and can be particularly useful when
-many small operations run together.</p>
+Removing a count readback alone does not guarantee a faster call.</p>
 <p>Exceeding a capacity raises an asynchronous CUDA device assertion. As with
 other CUDA device assertions, the process must be restarted afterward. The
 operation does not silently drop geometry to fit the requested size.</p>
 </section>
-<section id="capturing-a-fitting-step">
-<h2>Capturing a fitting step<a class="headerlink" href="#capturing-a-fitting-step" title="Link to this heading">#</a></h2>
+<section id="cuda-graph-capture">
+<h2>CUDA graph capture<a class="headerlink" href="#cuda-graph-capture" title="Link to this heading">#</a></h2>
+<p>Fixed-capacity calls also support <code class="docutils literal notranslate"><span class="pre">torch.cuda.CUDAGraph</span></code>. Capturing and
+replaying a sequence of GPU operations reduces CPU launch overhead, which can
+be useful when many small operations run together.</p>
 <p>This example captures mesh construction, rendering, and gradients. Input
 storage remains fixed; update its contents before replaying the graph.</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
@@ -570,7 +571,7 @@ calling <code class="docutils literal notranslate"><span class="pre">.item()</sp
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#choosing-capacities">Choosing capacities</a></li>
-<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#capturing-a-fitting-step">Capturing a fitting step</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#cuda-graph-capture">CUDA graph capture</a></li>
 </ul>
   </nav></div>
 

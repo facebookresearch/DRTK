@@ -362,7 +362,7 @@
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Concepts</span></p>
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="pixel_grid_topology.html">Pixel-grid topology and gradients</a></li>
-<li class="toctree-l1"><a class="reference internal" href="cuda_graphs.html">CUDA graphs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cuda_graphs.html">Avoiding CPU synchronization</a></li>
 </ul>
 </div>
 </nav></div>
@@ -448,8 +448,8 @@ Bernoulli helpers estimate gradients of the expected loss over sampled meshes.</
 <p>See <a class="reference internal" href="pixel_grid_topology.html"><span class="doc">Pixel-grid topology and gradients</span></a> for camera conventions, cuts, feathering, and
 the gradient model, and <a class="reference internal" href="../tutorials/DRTK_Tutorial_pixel_grid_mesh.html"><span class="doc">Learning pixel-grid geometry and topology</span></a> for
 a rendered optimization example.</p>
-<p>For repeated fitting steps, <a class="reference internal" href="cuda_graphs.html"><span class="doc">CUDA graphs</span></a> explains how to choose output
-capacities and capture mesh construction together with rendering and gradients.</p>
+<p>For repeated fitting steps, <a class="reference internal" href="cuda_graphs.html"><span class="doc">Avoiding CPU synchronization</span></a> explains how to choose output
+capacities without reading counts back to the CPU.</p>
 <dl class="py function">
 <dt class="sig sig-object py" id="drtk.pixel_grid_mesh">
 <span class="sig-prename descclassname"><span class="pre">drtk.</span></span><span class="sig-name descname"><span class="pre">pixel_grid_mesh</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">depth_z</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">displacement_xyz</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">intrinsics</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alive</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">join_right</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">join_down</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">diagonal</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">feather_width</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_metadata</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output_capacity</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/drtk/pixel_grid_mesh.html#pixel_grid_mesh"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#drtk.pixel_grid_mesh" title="Link to this definition">#</a></dt>
