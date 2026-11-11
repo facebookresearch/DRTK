@@ -943,6 +943,10 @@
 <span class="sd">        without feathering. The two metadata tensors are ``[F]`` int64 or</span>
 <span class="sd">        None. No optional tuple slot is omitted.</span>
 
+<span class="sd">    Gradients flow through ``v`` and ``vt1``. The source anchors ``vt0``,</span>
+<span class="sd">    vertex opacity, face indices, and metadata describe the fixed topology</span>
+<span class="sd">    and are nondifferentiable outputs.</span>
+
 <span class="sd">    For batched depth, the same tuple contains ``v`` of shape ``[N, Vmax, 3]``,</span>
 <span class="sd">    UVs ``[N, Vmax, 2]``, faces ``[N, Fmax, 3]``, optional opacity</span>
 <span class="sd">    ``[N, Vmax]``, and optional metadata ``[N, Fmax]``. Vmax and Fmax are</span>

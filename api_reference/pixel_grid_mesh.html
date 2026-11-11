@@ -519,6 +519,9 @@ without feathering. The two metadata tensors are <code class="docutils literal n
 None. No optional tuple slot is omitted.</p>
 </dd>
 </dl>
+<p>Gradients flow through <code class="docutils literal notranslate"><span class="pre">v</span></code> and <code class="docutils literal notranslate"><span class="pre">vt1</span></code>. The source anchors <code class="docutils literal notranslate"><span class="pre">vt0</span></code>,
+vertex opacity, face indices, and metadata describe the fixed topology
+and are nondifferentiable outputs.</p>
 <p>For batched depth, the same tuple contains <code class="docutils literal notranslate"><span class="pre">v</span></code> of shape <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">Vmax,</span> <span class="pre">3]</span></code>,
 UVs <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">Vmax,</span> <span class="pre">2]</span></code>, faces <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">Fmax,</span> <span class="pre">3]</span></code>, optional opacity
 <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">Vmax]</span></code>, and optional metadata <code class="docutils literal notranslate"><span class="pre">[N,</span> <span class="pre">Fmax]</span></code>. Vmax and Fmax are
