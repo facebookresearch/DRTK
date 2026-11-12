@@ -38,7 +38,8 @@ source_triangle(const GeometryParams& g, int32_t face, TriangleData& tri) {
 }
 
 __device__ __forceinline__ float source_area(const TriangleData& t) {
-  return cross2(t.x[1] - t.x[0], t.y[1] - t.y[0], t.x[2] - t.x[0], t.y[2] - t.y[0]);
+  return math::cross(
+      float2{t.x[1] - t.x[0], t.y[1] - t.y[0]}, float2{t.x[2] - t.x[0], t.y[2] - t.y[0]});
 }
 
 __device__ __forceinline__ void
@@ -121,37 +122,38 @@ __device__ float source_alpha(
   return source_combined_alpha(g, evaluator, face / g.face_count, t, bary, unclamped, appearance);
 }
 
+C10_LAUNCH_BOUNDS_1(256)
 __global__ void source_edge_keys(GeometryParams g, int32_t count, uint64_t* keys, int32_t* ids) {
-  const int32_t edge = blockIdx.x * blockDim.x + threadIdx.x;
-  if (edge >= count) {
-    return;
-  }
-  keys[edge] = UINT64_MAX;
-  ids[edge] = edge;
-  const int32_t f = edge / 3, n = f / g.face_count;
+  CUDA_KERNEL_LOOP_TYPE(edge, count, int32_t) {
+    keys[edge] = UINT64_MAX;
+    ids[edge] = edge;
+    const int32_t f = edge / 3, n = f / g.face_count;
+    bool valid = true;
 #pragma unroll
-  for (int c = 0; c < 3; ++c) {
-    const int32_t id = g.faces[static_cast<int64_t>(f) * 3 + c];
-    if (id < 0 || id >= g.vertex_count) {
-      return;
+    for (int c = 0; c < 3; ++c) {
+      const int32_t id = g.faces[static_cast<int64_t>(f) * 3 + c];
+      valid = valid && id >= 0 && id < g.vertex_count;
     }
-  }
-  TriangleData t;
-  source_triangle(g, f, t);
+    if (!valid)
+      continue;
+    TriangleData t;
+    source_triangle(g, f, t);
 #pragma unroll
-  for (int c = 0; c < 3; ++c) {
-    if (!isfinite(t.x[c]) || !isfinite(t.y[c]) || !isfinite(t.z[c]) || t.z[c] <= 1.e-8f) {
-      return;
+    for (int c = 0; c < 3; ++c) {
+      valid = valid && isfinite(t.x[c]) && isfinite(t.y[c]) && isfinite(t.z[c]) && t.z[c] > 1.e-8f;
     }
+    if (!valid)
+      continue;
+    if (!isfinite(source_area(t)) || fabsf(source_area(t)) <= 1.e-12f) {
+      continue;
+    }
+    const uint32_t a = n * g.vertex_count + t.vertex_id[edge % 3];
+    const uint32_t b = n * g.vertex_count + t.vertex_id[(edge + 1) % 3];
+    keys[edge] = (static_cast<uint64_t>(min(a, b)) << 32) | max(a, b);
   }
-  if (!isfinite(source_area(t)) || fabsf(source_area(t)) <= 1.e-12f) {
-    return;
-  }
-  const uint32_t a = n * g.vertex_count + t.vertex_id[edge % 3];
-  const uint32_t b = n * g.vertex_count + t.vertex_id[(edge + 1) % 3];
-  keys[edge] = (static_cast<uint64_t>(min(a, b)) << 32) | max(a, b);
 }
 
+C10_LAUNCH_BOUNDS_1(256)
 __global__ void source_edge_groups(
     GeometryParams g,
     int32_t count,
@@ -159,27 +161,28 @@ __global__ void source_edge_groups(
     const int32_t* ids,
     int32_t* ranges,
     int32_t* adjacency) {
-  const int32_t head = blockIdx.x * blockDim.x + threadIdx.x;
-  if (head >= count || keys[head] == UINT64_MAX || (head > 0 && keys[head - 1] == keys[head])) {
-    return;
-  }
-  int32_t end = head + 1;
-  while (end < count && keys[end] == keys[head]) {
-    ++end;
-  }
-  for (int32_t i = head; i < end; ++i) {
-    ranges[static_cast<int64_t>(ids[i]) * 2] = head;
-    ranges[static_cast<int64_t>(ids[i]) * 2 + 1] = end;
-  }
-  if (end - head == 2) {
-    TriangleData a, b;
-    source_triangle(g, ids[head] / 3, a);
-    source_triangle(g, ids[head + 1] / 3, b);
-    const int32_t first = min(a.vertex_id[ids[head] % 3], a.vertex_id[(ids[head] + 1) % 3]);
-    if ((edge_side(a, ids[head] % 3, first) > 0.0f) !=
-        (edge_side(b, ids[head + 1] % 3, first) > 0.0f)) {
-      adjacency[ids[head]] = ids[head + 1] / 3;
-      adjacency[ids[head + 1]] = ids[head] / 3;
+  CUDA_KERNEL_LOOP_TYPE(head, count, int32_t) {
+    if (keys[head] == UINT64_MAX || (head > 0 && keys[head - 1] == keys[head])) {
+      continue;
+    }
+    int32_t end = head + 1;
+    while (end < count && keys[end] == keys[head]) {
+      ++end;
+    }
+    for (int32_t i = head; i < end; ++i) {
+      ranges[static_cast<int64_t>(ids[i]) * 2] = head;
+      ranges[static_cast<int64_t>(ids[i]) * 2 + 1] = end;
+    }
+    if (end - head == 2) {
+      TriangleData a, b;
+      source_triangle(g, ids[head] / 3, a);
+      source_triangle(g, ids[head + 1] / 3, b);
+      const int32_t first = min(a.vertex_id[ids[head] % 3], a.vertex_id[(ids[head] + 1) % 3]);
+      if ((edge_side(a, ids[head] % 3, first) > 0.0f) !=
+          (edge_side(b, ids[head + 1] % 3, first) > 0.0f)) {
+        adjacency[ids[head]] = ids[head + 1] / 3;
+        adjacency[ids[head + 1]] = ids[head] / 3;
+      }
     }
   }
 }
@@ -196,7 +199,7 @@ std::vector<torch::Tensor> source_build_adjacency(
   auto adjacency = torch::full({count}, -1, vi.options());
   if (count) {
     const auto stream = at::cuda::getCurrentCUDAStream();
-    const int blocks = (count + 255) / 256;
+    const int blocks = GET_BLOCKS(count, 256);
     source_edge_keys<<<blocks, 256, 0, stream>>>(
         g, count, reinterpret_cast<uint64_t*>(keys.data_ptr<int64_t>()), ids.data_ptr<int32_t>());
     C10_CUDA_KERNEL_LAUNCH_CHECK();
@@ -372,6 +375,7 @@ source_query(const SourceParams& p, int32_t query, int32_t& face, float& x, floa
 }
 
 template <typename Evaluator>
+C10_LAUNCH_BOUNDS_1(128)
 __global__ void source_stencil_kernel(
     SourceParams p,
     const Evaluator evaluator,
@@ -382,38 +386,36 @@ __global__ void source_stencil_kernel(
     float* depth,
     int32_t* receivers,
     float* visibility) {
-  const int32_t query = blockIdx.x * blockDim.x + threadIdx.x;
-  if (query >= total) {
-    return;
-  }
-  int32_t face;
-  float x, y, z;
-  if (!source_query(p, query, face, x, y, z)) {
-    return;
-  }
-  uv[query * 2] = 2.0f * (x + 0.5f) / p.width - 1.0f;
-  uv[query * 2 + 1] = 2.0f * (y + 0.5f) / p.height - 1.0f;
-  depth[query] = z;
-  if (x < -1.0f || y < -1.0f || x >= p.width || y >= p.height) {
-    return;
-  }
-  const int32_t x0 = static_cast<int32_t>(floorf(x)), y0 = static_cast<int32_t>(floorf(y));
-  const float fx = x - x0, fy = y - y0;
-#pragma unroll
-  for (int j = 0; j < 4; ++j) {
-    const int32_t tx = x0 + (j & 1), ty = y0 + (j >> 1);
-    if (tx < 0 || ty < 0 || tx >= p.width || ty >= p.height) {
+  CUDA_KERNEL_LOOP_TYPE(query, total, int32_t) {
+    int32_t face;
+    float x, y, z;
+    if (!source_query(p, query, face, x, y, z)) {
       continue;
     }
-    const int64_t slot = static_cast<int64_t>(query) * 4 + j;
-    indices[slot] = ty * p.width + tx;
-    const int32_t receiver = source_receiver(p, face, x, y, tx, ty);
-    receivers[slot] = receiver;
-    if (receiver >= 0) {
-      const float trans = source_prefix(
-          p, evaluator, receiver, source_tile(p, query / p.query_count, tx, ty), tx, ty);
-      visibility[slot] = trans;
-      weights[slot] = trans * ((j & 1) ? fx : 1.0f - fx) * ((j >> 1) ? fy : 1.0f - fy);
+    uv[query * 2] = 2.0f * (x + 0.5f) / p.width - 1.0f;
+    uv[query * 2 + 1] = 2.0f * (y + 0.5f) / p.height - 1.0f;
+    depth[query] = z;
+    if (x < -1.0f || y < -1.0f || x >= p.width || y >= p.height) {
+      continue;
+    }
+    const int32_t x0 = static_cast<int32_t>(floorf(x)), y0 = static_cast<int32_t>(floorf(y));
+    const float fx = x - x0, fy = y - y0;
+#pragma unroll
+    for (int j = 0; j < 4; ++j) {
+      const int32_t tx = x0 + (j & 1), ty = y0 + (j >> 1);
+      if (tx < 0 || ty < 0 || tx >= p.width || ty >= p.height) {
+        continue;
+      }
+      const int64_t slot = static_cast<int64_t>(query) * 4 + j;
+      indices[slot] = ty * p.width + tx;
+      const int32_t receiver = source_receiver(p, face, x, y, tx, ty);
+      receivers[slot] = receiver;
+      if (receiver >= 0) {
+        const float trans = source_prefix(
+            p, evaluator, receiver, source_tile(p, query / p.query_count, tx, ty), tx, ty);
+        visibility[slot] = trans;
+        weights[slot] = trans * ((j & 1) ? fx : 1.0f - fx) * ((j >> 1) ? fy : 1.0f - fy);
+      }
     }
   }
 }
@@ -724,6 +726,7 @@ __device__ void source_stencil_backward_query(
 }
 
 template <typename Evaluator>
+C10_LAUNCH_BOUNDS_1(128)
 __global__ void source_stencil_backward_kernel(
     SourceParams p,
     Evaluator evaluator,
@@ -752,127 +755,117 @@ __global__ void source_stencil_backward_kernel(
     __syncthreads();
     evaluator.bind_shared_mlp_grads(shared_weights, shared_biases);
   }
-  source_stencil_backward_query(
-      p,
-      evaluator,
-      total,
-      indices,
-      receivers,
-      visibility,
-      gw,
-      guv,
-      gz,
-      edges,
-      gv,
-      gb,
-      go,
-      gu,
-      gu1,
-      blockIdx.x * blockDim.x + threadIdx.x);
+  CUDA_KERNEL_LOOP_TYPE(query, total, int32_t) {
+    source_stencil_backward_query(
+        p,
+        evaluator,
+        total,
+        indices,
+        receivers,
+        visibility,
+        gw,
+        guv,
+        gz,
+        edges,
+        gv,
+        gb,
+        go,
+        gu,
+        gu1,
+        query);
+  }
   if constexpr (Evaluator::shared_grads) {
     __syncthreads();
     evaluator.flush_shared_mlp_grads(threadIdx.x, blockDim.x);
   }
 }
 
-struct FeatureShape {
-  int64_t batch, channels, height, width, queries;
-  int64_t stride[4];
-};
-
-template <typename scalar_t>
+template <typename scalar_t, typename index_t>
+C10_LAUNCH_BOUNDS_1(256)
 __global__ void source_sample_kernel(
-    FeatureShape s,
-    const scalar_t* f,
-    const int32_t* indices,
-    const float* weights,
-    scalar_t* samples,
-    float* confidence) {
-  const int64_t index = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
-  const int64_t nq = s.batch * s.queries;
-  if (index < nq) {
+    const index_t nthreads,
+    TensorInfoCompact<scalar_t, index_t, 4> features,
+    TensorInfoCompact<int32_t, index_t, 3> indices,
+    TensorInfoCompact<float, index_t, 3> weights,
+    TensorInfoCompact<scalar_t, index_t, 3> samples,
+    TensorInfoCompact<float, index_t, 3> confidence) {
+  const index_t channels = features.sizes[1], height = features.sizes[2], width = features.sizes[3];
+  const index_t queries = indices.sizes[1];
+  CUDA_KERNEL_LOOP_TYPE(index, nthreads, index_t) {
+    if (index < indices.sizes[0] * queries) {
+      const index_t n = index / queries, q = index % queries;
+      float sum = 0.0f;
+#pragma unroll
+      for (int j = 0; j < 4; ++j) {
+        const int32_t tap = indices[n][q][j];
+        if (tap >= 0 && tap < height * width)
+          sum += weights[n][q][j];
+      }
+      confidence[n][0][q] = sum;
+    }
+    if (index >= indices.sizes[0] * channels * queries)
+      continue;
+    const index_t q = index % queries, c = (index / queries) % channels;
+    const index_t n = index / (queries * channels);
     float sum = 0.0f;
 #pragma unroll
     for (int j = 0; j < 4; ++j) {
-      const int32_t tap = indices[index * 4 + j];
-      if (tap >= 0 && tap < s.height * s.width) {
-        sum += weights[index * 4 + j];
-      }
+      const int32_t tap = indices[n][q][j];
+      if (tap >= 0 && tap < height * width)
+        sum += weights[n][q][j] * static_cast<float>(features[n][c][tap / width][tap % width]);
     }
-    confidence[index] = sum;
+    samples[n][c][q] = static_cast<scalar_t>(sum);
   }
-  if (index >= nq * s.channels) {
-    return;
-  }
-  const int64_t q = index % s.queries;
-  const int64_t c = (index / s.queries) % s.channels;
-  const int64_t n = index / (s.queries * s.channels);
-  float sum = 0.0f;
-#pragma unroll
-  for (int j = 0; j < 4; ++j) {
-    const int64_t slot = (n * s.queries + q) * 4 + j;
-    const int32_t tap = indices[slot];
-    if (tap >= 0 && tap < s.height * s.width) {
-      const int64_t src = n * s.stride[0] + c * s.stride[1] + (tap / s.width) * s.stride[2] +
-          (tap % s.width) * s.stride[3];
-      sum += weights[slot] * static_cast<float>(f[src]);
-    }
-  }
-  samples[index] = static_cast<scalar_t>(sum);
 }
 
-template <typename scalar_t>
+template <typename scalar_t, typename index_t>
+C10_LAUNCH_BOUNDS_1(256)
 __global__ void source_sample_image_backward_kernel(
-    FeatureShape s,
-    const int32_t* indices,
-    const float* weights,
-    const scalar_t* gs,
-    float* gf) {
-  const int64_t index = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
-  if (index >= s.batch * s.channels * s.queries) {
-    return;
-  }
-  const int64_t q = index % s.queries;
-  const int64_t c = (index / s.queries) % s.channels;
-  const int64_t n = index / (s.queries * s.channels);
+    const index_t nthreads,
+    TensorInfoCompact<int32_t, index_t, 3> indices,
+    TensorInfoCompact<float, index_t, 3> weights,
+    TensorInfoCompact<scalar_t, index_t, 3> grad_samples,
+    TensorInfoCompact<float, index_t, 4> grad_features) {
+  const index_t channels = grad_features.sizes[1], height = grad_features.sizes[2],
+                width = grad_features.sizes[3];
+  const index_t queries = indices.sizes[1];
+  CUDA_KERNEL_LOOP_TYPE(index, nthreads, index_t) {
+    const index_t q = index % queries, c = (index / queries) % channels;
+    const index_t n = index / (queries * channels);
 #pragma unroll
-  for (int j = 0; j < 4; ++j) {
-    const int64_t slot = (n * s.queries + q) * 4 + j;
-    const int32_t tap = indices[slot];
-    if (tap >= 0 && tap < s.height * s.width) {
-      atomicAdd(
-          gf + (n * s.channels + c) * s.height * s.width + tap,
-          weights[slot] * static_cast<float>(gs[index]));
+    for (int j = 0; j < 4; ++j) {
+      const int32_t tap = indices[n][q][j];
+      if (tap >= 0 && tap < height * width)
+        atomicAdd(
+            &grad_features[n][c][tap / width][tap % width],
+            weights[n][q][j] * static_cast<float>(grad_samples[n][c][q]));
     }
   }
 }
 
-template <typename scalar_t>
+template <typename scalar_t, typename index_t>
+C10_LAUNCH_BOUNDS_1(256)
 __global__ void source_sample_weight_backward_kernel(
-    FeatureShape s,
-    const scalar_t* f,
-    const int32_t* indices,
-    const scalar_t* gs,
-    const float* gc,
-    float* gw) {
-  const int64_t index = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
-  if (index >= s.batch * s.queries * 4) {
-    return;
-  }
-  const int64_t query = index / 4;
-  const int64_t n = query / s.queries, q = query % s.queries;
-  const int32_t tap = indices[index];
-  float sum = 0.0f;
-  if (tap >= 0 && tap < s.height * s.width) {
-    sum = gc[query];
-    const int64_t base =
-        n * s.stride[0] + (tap / s.width) * s.stride[2] + (tap % s.width) * s.stride[3];
-    for (int64_t c = 0; c < s.channels; ++c) {
-      sum += static_cast<float>(gs[(n * s.channels + c) * s.queries + q]) *
-          static_cast<float>(f[base + c * s.stride[1]]);
+    const index_t nthreads,
+    TensorInfoCompact<scalar_t, index_t, 4> features,
+    TensorInfoCompact<int32_t, index_t, 3> indices,
+    TensorInfoCompact<scalar_t, index_t, 3> grad_samples,
+    TensorInfoCompact<float, index_t, 3> grad_confidence,
+    TensorInfoCompact<float, index_t, 3> grad_weights) {
+  const index_t channels = features.sizes[1], height = features.sizes[2], width = features.sizes[3];
+  const index_t queries = indices.sizes[1];
+  CUDA_KERNEL_LOOP_TYPE(index, nthreads, index_t) {
+    const index_t n = index / (queries * 4), q = (index / 4) % queries, j = index % 4;
+    const int32_t tap = indices[n][q][j];
+    float sum = 0.0f;
+    if (tap >= 0 && tap < height * width) {
+      sum = grad_confidence[n][0][q];
+      for (index_t c = 0; c < channels; ++c)
+        sum += static_cast<float>(grad_samples[n][c][q]) *
+            static_cast<float>(features[n][c][tap / width][tap % width]);
     }
+    grad_weights[n][q][j] = sum;
   }
-  gw[index] = sum;
 }
 
 GeometryParams
@@ -918,8 +911,10 @@ void source_check(const torch::Tensor& t, at::ScalarType dtype, const torch::Dev
       "source features: invalid device, dtype, or contiguous layout");
 }
 
-FeatureShape
-source_feature_shape(const torch::Tensor& f, const torch::Tensor& idx, const torch::Tensor& w) {
+void check_source_features(
+    const torch::Tensor& f,
+    const torch::Tensor& idx,
+    const torch::Tensor& w) {
   TORCH_CHECK(
       f.is_cuda() && f.dim() == 4 && idx.dim() == 3 && idx.size(2) == 4 &&
           idx.size(0) == f.size(0) && w.sizes() == idx.sizes(),
@@ -933,11 +928,6 @@ source_feature_shape(const torch::Tensor& f, const torch::Tensor& idx, const tor
   TORCH_CHECK(
       f.size(2) > 0 && f.size(3) > 0 && f.size(2) * f.size(3) < INT32_MAX,
       "source features: invalid image size");
-  FeatureShape shape{f.size(0), f.size(1), f.size(2), f.size(3), idx.size(1), {}};
-  for (int i = 0; i < 4; ++i) {
-    shape.stride[i] = f.stride(i);
-  }
-  return shape;
 }
 
 } // namespace
@@ -998,7 +988,7 @@ std::vector<torch::Tensor> launch_source_stencil_forward(
         bins.face_ids,
         height,
         width);
-    source_stencil_kernel<<<(n * q + 127) / 128, 128, 0, at::cuda::getCurrentCUDAStream()>>>(
+    source_stencil_kernel<<<GET_BLOCKS(n * q, 128), 128, 0, at::cuda::getCurrentCUDAStream()>>>(
         p,
         evaluator,
         static_cast<int32_t>(n * q),
@@ -1049,7 +1039,7 @@ std::vector<torch::Tensor> launch_source_stencil_backward(
     }
     const auto p = source_params(g, s[2], s[3], s[13], s[14], s[15], s[11], s[12], height, width);
     source_stencil_backward_kernel<<<
-        (total + 127) / 128,
+        GET_BLOCKS(total, 128),
         128,
         0,
         at::cuda::getCurrentCUDAStream()>>>(
@@ -1358,28 +1348,82 @@ std::vector<torch::Tensor> source_stencil_appearance_backward(
   return result;
 }
 
+namespace {
+template <typename scalar_t, typename index_t>
+void launch_source_sample_forward(
+    int64_t count,
+    const torch::Tensor& features,
+    const torch::Tensor& indices,
+    const torch::Tensor& weights,
+    torch::Tensor& samples,
+    torch::Tensor& confidence) {
+  source_sample_kernel<scalar_t, index_t>
+      <<<GET_BLOCKS(count, 256), 256, 0, at::cuda::getCurrentCUDAStream()>>>(
+          static_cast<index_t>(count),
+          getTensorInfoCompact<scalar_t, index_t, 4>(features),
+          getTensorInfoCompact<int32_t, index_t, 3>(indices),
+          getTensorInfoCompact<float, index_t, 3>(weights),
+          getTensorInfoCompact<scalar_t, index_t, 3>(samples),
+          getTensorInfoCompact<float, index_t, 3>(confidence));
+  C10_CUDA_KERNEL_LAUNCH_CHECK();
+}
+
+template <typename scalar_t, typename index_t>
+void launch_source_sample_backward(
+    const torch::Tensor& f,
+    const torch::Tensor& idx,
+    const torch::Tensor& weights,
+    const torch::Tensor& gs,
+    const torch::Tensor& gc,
+    torch::Tensor& gf,
+    torch::Tensor& gw) {
+  const auto stream = at::cuda::getCurrentCUDAStream();
+  if (gs.numel()) {
+    source_sample_image_backward_kernel<scalar_t, index_t>
+        <<<GET_BLOCKS(gs.numel(), 256), 256, 0, stream>>>(
+            static_cast<index_t>(gs.numel()),
+            getTensorInfoCompact<int32_t, index_t, 3>(idx),
+            getTensorInfoCompact<float, index_t, 3>(weights),
+            getTensorInfoCompact<scalar_t, index_t, 3>(gs),
+            getTensorInfoCompact<float, index_t, 4>(gf));
+    C10_CUDA_KERNEL_LAUNCH_CHECK();
+  }
+  if (idx.numel()) {
+    source_sample_weight_backward_kernel<scalar_t, index_t>
+        <<<GET_BLOCKS(idx.numel(), 256), 256, 0, stream>>>(
+            static_cast<index_t>(idx.numel()),
+            getTensorInfoCompact<scalar_t, index_t, 4>(f),
+            getTensorInfoCompact<int32_t, index_t, 3>(idx),
+            getTensorInfoCompact<scalar_t, index_t, 3>(gs),
+            getTensorInfoCompact<float, index_t, 3>(gc),
+            getTensorInfoCompact<float, index_t, 3>(gw));
+    C10_CUDA_KERNEL_LAUNCH_CHECK();
+  }
+}
+} // namespace
+
 std::vector<torch::Tensor> source_sample_forward(
     const torch::Tensor& f,
     const torch::Tensor& idx,
     const torch::Tensor& weights) {
-  const auto s = source_feature_shape(f, idx, weights);
-  const c10::cuda::CUDAGuard guard(f.device());
-  auto out = torch::empty({s.batch, s.channels, s.queries}, f.options());
-  auto confidence = torch::empty({s.batch, 1, s.queries}, weights.options());
-  const int64_t threads = s.batch * std::max<int64_t>(s.channels, 1) * s.queries;
-  if (threads) {
+  check_source_features(f, idx, weights);
+  const at::cuda::OptionalCUDAGuard device_guard(device_of(f));
+  auto out = torch::empty({f.size(0), f.size(1), idx.size(1)}, f.options());
+  auto confidence = torch::empty({f.size(0), 1, idx.size(1)}, weights.options());
+  const int64_t count = std::max(out.numel(), confidence.numel());
+  if (count) {
+    const bool index32 = at::native::canUse32BitIndexMath(f) &&
+        at::native::canUse32BitIndexMath(idx) && at::native::canUse32BitIndexMath(weights) &&
+        at::native::canUse32BitIndexMath(out) && at::native::canUse32BitIndexMath(confidence);
     AT_DISPATCH_FLOATING_TYPES_AND2(
         at::kHalf, at::kBFloat16, f.scalar_type(), "source_sample_forward", [&] {
-          source_sample_kernel<scalar_t>
-              <<<(threads + 255) / 256, 256, 0, at::cuda::getCurrentCUDAStream()>>>(
-                  s,
-                  f.data_ptr<scalar_t>(),
-                  idx.data_ptr<int32_t>(),
-                  weights.data_ptr<float>(),
-                  out.data_ptr<scalar_t>(),
-                  confidence.data_ptr<float>());
+          if (index32)
+            launch_source_sample_forward<scalar_t, int32_t>(
+                count, f, idx, weights, out, confidence);
+          else
+            launch_source_sample_forward<scalar_t, int64_t>(
+                count, f, idx, weights, out, confidence);
         });
-    C10_CUDA_KERNEL_LAUNCH_CHECK();
   }
   return {out, confidence};
 }
@@ -1390,34 +1434,19 @@ std::vector<torch::Tensor> source_sample_backward(
     const torch::Tensor& weights,
     const torch::Tensor& gs,
     const torch::Tensor& gc) {
-  const auto s = source_feature_shape(f, idx, weights);
-  const c10::cuda::CUDAGuard guard(f.device());
+  check_source_features(f, idx, weights);
+  const at::cuda::OptionalCUDAGuard device_guard(device_of(f));
   auto gf = torch::zeros(f.sizes(), f.options().dtype(at::kFloat));
   auto gw = torch::empty_like(weights);
-  const int64_t threads = s.batch * s.channels * s.queries;
-  const int64_t slots = idx.numel();
+  bool index32 = true;
+  for (const auto& t : {f, idx, weights, gs, gc, gf, gw})
+    index32 = index32 && at::native::canUse32BitIndexMath(t);
   AT_DISPATCH_FLOATING_TYPES_AND2(
       at::kHalf, at::kBFloat16, f.scalar_type(), "source_sample_backward", [&] {
-        if (threads) {
-          source_sample_image_backward_kernel<scalar_t>
-              <<<(threads + 255) / 256, 256, 0, at::cuda::getCurrentCUDAStream()>>>(
-                  s,
-                  idx.data_ptr<int32_t>(),
-                  weights.data_ptr<float>(),
-                  gs.data_ptr<scalar_t>(),
-                  gf.data_ptr<float>());
-        }
-        if (slots) {
-          source_sample_weight_backward_kernel<scalar_t>
-              <<<(slots + 255) / 256, 256, 0, at::cuda::getCurrentCUDAStream()>>>(
-                  s,
-                  f.data_ptr<scalar_t>(),
-                  idx.data_ptr<int32_t>(),
-                  gs.data_ptr<scalar_t>(),
-                  gc.data_ptr<float>(),
-                  gw.data_ptr<float>());
-        }
+        if (index32)
+          launch_source_sample_backward<scalar_t, int32_t>(f, idx, weights, gs, gc, gf, gw);
+        else
+          launch_source_sample_backward<scalar_t, int64_t>(f, idx, weights, gs, gc, gf, gw);
       });
-  C10_CUDA_KERNEL_LAUNCH_CHECK();
   return {gf.to(f.scalar_type()), gw};
 }

@@ -19,7 +19,9 @@
 #include <tuple>
 #include <vector>
 
+#include <cuda_math_helper.h>
 #include <kernel_utils.h>
+#include <tensor_list.h>
 
 #include "transparent_render_kernel.h"
 
@@ -347,17 +349,13 @@ __device__ __forceinline__ float activate_mlp_alpha_backward(float value, int32_
   return 0.0f;
 }
 
-__device__ __forceinline__ float cross2(float ax, float ay, float bx, float by) {
-  return ax * by - ay * bx;
-}
-
 __device__ __forceinline__ float
 edge_function(float ax, float ay, float bx, float by, float px, float py) {
   const float ex = bx - ax;
   const float ey = by - ay;
   const float dx = px - ax;
   const float dy = py - ay;
-  return cross2(ex, ey, dx, dy);
+  return math::cross(float2{ex, ey}, float2{dx, dy});
 }
 
 __device__ __forceinline__ float canonical_edge_function(
@@ -934,7 +932,7 @@ __device__ __forceinline__ void perspective_barycentric_backward(
   const float edge02_y = triangle.y[2] - triangle.y[0];
   const float delta_x = px - triangle.x[0];
   const float delta_y = py - triangle.y[0];
-  const float area = cross2(edge01_x, edge01_y, edge02_x, edge02_y);
+  const float area = math::cross(float2{edge01_x, edge01_y}, float2{edge02_x, edge02_y});
   const float bary12_grad_x = -screen_bary_grad[0] + screen_bary_grad[1];
   const float bary12_grad_y = -screen_bary_grad[0] + screen_bary_grad[2];
   const float pre_grad_x = bary12_grad_x / area;
@@ -1448,6 +1446,7 @@ struct MlpFragmentBackward {
   }
 };
 
+C10_LAUNCH_BOUNDS_1(256)
 __global__ void compute_tile_bounds_kernel(
     int64_t face_element_count,
     const float* vertices,
@@ -1462,69 +1461,70 @@ __global__ void compute_tile_bounds_kernel(
     int32_t* tile_bounds,
     int32_t* tile_counts,
     float* face_depths) {
-  const int64_t index = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
-  if (index >= face_element_count) {
-    return;
-  }
-  const int32_t n = static_cast<int32_t>(index / face_count);
-  const int32_t f = static_cast<int32_t>(index % face_count);
-  const int32_t* face = faces + (static_cast<int64_t>(n) * face_count + f) * 3;
-  const int32_t i0 = face[0];
-  const int32_t i1 = face[1];
-  const int32_t i2 = face[2];
-  const bool valid_indices =
-      i0 >= 0 && i0 < vertex_count && i1 >= 0 && i1 < vertex_count && i2 >= 0 && i2 < vertex_count;
-  if (!valid_indices) {
-    tile_bounds[index * 4 + 0] = 0;
-    tile_bounds[index * 4 + 1] = 0;
-    tile_bounds[index * 4 + 2] = 0;
-    tile_bounds[index * 4 + 3] = 0;
-    tile_counts[index] = 0;
-    face_depths[index] = 0.0f;
-    return;
-  }
-  const float* vertex_batch = vertices + static_cast<int64_t>(n) * vertex_count * 3;
-  const float* p0 = vertex_batch + static_cast<int64_t>(i0) * 3;
-  const float* p1 = vertex_batch + static_cast<int64_t>(i1) * 3;
-  const float* p2 = vertex_batch + static_cast<int64_t>(i2) * 3;
+  CUDA_KERNEL_LOOP_TYPE(index, face_element_count, int64_t) {
+    const int32_t n = static_cast<int32_t>(index / face_count);
+    const int32_t f = static_cast<int32_t>(index % face_count);
+    const int32_t* face = faces + (static_cast<int64_t>(n) * face_count + f) * 3;
+    const int32_t i0 = face[0];
+    const int32_t i1 = face[1];
+    const int32_t i2 = face[2];
+    const bool valid_indices = i0 >= 0 && i0 < vertex_count && i1 >= 0 && i1 < vertex_count &&
+        i2 >= 0 && i2 < vertex_count;
+    if (!valid_indices) {
+      tile_bounds[index * 4 + 0] = 0;
+      tile_bounds[index * 4 + 1] = 0;
+      tile_bounds[index * 4 + 2] = 0;
+      tile_bounds[index * 4 + 3] = 0;
+      tile_counts[index] = 0;
+      face_depths[index] = 0.0f;
+      continue;
+    }
+    const float* vertex_batch = vertices + static_cast<int64_t>(n) * vertex_count * 3;
+    const float* p0 = vertex_batch + static_cast<int64_t>(i0) * 3;
+    const float* p1 = vertex_batch + static_cast<int64_t>(i1) * 3;
+    const float* p2 = vertex_batch + static_cast<int64_t>(i2) * 3;
 
-  const float min_x = fminf(fminf(p0[0], p1[0]), p2[0]) - bounds_padding;
-  const float min_y = fminf(fminf(p0[1], p1[1]), p2[1]) - bounds_padding;
-  const float max_x = fmaxf(fmaxf(p0[0], p1[0]), p2[0]) + bounds_padding;
-  const float max_y = fmaxf(fmaxf(p0[1], p1[1]), p2[1]) + bounds_padding;
-  const float area = cross2(p1[0] - p0[0], p1[1] - p0[1], p2[0] - p0[0], p2[1] - p0[1]);
-  const float depth = (p0[2] + p1[2] + p2[2]) / 3.0f;
-  face_depths[index] = depth;
+    const float min_x = fminf(fminf(p0[0], p1[0]), p2[0]) - bounds_padding;
+    const float min_y = fminf(fminf(p0[1], p1[1]), p2[1]) - bounds_padding;
+    const float max_x = fmaxf(fmaxf(p0[0], p1[0]), p2[0]) + bounds_padding;
+    const float max_y = fmaxf(fmaxf(p0[1], p1[1]), p2[1]) + bounds_padding;
+    const float area =
+        math::cross(float2{p1[0] - p0[0], p1[1] - p0[1]}, float2{p2[0] - p0[0], p2[1] - p0[1]});
+    const float depth = (p0[2] + p1[2] + p2[2]) / 3.0f;
+    face_depths[index] = depth;
 
-  int32_t min_tile_x = 0;
-  int32_t min_tile_y = 0;
-  int32_t max_tile_x = 0;
-  int32_t max_tile_y = 0;
-  const bool finite_vertices = isfinite(p0[0]) && isfinite(p0[1]) && isfinite(p0[2]) &&
-      isfinite(p1[0]) && isfinite(p1[1]) && isfinite(p1[2]) && isfinite(p2[0]) && isfinite(p2[1]) &&
-      isfinite(p2[2]);
-  const bool valid = finite_vertices && i0 != i1 && i1 != i2 && i2 != i0 && isfinite(area) &&
-      isfinite(depth) && fabsf(area) > 1.0e-12f && p0[2] > 1.0e-8f && p1[2] > 1.0e-8f &&
-      p2[2] > 1.0e-8f && max_x >= 0.0f && max_y >= 0.0f &&
-      min_x <= static_cast<float>(image_width - 1) && min_y <= static_cast<float>(image_height - 1);
-  if (valid) {
-    min_tile_x = static_cast<int32_t>(floorf(fmaxf(min_x, 0.0f) / kTileSize));
-    min_tile_y = static_cast<int32_t>(floorf(fmaxf(min_y, 0.0f) / kTileSize));
-    max_tile_x = static_cast<int32_t>(
-                     floorf(fminf(max_x, static_cast<float>(image_width - 1)) / kTileSize)) +
-        1;
-    max_tile_y = static_cast<int32_t>(
-                     floorf(fminf(max_y, static_cast<float>(image_height - 1)) / kTileSize)) +
-        1;
+    int32_t min_tile_x = 0;
+    int32_t min_tile_y = 0;
+    int32_t max_tile_x = 0;
+    int32_t max_tile_y = 0;
+    const bool finite_vertices = isfinite(p0[0]) && isfinite(p0[1]) && isfinite(p0[2]) &&
+        isfinite(p1[0]) && isfinite(p1[1]) && isfinite(p1[2]) && isfinite(p2[0]) &&
+        isfinite(p2[1]) && isfinite(p2[2]);
+    const bool valid = finite_vertices && i0 != i1 && i1 != i2 && i2 != i0 && isfinite(area) &&
+        isfinite(depth) && fabsf(area) > 1.0e-12f && p0[2] > 1.0e-8f && p1[2] > 1.0e-8f &&
+        p2[2] > 1.0e-8f && max_x >= 0.0f && max_y >= 0.0f &&
+        min_x <= static_cast<float>(image_width - 1) &&
+        min_y <= static_cast<float>(image_height - 1);
+    if (valid) {
+      min_tile_x = static_cast<int32_t>(floorf(fmaxf(min_x, 0.0f) / kTileSize));
+      min_tile_y = static_cast<int32_t>(floorf(fmaxf(min_y, 0.0f) / kTileSize));
+      max_tile_x = static_cast<int32_t>(
+                       floorf(fminf(max_x, static_cast<float>(image_width - 1)) / kTileSize)) +
+          1;
+      max_tile_y = static_cast<int32_t>(
+                       floorf(fminf(max_y, static_cast<float>(image_height - 1)) / kTileSize)) +
+          1;
+    }
+
+    tile_bounds[index * 4 + 0] = min_tile_x;
+    tile_bounds[index * 4 + 1] = min_tile_y;
+    tile_bounds[index * 4 + 2] = max_tile_x;
+    tile_bounds[index * 4 + 3] = max_tile_y;
+    tile_counts[index] = (max_tile_x - min_tile_x) * (max_tile_y - min_tile_y);
   }
-
-  tile_bounds[index * 4 + 0] = min_tile_x;
-  tile_bounds[index * 4 + 1] = min_tile_y;
-  tile_bounds[index * 4 + 2] = max_tile_x;
-  tile_bounds[index * 4 + 3] = max_tile_y;
-  tile_counts[index] = (max_tile_x - min_tile_x) * (max_tile_y - min_tile_y);
 }
 
+C10_LAUNCH_BOUNDS_1(256)
 __global__ void emit_tile_keys_kernel(
     int64_t face_element_count,
     int32_t face_count,
@@ -1535,51 +1535,48 @@ __global__ void emit_tile_keys_kernel(
     const float* face_depths,
     uint64_t* keys,
     int32_t* face_ids) {
-  const int64_t index = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;
-  if (index >= face_element_count) {
-    return;
-  }
-  const int32_t n = static_cast<int32_t>(index / face_count);
-  const int32_t min_tile_x = tile_bounds[index * 4 + 0];
-  const int32_t min_tile_y = tile_bounds[index * 4 + 1];
-  const int32_t max_tile_x = tile_bounds[index * 4 + 2];
-  const int32_t max_tile_y = tile_bounds[index * 4 + 3];
-  int64_t output = index == 0 ? 0 : cumulative_tile_counts[index - 1];
-  const uint32_t depth_bits = __float_as_uint(face_depths[index]);
-  for (int32_t tile_y = min_tile_y; tile_y < max_tile_y; ++tile_y) {
-    for (int32_t tile_x = min_tile_x; tile_x < max_tile_x; ++tile_x) {
-      const uint32_t tile_id =
-          static_cast<uint32_t>(n * tiles_per_image + tile_y * tile_width + tile_x);
-      keys[output] = (static_cast<uint64_t>(tile_id) << 32) | depth_bits;
-      face_ids[output] = static_cast<int32_t>(index);
-      ++output;
+  CUDA_KERNEL_LOOP_TYPE(index, face_element_count, int64_t) {
+    const int32_t n = static_cast<int32_t>(index / face_count);
+    const int32_t min_tile_x = tile_bounds[index * 4 + 0];
+    const int32_t min_tile_y = tile_bounds[index * 4 + 1];
+    const int32_t max_tile_x = tile_bounds[index * 4 + 2];
+    const int32_t max_tile_y = tile_bounds[index * 4 + 3];
+    int64_t output = index == 0 ? 0 : cumulative_tile_counts[index - 1];
+    const uint32_t depth_bits = __float_as_uint(face_depths[index]);
+    for (int32_t tile_y = min_tile_y; tile_y < max_tile_y; ++tile_y) {
+      for (int32_t tile_x = min_tile_x; tile_x < max_tile_x; ++tile_x) {
+        const uint32_t tile_id =
+            static_cast<uint32_t>(n * tiles_per_image + tile_y * tile_width + tile_x);
+        keys[output] = (static_cast<uint64_t>(tile_id) << 32) | depth_bits;
+        face_ids[output] = static_cast<int32_t>(index);
+        ++output;
+      }
     }
   }
 }
 
+C10_LAUNCH_BOUNDS_1(256)
 __global__ void find_tile_offsets_kernel(
     int32_t total_tiles,
     int64_t intersection_count,
     const uint64_t* sorted_keys,
     int32_t* offsets) {
-  const int32_t tile_id = blockIdx.x * blockDim.x + threadIdx.x;
-  if (tile_id > total_tiles) {
-    return;
-  }
-  const uint64_t target = static_cast<uint64_t>(static_cast<uint32_t>(tile_id)) << 32;
-  int64_t first = 0;
-  int64_t count = intersection_count;
-  while (count > 0) {
-    const int64_t step = count / 2;
-    const int64_t candidate = first + step;
-    if (sorted_keys[candidate] < target) {
-      first = candidate + 1;
-      count -= step + 1;
-    } else {
-      count = step;
+  CUDA_KERNEL_LOOP_TYPE(tile_id, static_cast<int64_t>(total_tiles) + 1, int64_t) {
+    const uint64_t target = static_cast<uint64_t>(static_cast<uint32_t>(tile_id)) << 32;
+    int64_t first = 0;
+    int64_t count = intersection_count;
+    while (count > 0) {
+      const int64_t step = count / 2;
+      const int64_t candidate = first + step;
+      if (sorted_keys[candidate] < target) {
+        first = candidate + 1;
+        count -= step + 1;
+      } else {
+        count = step;
+      }
     }
+    offsets[tile_id] = static_cast<int32_t>(first);
   }
-  offsets[tile_id] = static_cast<int32_t>(first);
 }
 
 __device__ __forceinline__ void
@@ -1624,49 +1621,46 @@ __device__ __forceinline__ uint64_t triangle_order_key(const TriangleData& trian
   return (static_cast<uint64_t>(__float_as_uint(depth)) << 32) | static_cast<uint32_t>(face);
 }
 
+C10_LAUNCH_BOUNDS_1(256)
 __global__ void boundary_edge_keys_kernel(
     GeometryParams geometry,
     int32_t edge_count,
     uint64_t* keys,
     int32_t* edge_ids) {
-  const int32_t index = blockIdx.x * blockDim.x + threadIdx.x;
-  if (index >= edge_count) {
-    return;
-  }
-  edge_ids[index] = index;
-  keys[index] = UINT64_MAX;
-  const int32_t face = index / 3;
-  const int32_t n = face / geometry.face_count;
-  const int32_t* indices = geometry.faces + static_cast<int64_t>(face) * 3;
+  CUDA_KERNEL_LOOP_TYPE(index, edge_count, int32_t) {
+    edge_ids[index] = index;
+    keys[index] = UINT64_MAX;
+    const int32_t face = index / 3;
+    const int32_t n = face / geometry.face_count;
+    const int32_t* indices = geometry.faces + static_cast<int64_t>(face) * 3;
+    bool valid = true;
 #pragma unroll
-  for (int32_t c = 0; c < 3; ++c) {
-    if (indices[c] < 0 || indices[c] >= geometry.vertex_count) {
-      return;
-    }
-  }
-  TriangleData triangle;
-  load_triangle(geometry, face, triangle);
+    for (int32_t c = 0; c < 3; ++c)
+      valid = valid && indices[c] >= 0 && indices[c] < geometry.vertex_count;
+    if (!valid)
+      continue;
+    TriangleData triangle;
+    load_triangle(geometry, face, triangle);
 #pragma unroll
-  for (int32_t c = 0; c < 3; ++c) {
-    if (!isfinite(triangle.x[c]) || !isfinite(triangle.y[c]) || !isfinite(triangle.z[c]) ||
-        triangle.z[c] <= 1.0e-8f) {
-      return;
+    for (int32_t c = 0; c < 3; ++c) {
+      valid = valid && isfinite(triangle.x[c]) && isfinite(triangle.y[c]) &&
+          isfinite(triangle.z[c]) && triangle.z[c] > 1.0e-8f;
     }
+    if (!valid)
+      continue;
+    const float area = math::cross(
+        float2{triangle.x[1] - triangle.x[0], triangle.y[1] - triangle.y[0]},
+        float2{triangle.x[2] - triangle.x[0], triangle.y[2] - triangle.y[0]});
+    if (fabsf(area) <= 1.0e-12f) {
+      continue;
+    }
+    const int32_t c = index % 3;
+    const uint32_t a =
+        static_cast<uint32_t>(n * static_cast<int64_t>(geometry.vertex_count) + indices[c]);
+    const uint32_t b = static_cast<uint32_t>(
+        n * static_cast<int64_t>(geometry.vertex_count) + indices[(c + 1) % 3]);
+    keys[index] = (static_cast<uint64_t>(min(a, b)) << 32) | max(a, b);
   }
-  const float area = cross2(
-      triangle.x[1] - triangle.x[0],
-      triangle.y[1] - triangle.y[0],
-      triangle.x[2] - triangle.x[0],
-      triangle.y[2] - triangle.y[0]);
-  if (fabsf(area) <= 1.0e-12f) {
-    return;
-  }
-  const int32_t c = index % 3;
-  const uint32_t a =
-      static_cast<uint32_t>(n * static_cast<int64_t>(geometry.vertex_count) + indices[c]);
-  const uint32_t b =
-      static_cast<uint32_t>(n * static_cast<int64_t>(geometry.vertex_count) + indices[(c + 1) % 3]);
-  keys[index] = (static_cast<uint64_t>(min(a, b)) << 32) | max(a, b);
 }
 
 __device__ __forceinline__ float
@@ -1674,11 +1668,9 @@ edge_side(const TriangleData& triangle, int32_t edge, int32_t first_vertex) {
   const int32_t a = triangle.vertex_id[edge] == first_vertex ? edge : (edge + 1) % 3;
   const int32_t b = a == edge ? (edge + 1) % 3 : edge;
   const int32_t c = (edge + 2) % 3;
-  return cross2(
-      triangle.x[b] - triangle.x[a],
-      triangle.y[b] - triangle.y[a],
-      triangle.x[c] - triangle.x[a],
-      triangle.y[c] - triangle.y[a]);
+  return math::cross(
+      float2{triangle.x[b] - triangle.x[a], triangle.y[b] - triangle.y[a]},
+      float2{triangle.x[c] - triangle.x[a], triangle.y[c] - triangle.y[a]});
 }
 
 // Indexed manifold edges have one or two incident faces; the loop also
@@ -1757,11 +1749,9 @@ __device__ float boundary_depth_query(
       continue;
     }
     const int32_t face = face_ids[actual++];
-    const float area = cross2(
-        triangle.x[1] - triangle.x[0],
-        triangle.y[1] - triangle.y[0],
-        triangle.x[2] - triangle.x[0],
-        triangle.y[2] - triangle.y[0]);
+    const float area = math::cross(
+        float2{triangle.x[1] - triangle.x[0], triangle.y[1] - triangle.y[0]},
+        float2{triangle.x[2] - triangle.x[0], triangle.y[2] - triangle.y[0]});
     float bary[3];
     if (!hard_triangle_coverage(
             triangle, static_cast<float>(x), static_cast<float>(y), area, bary)) {
@@ -1857,11 +1847,9 @@ __device__ float boundary_query(
       continue;
     }
     --actual;
-    const float area = cross2(
-        triangle.x[1] - triangle.x[0],
-        triangle.y[1] - triangle.y[0],
-        triangle.x[2] - triangle.x[0],
-        triangle.y[2] - triangle.y[0]);
+    const float area = math::cross(
+        float2{triangle.x[1] - triangle.x[0], triangle.y[1] - triangle.y[0]},
+        float2{triangle.x[2] - triangle.x[0], triangle.y[2] - triangle.y[0]});
     float bary[3];
     if (!hard_triangle_coverage(
             triangle, static_cast<float>(x), static_cast<float>(y), area, bary)) {
@@ -1913,6 +1901,7 @@ __device__ float boundary_query(
   return jump;
 }
 
+C10_LAUNCH_BOUNDS_1(256)
 __global__ void compact_boundary_groups_kernel(
     GeometryParams geometry,
     int32_t edge_count,
@@ -1920,39 +1909,39 @@ __global__ void compact_boundary_groups_kernel(
     const int32_t* edge_ids,
     int32_t* active_groups,
     int32_t* active_count) {
-  const int32_t group = blockIdx.x * blockDim.x + threadIdx.x;
-  if (group >= edge_count || edge_keys[group] == UINT64_MAX ||
-      (group > 0 && edge_keys[group - 1] == edge_keys[group])) {
-    return;
-  }
-  int32_t end = group + 1;
-  while (end < edge_count && edge_keys[end] == edge_keys[group]) {
-    ++end;
-  }
-  const int32_t edge = edge_ids[group];
-  TriangleData triangle;
-  load_triangle(geometry, edge / 3, triangle);
-  int32_t a = edge % 3;
-  int32_t b = (a + 1) % 3;
-  if (triangle.vertex_id[a] > triangle.vertex_id[b]) {
-    const int32_t tmp = a;
-    a = b;
-    b = tmp;
-  }
-  // Shared per-vertex attributes are continuous at a common indexed edge.
-  // Opposite projected sides form tessellation, not a coverage boundary.
-  if (end - group == 2) {
-    TriangleData neighbor;
-    load_triangle(geometry, edge_ids[group + 1] / 3, neighbor);
-    if ((edge_side(triangle, edge % 3, triangle.vertex_id[a]) > 0.0f) !=
-        (edge_side(neighbor, edge_ids[group + 1] % 3, triangle.vertex_id[a]) > 0.0f)) {
-      return;
+  CUDA_KERNEL_LOOP_TYPE(group, edge_count, int32_t) {
+    if (edge_keys[group] == UINT64_MAX || (group > 0 && edge_keys[group - 1] == edge_keys[group])) {
+      continue;
     }
+    int32_t end = group + 1;
+    while (end < edge_count && edge_keys[end] == edge_keys[group]) {
+      ++end;
+    }
+    const int32_t edge = edge_ids[group];
+    TriangleData triangle;
+    load_triangle(geometry, edge / 3, triangle);
+    int32_t a = edge % 3;
+    int32_t b = (a + 1) % 3;
+    if (triangle.vertex_id[a] > triangle.vertex_id[b]) {
+      const int32_t tmp = a;
+      a = b;
+      b = tmp;
+    }
+    // Shared per-vertex attributes are continuous at a common indexed edge.
+    // Opposite projected sides form tessellation, not a coverage boundary.
+    if (end - group == 2) {
+      TriangleData neighbor;
+      load_triangle(geometry, edge_ids[group + 1] / 3, neighbor);
+      if ((edge_side(triangle, edge % 3, triangle.vertex_id[a]) > 0.0f) !=
+          (edge_side(neighbor, edge_ids[group + 1] % 3, triangle.vertex_id[a]) > 0.0f)) {
+        continue;
+      }
+    }
+    if (triangle.opacity[a] <= 0.0f && triangle.opacity[b] <= 0.0f) {
+      continue;
+    }
+    active_groups[atomicAdd(active_count, 1)] = group;
   }
-  if (triangle.opacity[a] <= 0.0f && triangle.opacity[b] <= 0.0f) {
-    return;
-  }
-  active_groups[atomicAdd(active_count, 1)] = group;
 }
 
 struct BoundaryPixelPair {
@@ -2128,6 +2117,7 @@ __device__ void boundary_group_backward(
 }
 
 template <typename FragmentEvaluator>
+C10_LAUNCH_BOUNDS_1(128)
 __global__ void boundary_backward_kernel(
     GeometryParams geometry,
     FragmentEvaluator evaluator,
@@ -2201,7 +2191,7 @@ void launch_boundary_backward(
   auto sorted_keys = torch::empty_like(keys);
   auto sorted_ids = torch::empty_like(ids);
   const auto stream = at::cuda::getCurrentCUDAStream();
-  boundary_edge_keys_kernel<<<(count + 255) / 256, 256, 0, stream>>>(
+  boundary_edge_keys_kernel<<<GET_BLOCKS(count, 256), 256, 0, stream>>>(
       geometry,
       static_cast<int32_t>(count),
       reinterpret_cast<uint64_t*>(keys.data_ptr<int64_t>()),
@@ -2235,7 +2225,7 @@ void launch_boundary_backward(
           stream));
   auto active_groups = torch::empty_like(ids);
   auto active_count = torch::zeros({1}, vi.options());
-  compact_boundary_groups_kernel<<<(count + 255) / 256, 256, 0, stream>>>(
+  compact_boundary_groups_kernel<<<GET_BLOCKS(count, 256), 256, 0, stream>>>(
       geometry,
       static_cast<int32_t>(count),
       reinterpret_cast<uint64_t*>(sorted_keys.data_ptr<int64_t>()),
@@ -2267,6 +2257,7 @@ void launch_boundary_backward(
 }
 
 template <typename FragmentEvaluator>
+C10_LAUNCH_BOUNDS_1(kTileThreads)
 __global__ void render_tiles_kernel(
     GeometryParams geometry,
     FragmentEvaluator fragment_evaluator,
@@ -2329,7 +2320,7 @@ __global__ void render_tiles_kernel(
       const float edge01_y = triangle.y[1] - triangle.y[0];
       const float edge02_x = triangle.x[2] - triangle.x[0];
       const float edge02_y = triangle.y[2] - triangle.y[0];
-      const float area = cross2(edge01_x, edge01_y, edge02_x, edge02_y);
+      const float area = math::cross(float2{edge01_x, edge01_y}, float2{edge02_x, edge02_y});
       if (fabsf(area) <= 1.0e-12f) {
         continue;
       }
@@ -2404,6 +2395,7 @@ __global__ void render_tiles_kernel(
 }
 
 template <typename FragmentEvaluator>
+C10_LAUNCH_BOUNDS_1(kTileThreads)
 __global__ void render_tiles_backward_kernel(
     GeometryParams geometry,
     FragmentEvaluator fragment_evaluator,
@@ -2517,7 +2509,7 @@ __global__ void render_tiles_backward_kernel(
         const float edge01_y = triangle.y[1] - triangle.y[0];
         const float edge02_x = triangle.x[2] - triangle.x[0];
         const float edge02_y = triangle.y[2] - triangle.y[0];
-        const float area = cross2(edge01_x, edge01_y, edge02_x, edge02_y);
+        const float area = math::cross(float2{edge01_x, edge01_y}, float2{edge02_x, edge02_y});
         if (fabsf(area) <= 1.0e-12f) {
           continue;
         }
@@ -2742,8 +2734,7 @@ TileBins build_tile_bins(
   auto face_depths = torch::empty({face_element_count}, v.options());
 
   if (face_element_count > 0) {
-    const int32_t blocks =
-        static_cast<int32_t>((face_element_count + kThreadsPerBlock - 1) / kThreadsPerBlock);
+    const int32_t blocks = GET_BLOCKS(face_element_count, kThreadsPerBlock);
     compute_tile_bounds_kernel<<<blocks, kThreadsPerBlock, 0, at::cuda::getCurrentCUDAStream()>>>(
         face_element_count,
         v.data_ptr<float>(),
@@ -2776,8 +2767,7 @@ TileBins build_tile_bins(
   auto keys = torch::empty({intersection_count}, long_options);
   auto face_ids = torch::empty({intersection_count}, int_options);
   if (intersection_count > 0) {
-    const int32_t blocks =
-        static_cast<int32_t>((face_element_count + kThreadsPerBlock - 1) / kThreadsPerBlock);
+    const int32_t blocks = GET_BLOCKS(face_element_count, kThreadsPerBlock);
     emit_tile_keys_kernel<<<blocks, kThreadsPerBlock, 0, at::cuda::getCurrentCUDAStream()>>>(
         face_element_count,
         face_count,
@@ -2825,7 +2815,7 @@ TileBins build_tile_bins(
 
   auto offsets = torch::empty({total_tiles + 1}, int_options);
   const int32_t offset_count = static_cast<int32_t>(total_tiles + 1);
-  const int32_t offset_blocks = (offset_count + kThreadsPerBlock - 1) / kThreadsPerBlock;
+  const int32_t offset_blocks = GET_BLOCKS(offset_count, kThreadsPerBlock);
   find_tile_offsets_kernel<<<
       offset_blocks,
       kThreadsPerBlock,

@@ -116,10 +116,11 @@ propagates through those parameters for each sampled mesh. Boolean masks and
 triangle indices themselves do not acquire derivatives.
 
 The ARM estimator uses a shared uniform sample to form two correlated
-topologies. :func:`drtk.bernoulli_render_loss` evaluates their losses and adds
-the corresponding logit-gradient estimator. The returned forward value is the
-mean sampled loss. It preserves the ordinary geometry gradients from both
-evaluations.
+topologies. :func:`drtk.bernoulli_render_loss` passes all sampled decisions
+to the callback and adds the corresponding logit-gradient estimator. With
+four pairs and five logits, ``bits`` has shape ``[8, 5]``. ``scene.loss``
+returns eight losses, one for each sampled mesh. The helper averages them
+and preserves the ordinary geometry gradients from every sample.
 
 .. code-block:: python
 
@@ -133,14 +134,15 @@ evaluations.
    loss.backward()
    optimizer.step()
 
-Four pairs require eight renders per step. The training view is selected
+Four pairs produce eight images per step. The training view is selected
 before evaluating the pair, so both samples use the same view and target.
 Average the losses of sampled images; averaging images before taking the loss
 would optimize a different objective.
 
 :func:`drtk.bernoulli_topology_samples` exposes the two hard samples and their
-shared random numbers when a custom estimator is needed. The example above
-uses the complete loss helper directly.
+shared random numbers for custom estimators. Shared geometry receives gradients
+from all sampled meshes. The callback may split the samples into smaller
+groups to limit memory use; concatenate their losses before returning them.
 
 Watching the fit
 ----------------

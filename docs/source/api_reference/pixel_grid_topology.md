@@ -28,17 +28,19 @@ The function returns seven elements. Optional outputs are `None` when disabled.
 
 | Input | Shape | Meaning |
 | --- | --- | --- |
-| `depth_z` | H × W | Positive source-camera Z depth, not inverse depth or ray distance |
-| `displacement_xyz` | H × W × 3 | Translation proposal in source-camera units |
-| `intrinsics` | 3 × 3 | Pinhole K for this source grid, including any crop/resize |
-| `alive` | H × W | Boolean cell participation |
-| `join_right` | H × (W−1) | Boolean connection to the right neighbor |
-| `join_down` | (H−1) × W | Boolean connection to the neighbor below |
-| `diagonal` | H × W or `None` | False: TL–BR; True: TR–BL; None: geometric choice |
-| `feather_width` | H × W or `None` | Nonnegative strip width in source-image pixels |
+| `depth_z` | N × H × W | Positive source-camera Z depth, not inverse depth or ray distance |
+| `displacement_xyz` | N × H × W × 3 | Translation proposal in source-camera units |
+| `intrinsics` | N × 3 × 3 or 1 × 3 × 3 | Pinhole K for this source grid, including any crop/resize |
+| `alive` | N × H × W | Boolean cell participation |
+| `join_right` | N × H × (W−1) | Boolean connection to the right neighbor |
+| `join_down` | N × (H−1) × W | Boolean connection to the neighbor below |
+| `diagonal` | N × H × W or `None` | False: TL–BR; True: TR–BL; None: geometric choice |
+| `feather_width` | N × H × W or `None` | Nonnegative strip width in source-image pixels |
 
-The function operates on one grid per call. Call it per example
-for a ragged batch.
+Each of the N meshes has its own topology, corner fans, and feather
+boundaries. A camera supplied as 1 × 3 × 3 is shared across the batch.
+Shared floating inputs supplied with `expand` receive the sum of their
+sample gradients.
 Floating inputs share float32/float64 dtype and device; hard decisions are bool.
 Depth, K, displacement, and widths must be finite and geometrically valid. The
 displaced surface must remain in front of the source camera.
@@ -52,6 +54,14 @@ displaced surface must remain in front of the source camera.
 | `vertex_opacity` | Generated material-opacity multiplier: core 1, outer strip 0; `None` without strips |
 | `face_cell_ids` | Source-cell ownership, or `None` unless metadata is requested |
 | `face_ids` | Stable cell/local-face identifiers, or `None` unless metadata is requested |
+
+Vertices have shape N × Vmax × 3 and faces N × Fmax × 3, where the
+maximum counts are taken across the batch. Each sample occupies a compact
+prefix; indices and stable IDs are local to that sample. Padding has face
+indices and metadata -1, positions (0,0,1), and zero UVs and opacity.
+It contributes no gradients. `vi[..., 0] >= 0` marks valid faces. Empty
+meshes and empty batches are supported. The same seven tuple entries are
+returned, including `None` for disabled outputs.
 
 Faces are emitted in increasing stable-ID order, including strips. Removing
 unrelated cells preserves relative tie order for the renderer's equal-depth
@@ -171,10 +181,12 @@ loss = bernoulli_render_loss(logits, evaluate, pairs=1, generator=rng)
 loss.backward()
 ```
 
-The callback unpacks hard bits, calls the mesh builder and renderer, and returns
-a scalar loss. Each pair uses two renders. The returned value is the mean of
-their losses. Its surrogate backward supplies ARM to the logits and preserves
-ordinary continuous gradients from both evaluations. If the callback has other randomness, keep it fixed within a pair or
+The callback receives hard decisions with shape `[2 * pairs, *logits.shape]`,
+builds and renders the meshes, and returns a `[2 * pairs]` vector of losses.
+The first half contains z⁺ and the second half the matching z⁻. Each loss is
+evaluated independently of the other sampled topologies. The helper averages
+the losses and supplies the ARM gradient to logits while preserving ordinary
+continuous gradients from each evaluation. If the callback has other randomness, keep it fixed within a pair or
 independent of topology sampling. Define target validity and loss normalization
 independently of predicted alive bits, so missing geometry contributes to the loss.
 

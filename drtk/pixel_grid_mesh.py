@@ -255,7 +255,7 @@ def _feather_mesh(
     )
 
 
-def pixel_grid_mesh_ref(
+def _mesh_reference(
     depth_z: th.Tensor,
     displacement_xyz: th.Tensor,
     intrinsics: th.Tensor,
@@ -267,42 +267,7 @@ def pixel_grid_mesh_ref(
     *,
     return_metadata: bool = False,
 ) -> PixelGridMesh:
-    """Tensor reference for :func:`pixel_grid_mesh`, supporting CPU and CUDA.
-
-    See :func:`pixel_grid_mesh` for the complete argument and return-value
-    contract.
-    """
-    if depth_z.ndim != 2 or min(depth_z.shape) < 1:
-        raise ValueError("depth_z must have nonempty shape [H, W]")
     h, w = depth_z.shape
-    expected = (
-        (displacement_xyz, (h, w, 3)),
-        (intrinsics, (3, 3)),
-        (alive, (h, w)),
-        (join_right, (h, w - 1)),
-        (join_down, (h - 1, w)),
-    )
-    for tensor, shape in expected:
-        if tuple(tensor.shape) != shape or tensor.device != depth_z.device:
-            raise ValueError(
-                f"expected shape {shape} on {depth_z.device}, got {tensor.shape} on {tensor.device}"
-            )
-    if depth_z.dtype not in (th.float32, th.float64):
-        raise ValueError("depth_z must be float32 or float64")
-    if displacement_xyz.dtype != depth_z.dtype or intrinsics.dtype != depth_z.dtype:
-        raise ValueError("floating geometry inputs must share dtype")
-    if any(t.dtype != th.bool for t in (alive, join_right, join_down)):
-        raise ValueError("topology inputs must be boolean hard decisions")
-    for optional, dtype in ((diagonal, th.bool), (feather_width, depth_z.dtype)):
-        if optional is not None and (
-            tuple(optional.shape) != (h, w)
-            or optional.dtype != dtype
-            or optional.device != depth_z.device
-        ):
-            raise ValueError(
-                "diagonal/feather_width must match grid shape, dtype, and device"
-            )
-
     right, down = _realize_connections(alive, join_right, join_down)
     labels = _corner_labels(h, w, right, down)
     y, x = th.meshgrid(
@@ -382,6 +347,129 @@ def pixel_grid_mesh_ref(
     )
 
 
+def pixel_grid_mesh_ref(
+    depth_z: th.Tensor,
+    displacement_xyz: th.Tensor,
+    intrinsics: th.Tensor,
+    alive: th.Tensor,
+    join_right: th.Tensor,
+    join_down: th.Tensor,
+    diagonal: Optional[th.Tensor] = None,
+    feather_width: Optional[th.Tensor] = None,
+    *,
+    return_metadata: bool = False,
+) -> PixelGridMesh:
+    """Tensor reference for :func:`pixel_grid_mesh`, supporting CPU and CUDA.
+
+    See :func:`pixel_grid_mesh` for the complete argument and return-value
+    contract.
+    """
+    if depth_z.ndim != 3:
+        raise ValueError("depth_z must have shape [N, H, W]")
+    batch, h, w = depth_z.shape
+    if h < 1 or w < 1:
+        raise ValueError("depth_z must have shape [N,H,W] with nonempty grids")
+    if depth_z.dtype not in (th.float32, th.float64):
+        raise ValueError("depth_z must be float32 or float64")
+    if intrinsics.ndim == 3 and intrinsics.shape[0] == 1:
+        intrinsics = intrinsics.expand(batch, -1, -1)
+    for value, shape, dtype in (
+        (displacement_xyz, (batch, h, w, 3), depth_z.dtype),
+        (intrinsics, (batch, 3, 3), depth_z.dtype),
+        (alive, (batch, h, w), th.bool),
+        (join_right, (batch, h, w - 1), th.bool),
+        (join_down, (batch, h - 1, w), th.bool),
+    ):
+        if (
+            tuple(value.shape) != shape
+            or value.dtype != dtype
+            or value.device != depth_z.device
+        ):
+            raise ValueError("inputs must match grid shape, dtype, and device")
+    for value, dtype in ((diagonal, th.bool), (feather_width, depth_z.dtype)):
+        if value is not None and (
+            value.shape != depth_z.shape
+            or value.dtype != dtype
+            or value.device != depth_z.device
+        ):
+            raise ValueError("diagonal/feather_width must match depth_z")
+    if batch == 0:
+        zero = (depth_z.sum() + displacement_xyz.sum() + intrinsics.sum()) * 0
+        if feather_width is not None:
+            zero = zero + feather_width.sum() * 0
+        return (
+            depth_z.new_empty((0, 0, 3)) + zero,
+            depth_z.new_empty((0, 0, 2)),
+            depth_z.new_empty((0, 0, 2)) + zero,
+            th.empty((0, 0, 3), dtype=th.int32, device=depth_z.device),
+            depth_z.new_empty((0, 0)) if feather_width is not None else None,
+            th.empty((0, 0), dtype=th.int64, device=depth_z.device)
+            if return_metadata
+            else None,
+            th.empty((0, 0), dtype=th.int64, device=depth_z.device)
+            if return_metadata
+            else None,
+        )
+    meshes = [
+        _mesh_reference(
+            depth_z[i],
+            displacement_xyz[i],
+            intrinsics[i],
+            alive[i],
+            join_right[i],
+            join_down[i],
+            diagonal=None if diagonal is None else diagonal[i],
+            feather_width=None if feather_width is None else feather_width[i],
+            return_metadata=return_metadata,
+        )
+        for i in range(batch)
+    ]
+    nv = max(mesh[0].shape[0] for mesh in meshes)
+    nf = max(mesh[3].shape[0] for mesh in meshes)
+
+    def padded(values: List[th.Tensor], count: int, fill: float = 0) -> th.Tensor:
+        return th.stack(
+            [
+                th.cat(
+                    (
+                        value,
+                        value.new_full(
+                            (count - value.shape[0],) + value.shape[1:], fill
+                        ),
+                    )
+                )
+                for value in values
+            ]
+        )
+
+    vertices = th.stack(
+        [
+            th.cat(
+                (
+                    mesh[0],
+                    depth_z.new_tensor([0, 0, 1]).expand(nv - mesh[0].shape[0], -1),
+                )
+            )
+            for mesh in meshes
+        ]
+    )
+    return (
+        vertices,
+        padded([mesh[1] for mesh in meshes], nv),
+        padded([mesh[2] for mesh in meshes], nv),
+        padded([mesh[3] for mesh in meshes], nf, -1),
+        padded([cast(th.Tensor, mesh[4]) for mesh in meshes], nv)
+        if feather_width is not None
+        else None,
+        padded([cast(th.Tensor, mesh[5]) for mesh in meshes], nf, -1)
+        if return_metadata
+        else None,
+        padded([cast(th.Tensor, mesh[6]) for mesh in meshes], nf, -1)
+        if return_metadata
+        else None,
+    )
+
+
 def pixel_grid_mesh(
     depth_z: th.Tensor,
     displacement_xyz: th.Tensor,
@@ -399,21 +487,28 @@ def pixel_grid_mesh(
     Supports float32/float64 CUDA tensors and first-order gradients.
 
     Args:
-        depth_z: Positive camera Z depth ``[H, W]`` (float32 or float64).
-        displacement_xyz: Camera-space translation proposals ``[H, W, 3]``.
+        depth_z: Positive camera Z depth ``[N, H, W]`` (float32 or float64).
+            A batch contains N independent meshes on grids with the same H
+            and W.
+        displacement_xyz: Camera-space translation proposals ``[N, H, W, 3]``.
             Shared corners are least-squares averages of incident proposals;
             a cell's final center need not equal its proposed center exactly.
-        intrinsics: Nonsingular pinhole matrix ``[3, 3]`` with last row 0,0,1.
+        intrinsics: Nonsingular pinhole matrix with last row 0,0,1.
+            Shape ``[N, 3, 3]``, or ``[1, 3, 3]`` for a shared camera.
+            Gradients to a shared matrix sum over the batch.
             Pixel centers have integer coordinates, corners half-integers.
-        alive: Boolean cell participation ``[H, W]``.
-        join_right: Boolean horizontal adjacency ``[H, W-1]``.
-        join_down: Boolean vertical adjacency ``[H-1, W]``. Isolated interior
+        alive: Boolean cell participation, with the same shape as depth_z.
+        join_right: Boolean horizontal adjacency ``[N, H, W-1]``.
+        join_down: Boolean vertical adjacency ``[N, H-1, W]``.
+            Isolated interior
             one-edge cuts are healed; cuts touching a live/dead or grid border
             survive. Adjacent cut edges are evaluated before any healing.
-        diagonal: Optional boolean ``[H, W]``: False selects TL--BR, True
+        diagonal: Optional boolean tensor with the same shape as depth_z.
+            False selects TL--BR, True
             TR--BL. None selects the diagonal whose midpoint best matches the
             proposed cell center; ties select TL--BR.
-        feather_width: Optional nonnegative widths ``[H, W]`` in source pixels.
+        feather_width: Optional nonnegative widths in source pixels, with
+            the same shape as depth_z.
             Generates boundary strips and fixed vertex opacity, not a learned
             opacity head. Widths are averaged within each boundary fan. Large
             widths can cause overlap; there is no global collision resolution.
@@ -422,11 +517,22 @@ def pixel_grid_mesh(
     Returns:
         A fixed seven-element tuple ``(v, vt0, vt1, vi, vertex_opacity,
         face_cell_ids, face_ids)``. Vertices already include displacement and
-        optional strips, in source-camera 3D, shape ``[V, 3]``. UVs have shape
-        ``[V, 2]`` and faces ``[F, 3]`` int32. vt0 is the source anchor; vt1
-        is the displaced source projection. Vertex opacity is ``[V]`` or None
-        without feathering. The two metadata tensors are ``[F]`` int64 or
-        None. No optional tuple slot is omitted.
+        optional strips, in source-camera 3D, shape ``[N, Vmax, 3]``.
+        UVs have shape ``[N, Vmax, 2]`` and faces ``[N, Fmax, 3]`` int32.
+        vt0 is the source anchor; vt1 is the displaced source projection.
+        Vertex opacity is ``[N, Vmax]`` or None without feathering. The two
+        metadata tensors are ``[N, Fmax]`` int64 or None.
+
+    Vmax and Fmax are the largest vertex and face counts in the batch.
+    Each mesh occupies a compact prefix; face indices and metadata stay
+    local to that mesh. Unused faces and metadata are -1. Unused positions
+    are (0,0,1), and unused UVs and opacity are zero. Padding contributes
+    no gradients. ``vi[..., 0] >= 0`` identifies valid faces. Empty meshes
+    and empty batches are supported.
+
+    Gradients flow through ``v`` and ``vt1``. The source anchors ``vt0``,
+    vertex opacity, face indices, and metadata describe the fixed topology
+    and are nondifferentiable outputs.
 
     All tensors must share device; floating inputs must share dtype. Inputs
     must be finite, depths/widths valid, and displaced vertices in front of the
@@ -436,17 +542,19 @@ def pixel_grid_mesh(
     Vertex/face storage order may differ; use stable face IDs when comparing
     geometry.
     """
+    if depth_z.ndim == 3 and intrinsics.ndim == 3 and intrinsics.shape[0] == 1:
+        intrinsics = intrinsics.expand(depth_z.shape[0], -1, -1)
     outputs = _build(
-        depth_z.contiguous(),
-        displacement_xyz.contiguous(),
-        intrinsics.contiguous(),
-        alive.contiguous(),
-        join_right.contiguous(),
-        join_down.contiguous(),
+        depth_z,
+        displacement_xyz,
+        intrinsics,
+        alive,
+        join_right,
+        join_down,
         th.empty(0, dtype=th.bool, device=depth_z.device)
         if diagonal is None
-        else diagonal.contiguous(),
-        depth_z.new_empty(0) if feather_width is None else feather_width.contiguous(),
+        else diagonal,
+        depth_z.new_empty(0) if feather_width is None else feather_width,
         return_metadata,
     )
     return (
@@ -503,14 +611,16 @@ def bernoulli_render_loss(
     Args:
         logits: Floating-point Bernoulli logits of any shape, typically a
             learnable tensor or the output of a prediction network.
-        evaluate: Callable accepting a boolean tensor with the same shape
-            as ``logits`` and returning a scalar loss tensor. It constructs
-            a hard mesh, renders it, and compares the render with the target.
-            Continuous parameters captured by the callable retain ordinary
-            autograd through the sampled mesh and renderer.
-        pairs: Positive number of correlated sample pairs. Each pair calls
-            ``evaluate`` twice; more pairs reduce sampling variance at the
-            cost of more evaluations.
+        evaluate: Callable receiving boolean decisions of shape
+            ``[2 * pairs, *logits.shape]`` and returning one scalar loss per
+            sample as a ``[2 * pairs]`` tensor. The first half contains the
+            plus samples and the second half their corresponding minus
+            samples. The callable builds meshes, renders them, and compares
+            each image with its target. Continuous parameters captured by
+            the callable retain ordinary autograd.
+        pairs: Positive number of correlated sample pairs. Each pair uses
+            two meshes; more pairs reduce sampling variance at the cost of
+            more evaluations.
         generator: Optional random generator matching the logits' device.
 
     Returns:
@@ -519,24 +629,30 @@ def bernoulli_render_loss(
         preserves ordinary continuous-input gradients from those evaluations.
         Calling ``backward()`` accumulates these gradients normally.
 
+    Each sample's loss must depend on its own topology. Cross-sample
+    coupling, such as training-mode batch normalization, changes the
+    objective. The callback may process the samples in smaller groups to
+    limit memory use, then concatenate their losses.
+
     The score term uses detached loss differences. Any topology cleanup must
     depend on sampled bits, not detached logits. Use deterministic evaluation,
     common auxiliary randomness within each pair, or auxiliary randomness
     independent of the sampled topology.
 
     This helper estimates the expectation of the full loss: average losses,
-    not rendered images. It does not compute visibility masks or supply
-    task-specific regularizers. :func:`bernoulli_topology_samples` exposes
+    not rendered images. :func:`bernoulli_topology_samples` exposes
     the underlying correlated samples for custom estimators.
     """
     if pairs < 1:
         raise ValueError("pairs must be positive")
-    result = logits.new_zeros(())
-    for _ in range(pairs):
-        plus, minus, uniform = bernoulli_topology_samples(logits, generator=generator)
-        loss_plus, loss_minus = evaluate(plus), evaluate(minus)
-        if loss_plus.ndim != 0 or loss_minus.ndim != 0:
-            raise ValueError("evaluate must return a scalar loss")
-        score = ((loss_plus - loss_minus).detach() * (uniform - 0.5) * logits).sum()
-        result = result + 0.5 * (loss_plus + loss_minus) + (score - score.detach())
-    return result / pairs
+    expanded = logits.unsqueeze(0).expand((pairs,) + tuple(logits.shape))
+    plus, minus, uniform = bernoulli_topology_samples(expanded, generator=generator)
+    losses = evaluate(th.cat((plus, minus), dim=0))
+    if losses.shape != (2 * pairs,):
+        raise ValueError("evaluate must return one scalar loss per sample")
+    difference = (losses[:pairs] - losses[pairs:]).detach()
+    score = (
+        (difference.reshape((pairs,) + (1,) * logits.ndim) * (uniform - 0.5)).mean(0)
+        * logits
+    ).sum()
+    return losses.mean() + (score - score.detach())
