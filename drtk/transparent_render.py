@@ -74,6 +74,7 @@ _RenderWithTexture = Callable[
         int,
         float,
         float,
+        int,
     ],
     List[th.Tensor],
 ]
@@ -1077,6 +1078,7 @@ def render_transparent(
     depth_mode: str = "expected",
     background_depth: float = 1000.0,
     depth_alpha_threshold: float = 1.0e-6,
+    tile_capacity: Optional[int] = None,
 ) -> Tuple[th.Tensor, th.Tensor, th.Tensor]:
     """Render depth-sorted transparent textured triangles.
 
@@ -1149,6 +1151,10 @@ def render_transparent(
             depth. Defaults to 1e-6. The division is not evaluated through
             small or zero alpha; invalid pixels have zero smooth depth gradient.
             This threshold only affects ``"foreground_mean"``.
+        tile_capacity: Optional maximum number of tile/triangle intersections
+            across the batch. Keeps bin counts on the GPU and permits CUDA
+            graph capture. Insufficient capacity raises an asynchronous CUDA
+            error. None allocates bins to their exact size.
 
     Returns:
         A tuple ``(rgb, alpha, depth)`` with shapes ``[N, 3, H, W]``,
@@ -1202,6 +1208,7 @@ def render_transparent(
         depth_mode_enum,
         background_depth,
         depth_alpha_threshold,
+        -1 if tile_capacity is None else tile_capacity,
     )
     return outputs[0], outputs[1], outputs[2]
 
@@ -1229,6 +1236,7 @@ def render_transparent_mlp(
     depth_mode: str = "expected",
     background_depth: float = 1000.0,
     depth_alpha_threshold: float = 1.0e-6,
+    tile_capacity: Optional[int] = None,
 ) -> Tuple[th.Tensor, th.Tensor, th.Tensor]:
     """Render transparent triangles from one neural feature texture.
 
@@ -1316,6 +1324,10 @@ def render_transparent_mlp(
             depth. Defaults to 1e-6. The division is not evaluated through
             small or zero alpha; invalid pixels have zero smooth depth gradient.
             This threshold only affects ``"foreground_mean"``.
+        tile_capacity: Optional maximum number of tile/triangle intersections
+            across the batch. Keeps bin counts on the GPU and permits CUDA
+            graph capture. Insufficient capacity raises an asynchronous CUDA
+            error. None allocates bins to their exact size.
 
     Returns:
         A tuple ``(rgb, alpha, depth)`` with shapes ``[N, 3, H, W]``,
@@ -1358,6 +1370,7 @@ def render_transparent_mlp(
         depth_mode=depth_mode,
         background_depth=background_depth,
         depth_alpha_threshold=depth_alpha_threshold,
+        tile_capacity=tile_capacity,
     )
 
 
@@ -1386,6 +1399,7 @@ def render_transparent_mlp_two_textures(
     depth_mode: str = "expected",
     background_depth: float = 1000.0,
     depth_alpha_threshold: float = 1.0e-6,
+    tile_capacity: Optional[int] = None,
 ) -> Tuple[th.Tensor, th.Tensor, th.Tensor]:
     """Render transparent triangles from two neural feature textures.
 
@@ -1483,6 +1497,10 @@ def render_transparent_mlp_two_textures(
             depth. Defaults to 1e-6. The division is not evaluated through
             small or zero alpha; invalid pixels have zero smooth depth gradient.
             This threshold only affects ``"foreground_mean"``.
+        tile_capacity: Optional maximum number of tile/triangle intersections
+            across the batch. Keeps bin counts on the GPU and permits CUDA
+            graph capture. Insufficient capacity raises an asynchronous CUDA
+            error. None allocates bins to their exact size.
 
     Returns:
         A tuple ``(rgb, alpha, depth)`` with shapes ``[N, 3, H, W]``,
@@ -1524,6 +1542,7 @@ def render_transparent_mlp_two_textures(
         depth_mode=depth_mode,
         background_depth=background_depth,
         depth_alpha_threshold=depth_alpha_threshold,
+        tile_capacity=tile_capacity,
     )
 
 
@@ -1552,6 +1571,7 @@ def _render_transparent_mlp_impl(
     depth_mode: str = "expected",
     background_depth: float = 1000.0,
     depth_alpha_threshold: float = 1.0e-6,
+    tile_capacity: Optional[int] = None,
 ) -> Tuple[th.Tensor, th.Tensor, th.Tensor]:
     """Shared implementation for the one- and two-texture CUDA APIs."""
 
@@ -1599,5 +1619,6 @@ def _render_transparent_mlp_impl(
         depth_mode_enum,
         background_depth,
         depth_alpha_threshold,
+        -1 if tile_capacity is None else tile_capacity,
     )
     return outputs[0], outputs[1], outputs[2]

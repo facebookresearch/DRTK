@@ -22,9 +22,21 @@ class PixelGridMeshFunction : public torch::autograd::Function<PixelGridMeshFunc
       const torch::Tensor& down,
       const torch::Tensor& diagonal,
       const torch::Tensor& width,
-      bool metadata) {
+      bool metadata,
+      int64_t vertex_capacity,
+      int64_t face_capacity) {
     auto out = pixel_grid_mesh_forward(
-        depth, displacement, intrinsics, alive, right, down, diagonal, width, metadata);
+        depth,
+        displacement,
+        intrinsics,
+        alive,
+        right,
+        down,
+        diagonal,
+        width,
+        metadata,
+        vertex_capacity,
+        face_capacity);
     // Floating inputs, compact vertices, then local topology/geometry state.
     tensor_list saved{depth, displacement, intrinsics, width, out[0]};
     saved.insert(saved.end(), out.begin() + 7, out.begin() + 15);
@@ -50,6 +62,8 @@ class PixelGridMeshFunction : public torch::autograd::Function<PixelGridMeshFunc
         torch::Tensor(),
         torch::Tensor(),
         gradients[3],
+        torch::Tensor(),
+        torch::Tensor(),
         torch::Tensor()};
   }
 };
@@ -63,9 +77,21 @@ tensor_list build(
     const torch::Tensor& down,
     const torch::Tensor& diagonal,
     const torch::Tensor& width,
-    bool metadata) {
+    bool metadata,
+    int64_t vertex_capacity,
+    int64_t face_capacity) {
   return PixelGridMeshFunction::apply(
-      depth, displacement, intrinsics, alive, right, down, diagonal, width, metadata);
+      depth,
+      displacement,
+      intrinsics,
+      alive,
+      right,
+      down,
+      diagonal,
+      width,
+      metadata,
+      vertex_capacity,
+      face_capacity);
 }
 } // namespace
 
@@ -76,7 +102,8 @@ PYBIND11_MODULE(pixel_grid_mesh_ext, m) {}
 TORCH_LIBRARY(pixel_grid_mesh_ext, m) {
   m.def(
       "build(Tensor depth, Tensor displacement, Tensor intrinsics, Tensor alive, "
-      "Tensor right, Tensor down, Tensor diagonal, Tensor width, bool metadata) -> Tensor[]");
+      "Tensor right, Tensor down, Tensor diagonal, Tensor width, bool metadata, "
+      "int vertex_capacity=-1, int face_capacity=-1) -> Tensor[]");
 }
 
 TORCH_LIBRARY_IMPL(pixel_grid_mesh_ext, CompositeImplicitAutograd, m) {

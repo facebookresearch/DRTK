@@ -22,7 +22,8 @@ std::vector<torch::Tensor> source_stencil_appearance_forward(
     const torch::TensorList& appearance,
     int64_t height,
     int64_t width,
-    const SourceShadingOptions& options);
+    const SourceShadingOptions& options,
+    int64_t tile_capacity);
 std::vector<torch::Tensor> source_stencil_appearance_backward(
     const torch::TensorList& saved,
     const torch::TensorList& grads,
@@ -39,7 +40,8 @@ std::vector<torch::Tensor> source_stencil_forward(
     const torch::Tensor& query_bary,
     const torch::Tensor& opacity,
     int64_t height,
-    int64_t width);
+    int64_t width,
+    int64_t tile_capacity);
 std::vector<torch::Tensor> source_stencil_backward(
     const torch::TensorList& saved,
     const torch::TensorList& grads,

@@ -18,6 +18,8 @@ transparency. Covered fragments are evaluated from front to back and
 composited into color, alpha, and depth images. Each function returns
 ``(rgb, alpha, depth)``.
 
+See :doc:`cuda_graphs` for choosing tile capacities.
+
 Ordering uses each triangle's mean vertex depth, not a per-pixel depth sort.
 This approximation suits small triangles with locally consistent ordering;
 intersecting or depth-crossing triangles can require a different order at

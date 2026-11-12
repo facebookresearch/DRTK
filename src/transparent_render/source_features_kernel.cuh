@@ -941,6 +941,7 @@ std::vector<torch::Tensor> launch_source_stencil_forward(
     const torch::Tensor& opacity,
     int64_t height,
     int64_t width,
+    int64_t tile_capacity,
     const Evaluator& evaluator,
     const torch::Tensor& uv0 = {},
     const torch::Tensor& uv1 = {}) {
@@ -967,8 +968,8 @@ std::vector<torch::Tensor> launch_source_stencil_forward(
     g.reference_uv = uv1.defined() ? uv1.data_ptr<float>() : nullptr;
   }
   const auto adjacency = source_build_adjacency(g, vi);
-  const auto bins =
-      build_tile_bins(v, vi, static_cast<int32_t>(height), static_cast<int32_t>(width), 1);
+  const auto bins = build_tile_bins(
+      v, vi, static_cast<int32_t>(height), static_cast<int32_t>(width), 1, tile_capacity);
   const int64_t n = qf.size(0), q = qf.size(1);
   auto indices = torch::full({n, q, 4}, -1, vi.options());
   auto weights = torch::zeros({n, q, 4}, v.options());
@@ -1070,9 +1071,10 @@ std::vector<torch::Tensor> source_stencil_forward(
     const torch::Tensor& qb,
     const torch::Tensor& opacity,
     int64_t height,
-    int64_t width) {
+    int64_t width,
+    int64_t tile_capacity) {
   return launch_source_stencil_forward(
-      v, vi, qf, qb, opacity, height, width, SourceMaterialEvaluator{});
+      v, vi, qf, qb, opacity, height, width, tile_capacity, SourceMaterialEvaluator{});
 }
 
 std::vector<torch::Tensor> source_stencil_backward(
@@ -1303,21 +1305,23 @@ std::vector<torch::Tensor> source_stencil_appearance_forward(
     const torch::TensorList& a,
     int64_t height,
     int64_t width,
-    const SourceShadingOptions& o) {
+    const SourceShadingOptions& o,
+    int64_t tile_capacity) {
   check_source_appearance(v, a, o);
   if (!o.mlp) {
     SourceAppearanceEvaluator<SourceTextureForward> evaluator{source_texture_evaluator(a[1], o)};
-    return launch_source_stencil_forward(v, vi, qf, qb, opacity, height, width, evaluator, a[0]);
+    return launch_source_stencil_forward(
+        v, vi, qf, qb, opacity, height, width, tile_capacity, evaluator, a[0]);
   }
   if (a.size() == 12) {
     SourceAppearanceEvaluator<MlpFragmentEvaluator<4, true>> evaluator{
         source_mlp_evaluator<4>(a, o)};
     return launch_source_stencil_forward(
-        v, vi, qf, qb, opacity, height, width, evaluator, a[0], a[1]);
+        v, vi, qf, qb, opacity, height, width, tile_capacity, evaluator, a[0], a[1]);
   }
   SourceAppearanceEvaluator<MlpFragmentEvaluator<5, true>> evaluator{source_mlp_evaluator<5>(a, o)};
   return launch_source_stencil_forward(
-      v, vi, qf, qb, opacity, height, width, evaluator, a[0], a[1]);
+      v, vi, qf, qb, opacity, height, width, tile_capacity, evaluator, a[0], a[1]);
 }
 
 std::vector<torch::Tensor> source_stencil_appearance_backward(

@@ -53,3 +53,4 @@ The package includes the following modules:
    :caption: Concepts
 
    pixel_grid_topology
+   cuda_graphs

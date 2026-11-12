@@ -37,7 +37,8 @@ std::vector<torch::Tensor> transparent_render_with_texture_cuda_forward(
     int64_t rgb_activation,
     int64_t alpha_activation,
     const TransparentDepthOptions& depth_options,
-    bool save_transmittance = true);
+    bool save_transmittance = true,
+    int64_t tile_capacity = -1);
 
 std::vector<torch::Tensor> transparent_render_with_mlp_cuda_forward(
     const torch::Tensor& v,
@@ -59,7 +60,8 @@ std::vector<torch::Tensor> transparent_render_with_mlp_cuda_forward(
     int64_t rgb_activation,
     int64_t alpha_activation,
     const TransparentDepthOptions& depth_options,
-    bool save_transmittance = true);
+    bool save_transmittance = true,
+    int64_t tile_capacity = -1);
 
 std::vector<torch::Tensor> transparent_render_with_texture_cuda_backward(
     const torch::Tensor& v,

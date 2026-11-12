@@ -43,6 +43,7 @@ def source_transmittance(
     vertex_opacity: Optional[th.Tensor] = None,
     edge_gradients: bool = True,
     return_queries: bool = False,
+    tile_capacity: Optional[int] = None,
 ) -> Tuple[th.Tensor, th.Tensor, Optional[th.Tensor], Optional[th.Tensor]]:
     r"""Evaluate transmittance from a source camera or light to mesh points.
 
@@ -93,6 +94,11 @@ def source_transmittance(
         return_queries (bool): Return each query's projected UV and camera Z.
             Default: False.
 
+        tile_capacity: Optional maximum tile/triangle intersections across
+            the batch, including the boundary-query halo. Keeps bin counts
+            on the GPU and permits CUDA graph capture. Insufficient capacity
+            raises an asynchronous CUDA error. None uses exact-sized bins.
+
     Returns:
         Tuple[Tensor, Tensor, Optional[Tensor], Optional[Tensor]]:
         ``(tap_indices, tap_weights, query_uv, query_depth)``.
@@ -125,7 +131,7 @@ def source_transmittance(
 
     Note:
         Geometry and weights remain float32 under autocast. CUDA graph capture
-        is unsupported. :func:`source_transmittance_ref` supports CPU inputs
+        requires tile_capacity. :func:`source_transmittance_ref` supports CPU inputs
         and smooth derivatives.
 
         Visibility weights describe geometric access to the source image.
@@ -160,6 +166,7 @@ def source_transmittance(
         height,
         width,
         edge_gradients,
+        -1 if tile_capacity is None else tile_capacity,
     )
     return (
         indices,
@@ -186,6 +193,7 @@ def source_transmittance_texture(
     alpha_activation: str = "relu_density",
     edge_gradients: bool = True,
     return_queries: bool = False,
+    tile_capacity: Optional[int] = None,
 ) -> Tuple[th.Tensor, th.Tensor, Optional[th.Tensor], Optional[th.Tensor]]:
     """Evaluate source transmittance using a textured opacity field.
 
@@ -230,6 +238,11 @@ def source_transmittance_texture(
         return_queries: Also return query UV in normalized ``[-1, 1]`` image
             coordinates and camera depth. Defaults to False.
 
+        tile_capacity: Optional maximum tile/triangle intersections across
+            the batch, including the boundary-query halo. Keeps bin counts
+            on the GPU and permits CUDA graph capture. Insufficient capacity
+            raises an asynchronous CUDA error. None uses exact-sized bins.
+
     Returns:
         ``(tap_indices, tap_weights, query_uv, query_depth)``. Indices are
         int32 ``(N, Q, 4)`` and weights are float32 ``(N, Q, 4)``, ordered
@@ -269,6 +282,7 @@ def source_transmittance_texture(
         edge_gradients=edge_gradients,
         return_queries=return_queries,
         native=True,
+        tile_capacity=tile_capacity,
     )
 
 
@@ -330,6 +344,7 @@ def source_transmittance_mlp(
     alpha_activation: str = "shifted_relu_density",
     edge_gradients: bool = True,
     return_queries: bool = False,
+    tile_capacity: Optional[int] = None,
 ) -> Tuple[th.Tensor, th.Tensor, Optional[th.Tensor], Optional[th.Tensor]]:
     """Evaluate source transmittance from a feature texture and an appearance MLP.
 
@@ -379,6 +394,11 @@ def source_transmittance_mlp(
         return_queries: Also return query UV in normalized ``[-1, 1]`` image
             coordinates and camera depth. Defaults to False.
 
+        tile_capacity: Optional maximum tile/triangle intersections across
+            the batch, including the boundary-query halo. Keeps bin counts
+            on the GPU and permits CUDA graph capture. Insufficient capacity
+            raises an asynchronous CUDA error. None uses exact-sized bins.
+
     Returns:
         ``(tap_indices, tap_weights, query_uv, query_depth)``. Indices are
         int32 ``(N, Q, 4)`` and weights are float32 ``(N, Q, 4)``, ordered
@@ -418,6 +438,7 @@ def source_transmittance_mlp(
         edge_gradients=edge_gradients,
         return_queries=return_queries,
         native=True,
+        tile_capacity=tile_capacity,
     )
 
 
@@ -484,6 +505,7 @@ def source_transmittance_mlp_two_textures(
     alpha_activation: str = "shifted_relu_density",
     edge_gradients: bool = True,
     return_queries: bool = False,
+    tile_capacity: Optional[int] = None,
 ) -> Tuple[th.Tensor, th.Tensor, Optional[th.Tensor], Optional[th.Tensor]]:
     """Evaluate source transmittance from two feature textures and an appearance MLP.
 
@@ -536,6 +558,11 @@ def source_transmittance_mlp_two_textures(
         return_queries: Also return query UV in normalized ``[-1, 1]`` image
             coordinates and camera depth. Defaults to False.
 
+        tile_capacity: Optional maximum tile/triangle intersections across
+            the batch, including the boundary-query halo. Keeps bin counts
+            on the GPU and permits CUDA graph capture. Insufficient capacity
+            raises an asynchronous CUDA error. None uses exact-sized bins.
+
     Returns:
         ``(tap_indices, tap_weights, query_uv, query_depth)``. Indices are
         int32 ``(N, Q, 4)`` and weights are float32 ``(N, Q, 4)``, ordered
@@ -575,6 +602,7 @@ def source_transmittance_mlp_two_textures(
         edge_gradients=edge_gradients,
         return_queries=return_queries,
         native=True,
+        tile_capacity=tile_capacity,
     )
 
 
@@ -1055,6 +1083,7 @@ def _source_appearance(
     edge_gradients: bool,
     return_queries: bool,
     native: bool,
+    tile_capacity: Optional[int] = None,
 ) -> Tuple[th.Tensor, th.Tensor, Optional[th.Tensor], Optional[th.Tensor]]:
     vi, opacity = _prepare(v, vi, qf, qb, height, width, vertex_opacity, native=native)
     mode_enum, padding_enum = _validate_sampling_options(mode, padding_mode)
@@ -1082,6 +1111,7 @@ def _source_appearance(
             padding_enum,
             activation_enum,
             edge_gradients,
+            -1 if tile_capacity is None else tile_capacity,
         )
         return (
             outputs[0],

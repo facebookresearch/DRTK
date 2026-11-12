@@ -1527,6 +1527,7 @@ __global__ void compute_tile_bounds_kernel(
 C10_LAUNCH_BOUNDS_1(256)
 __global__ void emit_tile_keys_kernel(
     int64_t face_element_count,
+    int64_t intersection_capacity,
     int32_t face_count,
     int32_t tile_width,
     int32_t tiles_per_image,
@@ -1536,6 +1537,10 @@ __global__ void emit_tile_keys_kernel(
     uint64_t* keys,
     int32_t* face_ids) {
   CUDA_KERNEL_LOOP_TYPE(index, face_element_count, int64_t) {
+    if (intersection_capacity >= 0 && cumulative_tile_counts[index] > intersection_capacity) {
+      CUDA_KERNEL_ASSERT_MSG(false, "transparent render: tile_capacity is too small");
+      continue;
+    }
     const int32_t n = static_cast<int32_t>(index / face_count);
     const int32_t min_tile_x = tile_bounds[index * 4 + 0];
     const int32_t min_tile_y = tile_bounds[index * 4 + 1];
@@ -2711,7 +2716,11 @@ TileBins build_tile_bins(
     const torch::Tensor& vi,
     int32_t image_height,
     int32_t image_width,
-    int32_t bounds_padding = 0) {
+    int32_t bounds_padding = 0,
+    int64_t tile_capacity = -1) {
+  TORCH_CHECK(
+      tile_capacity >= -1 && tile_capacity <= std::numeric_limits<int32_t>::max(),
+      "transparent render: tile_capacity must fit nonnegative int32 indexing, or be -1");
   const int32_t batch_size = static_cast<int32_t>(v.size(0));
   const int32_t vertex_count = static_cast<int32_t>(v.size(1));
   const int32_t face_count = static_cast<int32_t>(vi.size(1));
@@ -2753,10 +2762,12 @@ TileBins build_tile_bins(
   }
 
   torch::Tensor cumulative_tile_counts;
-  int64_t intersection_count = 0;
+  int64_t intersection_count = tile_capacity < 0 ? 0 : tile_capacity;
   if (face_element_count > 0) {
     cumulative_tile_counts = at::cumsum(tile_counts, 0, at::kLong);
-    intersection_count = cumulative_tile_counts[-1].item<int64_t>();
+    if (tile_capacity < 0) {
+      intersection_count = cumulative_tile_counts[-1].item<int64_t>();
+    }
   } else {
     cumulative_tile_counts = torch::empty({0}, long_options);
   }
@@ -2764,12 +2775,15 @@ TileBins build_tile_bins(
       intersection_count <= std::numeric_limits<int32_t>::max(),
       "transparent render: tile/triangle intersection list exceeds int32 indexing");
 
-  auto keys = torch::empty({intersection_count}, long_options);
-  auto face_ids = torch::empty({intersection_count}, int_options);
-  if (intersection_count > 0) {
+  auto keys = tile_capacity < 0 ? torch::empty({intersection_count}, long_options)
+                                : torch::full({intersection_count}, -1, long_options);
+  auto face_ids = tile_capacity < 0 ? torch::empty({intersection_count}, int_options)
+                                    : torch::full({intersection_count}, -1, int_options);
+  if (face_element_count > 0 && (intersection_count > 0 || tile_capacity >= 0)) {
     const int32_t blocks = GET_BLOCKS(face_element_count, kThreadsPerBlock);
     emit_tile_keys_kernel<<<blocks, kThreadsPerBlock, 0, at::cuda::getCurrentCUDAStream()>>>(
         face_element_count,
+        tile_capacity,
         face_count,
         tile_width,
         static_cast<int32_t>(tiles_per_image),
@@ -2842,14 +2856,15 @@ std::vector<torch::Tensor> launch_render(
     float transmittance_epsilon,
     const FragmentEvaluator& fragment_evaluator,
     const TransparentDepthOptions& depth_options,
-    bool save_transmittance) {
+    bool save_transmittance,
+    int64_t tile_capacity) {
   const c10::cuda::CUDAGuard device_guard(v.device());
   const int32_t batch_size = static_cast<int32_t>(v.size(0));
   const int32_t vertex_count = static_cast<int32_t>(v.size(1));
   const int32_t face_count = static_cast<int32_t>(vi.size(1));
   const int32_t tile_height = (image_height + kTileSize - 1) / kTileSize;
   const int32_t tile_width = (image_width + kTileSize - 1) / kTileSize;
-  TileBins bins = build_tile_bins(v, vi, image_height, image_width);
+  TileBins bins = build_tile_bins(v, vi, image_height, image_width, 0, tile_capacity);
 
   auto color = torch::empty({batch_size, 3, image_height, image_width}, v.options());
   auto alpha = torch::empty({batch_size, 1, image_height, image_width}, v.options());
@@ -3113,7 +3128,8 @@ std::vector<torch::Tensor> transparent_render_with_texture_cuda_forward(
     int64_t rgb_activation,
     int64_t alpha_activation,
     const TransparentDepthOptions& depth_options,
-    bool save_transmittance) {
+    bool save_transmittance,
+    int64_t tile_capacity) {
   check_common_inputs(
       v,
       vi,
@@ -3154,7 +3170,8 @@ std::vector<torch::Tensor> transparent_render_with_texture_cuda_forward(
       static_cast<float>(transmittance_epsilon),
       fragment_evaluator,
       depth_options,
-      save_transmittance);
+      save_transmittance,
+      tile_capacity);
 }
 
 std::vector<torch::Tensor> transparent_render_with_mlp_cuda_forward(
@@ -3177,7 +3194,8 @@ std::vector<torch::Tensor> transparent_render_with_mlp_cuda_forward(
     int64_t rgb_activation,
     int64_t alpha_activation,
     const TransparentDepthOptions& depth_options,
-    bool save_transmittance) {
+    bool save_transmittance,
+    int64_t tile_capacity) {
   check_common_inputs(
       v,
       vi,
@@ -3265,7 +3283,8 @@ std::vector<torch::Tensor> transparent_render_with_mlp_cuda_forward(
         static_cast<float>(transmittance_epsilon),
         fragment_evaluator,
         depth_options,
-        save_transmittance);
+        save_transmittance,
+        tile_capacity);
   }
   MlpFragmentEvaluator<5> fragment_evaluator{
       texture.data_ptr<float>(),
@@ -3293,7 +3312,8 @@ std::vector<torch::Tensor> transparent_render_with_mlp_cuda_forward(
       static_cast<float>(transmittance_epsilon),
       fragment_evaluator,
       depth_options,
-      save_transmittance);
+      save_transmittance,
+      tile_capacity);
 }
 
 std::vector<torch::Tensor> transparent_render_with_texture_cuda_backward(

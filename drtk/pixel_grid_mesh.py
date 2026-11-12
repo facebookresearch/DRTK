@@ -38,6 +38,8 @@ _Build = Callable[
         th.Tensor,
         th.Tensor,
         bool,
+        int,
+        int,
     ],
     List[th.Tensor],
 ]
@@ -481,6 +483,7 @@ def pixel_grid_mesh(
     feather_width: Optional[th.Tensor] = None,
     *,
     return_metadata: bool = False,
+    output_capacity: Optional[Tuple[int, int]] = None,
 ) -> PixelGridMesh:
     """Build a displaced pixel-cell mesh with optional cuts and feathered borders.
 
@@ -513,6 +516,11 @@ def pixel_grid_mesh(
             opacity head. Widths are averaged within each boundary fan. Large
             widths can cause overlap; there is no global collision resolution.
         return_metadata: Return source-cell ownership and stable face-slot IDs.
+        output_capacity: Optional ``(max_vertices, max_faces)`` per mesh.
+            Fixes the padded output sizes and keeps vertex/face counts on the
+            GPU, allowing CUDA graph capture. Capacities must accommodate
+            every mesh in the batch; insufficient capacity raises an
+            asynchronous CUDA error. None sizes outputs to the current batch.
 
     Returns:
         A fixed seven-element tuple ``(v, vt0, vt1, vi, vertex_opacity,
@@ -523,7 +531,8 @@ def pixel_grid_mesh(
         Vertex opacity is ``[N, Vmax]`` or None without feathering. The two
         metadata tensors are ``[N, Fmax]`` int64 or None.
 
-    Vmax and Fmax are the largest vertex and face counts in the batch.
+    Vmax and Fmax are the supplied capacities, or the largest vertex and
+    face counts in the batch when output_capacity is None.
     Each mesh occupies a compact prefix; face indices and metadata stay
     local to that mesh. Unused faces and metadata are -1. Unused positions
     are (0,0,1), and unused UVs and opacity are zero. Padding contributes
@@ -536,7 +545,7 @@ def pixel_grid_mesh(
 
     All tensors must share device; floating inputs must share dtype. Inputs
     must be finite, depths/widths valid, and displaced vertices in front of the
-    source camera. CUDA graph capture is unsupported.
+    source camera. CUDA graph capture requires output_capacity.
 
     See :func:`pixel_grid_mesh_ref` for the tensor reference implementation.
     Vertex/face storage order may differ; use stable face IDs when comparing
@@ -544,6 +553,9 @@ def pixel_grid_mesh(
     """
     if depth_z.ndim == 3 and intrinsics.ndim == 3 and intrinsics.shape[0] == 1:
         intrinsics = intrinsics.expand(depth_z.shape[0], -1, -1)
+    vertex_capacity, face_capacity = (
+        (-1, -1) if output_capacity is None else output_capacity
+    )
     outputs = _build(
         depth_z,
         displacement_xyz,
@@ -556,6 +568,8 @@ def pixel_grid_mesh(
         else diagonal,
         depth_z.new_empty(0) if feather_width is None else feather_width,
         return_metadata,
+        vertex_capacity,
+        face_capacity,
     )
     return (
         outputs[0],

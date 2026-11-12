@@ -14,7 +14,9 @@ std::vector<torch::Tensor> pixel_grid_mesh_forward(
     const torch::Tensor& down,
     const torch::Tensor& diagonal,
     const torch::Tensor& width,
-    bool metadata);
+    bool metadata,
+    int64_t vertex_capacity,
+    int64_t face_capacity);
 
 std::vector<torch::Tensor> pixel_grid_mesh_backward(
     const std::vector<torch::Tensor>& saved,

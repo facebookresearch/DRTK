@@ -24,6 +24,7 @@ image features with attenuation. Gradients propagate to deformation,
 material opacity, appearance textures and MLP parameters, and sampled features.
 
 See :doc:`../tutorials/DRTK_Tutorial_source_features` for an example.
+For repeated calls, see :doc:`cuda_graphs` for capacity selection.
 
 Evaluating transmittance
 ------------------------

@@ -19,8 +19,10 @@ class SourceStencilFunction : public torch::autograd::Function<SourceStencilFunc
       const torch::Tensor& opacity,
       int64_t height,
       int64_t width,
-      bool edge_gradients) {
-    auto out = source_stencil_forward(v, vi, query_faces, query_bary, opacity, height, width);
+      bool edge_gradients,
+      int64_t tile_capacity) {
+    auto out = source_stencil_forward(
+        v, vi, query_faces, query_bary, opacity, height, width, tile_capacity);
     tensor_list saved{v, vi, query_faces, query_bary, opacity};
     saved.insert(saved.end(), out.begin(), out.end());
     ctx->save_for_backward(saved);
@@ -48,7 +50,7 @@ class SourceStencilFunction : public torch::autograd::Function<SourceStencilFunc
         ctx->saved_data["height"].toInt(),
         ctx->saved_data["width"].toInt(),
         ctx->saved_data["edge_gradients"].toBool());
-    return {out[0], {}, {}, out[1], out[2], {}, {}, {}};
+    return {out[0], {}, {}, out[1], out[2], {}, {}, {}, {}};
   }
 };
 
@@ -60,8 +62,9 @@ tensor_list stencil_cuda(
     const torch::Tensor& opacity,
     int64_t h,
     int64_t w,
-    bool /*edge_gradients*/) {
-  auto out = source_stencil_forward(v, vi, qf, qb, opacity, h, w);
+    bool /*edge_gradients*/,
+    int64_t tile_capacity) {
+  auto out = source_stencil_forward(v, vi, qf, qb, opacity, h, w, tile_capacity);
   out.resize(4);
   return out;
 }
@@ -74,12 +77,14 @@ tensor_list stencil_autograd(
     const torch::Tensor& opacity,
     int64_t h,
     int64_t w,
-    bool edge_gradients) {
+    bool edge_gradients,
+    int64_t tile_capacity) {
   if (torch::GradMode::is_enabled() &&
       (v.requires_grad() || qb.requires_grad() || opacity.requires_grad())) {
-    return SourceStencilFunction::apply(v, vi, qf, qb, opacity, h, w, edge_gradients);
+    return SourceStencilFunction::apply(
+        v, vi, qf, qb, opacity, h, w, edge_gradients, tile_capacity);
   }
-  return stencil_cuda(v, vi, qf, qb, opacity, h, w, edge_gradients);
+  return stencil_cuda(v, vi, qf, qb, opacity, h, w, edge_gradients, tile_capacity);
 }
 
 SourceShadingOptions
@@ -112,7 +117,8 @@ class SourceAppearanceFunction : public torch::autograd::Function<SourceAppearan
       int64_t mode,
       int64_t padding,
       int64_t activation,
-      bool edges) {
+      bool edges,
+      int64_t tile_capacity) {
     auto out = source_stencil_appearance_forward(
         v,
         vi,
@@ -122,7 +128,8 @@ class SourceAppearanceFunction : public torch::autograd::Function<SourceAppearan
         appearance,
         height,
         width,
-        shading_options(mlp, slope, mode, padding, activation));
+        shading_options(mlp, slope, mode, padding, activation),
+        tile_capacity);
     tensor_list saved{v, vi, qf, qb, opacity};
     saved.insert(saved.end(), out.begin(), out.end());
     saved.insert(saved.end(), appearance.begin(), appearance.end());
@@ -167,7 +174,7 @@ class SourceAppearanceFunction : public torch::autograd::Function<SourceAppearan
         options);
     tensor_list result{out[0], {}, {}, out[1], out[2]};
     result.insert(result.end(), out.begin() + 3, out.end());
-    result.resize(result.size() + 8);
+    result.resize(result.size() + 9);
     return result;
   }
 };
@@ -186,7 +193,8 @@ tensor_list appearance_cuda(
     int64_t mode,
     int64_t padding,
     int64_t activation,
-    bool /*edges*/) {
+    bool /*edges*/,
+    int64_t tile_capacity) {
   auto out = source_stencil_appearance_forward(
       v,
       vi,
@@ -196,7 +204,8 @@ tensor_list appearance_cuda(
       appearance,
       height,
       width,
-      shading_options(mlp, slope, mode, padding, activation));
+      shading_options(mlp, slope, mode, padding, activation),
+      tile_capacity);
   out.resize(4);
   return out;
 }
@@ -215,7 +224,8 @@ tensor_list appearance_autograd(
     int64_t mode,
     int64_t padding,
     int64_t activation,
-    bool edges) {
+    bool edges,
+    int64_t tile_capacity) {
   bool needs_grad = v.requires_grad() || qb.requires_grad() || opacity.requires_grad();
   for (const auto& t : appearance) {
     needs_grad |= t.requires_grad();
@@ -235,7 +245,8 @@ tensor_list appearance_autograd(
         mode,
         padding,
         activation,
-        edges);
+        edges,
+        tile_capacity);
   }
   return appearance_cuda(
       v,
@@ -251,7 +262,8 @@ tensor_list appearance_autograd(
       mode,
       padding,
       activation,
-      edges);
+      edges,
+      tile_capacity);
 }
 
 class SampleStencilFunction : public torch::autograd::Function<SampleStencilFunction> {
@@ -299,11 +311,11 @@ tensor_list sample_autograd(
 TORCH_LIBRARY(source_features_ext, m) {
   m.def(
       "stencil(Tensor v, Tensor vi, Tensor query_faces, Tensor query_bary, Tensor opacity, "
-      "int height, int width, bool edge_gradients=True) -> Tensor[]");
+      "int height, int width, bool edge_gradients=True, int tile_capacity=-1) -> Tensor[]");
   m.def(
       "stencil_appearance(Tensor v, Tensor vi, Tensor query_faces, Tensor query_bary, Tensor opacity, "
       "Tensor[] appearance, int height, int width, bool mlp, float slope, int mode, int padding, "
-      "int activation, bool edge_gradients=True) -> Tensor[]");
+      "int activation, bool edge_gradients=True, int tile_capacity=-1) -> Tensor[]");
   m.def("sample(Tensor features, Tensor indices, Tensor weights) -> Tensor[]");
 }
 

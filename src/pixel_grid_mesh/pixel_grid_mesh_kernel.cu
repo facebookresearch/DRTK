@@ -859,10 +859,17 @@ C10_LAUNCH_BOUNDS_1(256)
 __global__ void local_prefix_kernel(
     const index_t nthreads,
     TensorInfoCompact<index_t, index_t, 3> cumulative,
-    TensorInfoCompact<index_t, index_t, 3> prefix) {
+    TensorInfoCompact<index_t, index_t, 3> prefix,
+    int64_t vertex_capacity,
+    int64_t face_capacity) {
   const index_t row_size = prefix.sizes[2];
   CUDA_KERNEL_LOOP_TYPE(index, nthreads, index_t) {
-    prefix.data[index] = cumulative.data[index] - cumulative.data[(index / row_size) * row_size];
+    const index_t count = cumulative.data[index] - cumulative.data[(index / row_size) * row_size];
+    if (vertex_capacity >= 0 && index % row_size == row_size - 1) {
+      const int64_t capacity = index < prefix.strides[0] ? vertex_capacity : face_capacity;
+      CUDA_KERNEL_ASSERT_MSG(count <= capacity, "pixel_grid_mesh(): output_capacity is too small");
+    }
+    prefix.data[index] = count;
   }
 }
 
@@ -876,7 +883,9 @@ std::vector<torch::Tensor> pixel_grid_mesh_forward_impl(
     const torch::Tensor& down,
     const torch::Tensor& diagonal,
     const torch::Tensor& width,
-    bool metadata) {
+    bool metadata,
+    int64_t vertex_capacity,
+    int64_t face_capacity) {
   const auto stream = at::cuda::getCurrentCUDAStream();
   const int64_t batch = depth.size(0), h = depth.size(1), w = depth.size(2), n = h * w;
   const bool feather = width.dim() == 3;
@@ -893,7 +902,8 @@ std::vector<torch::Tensor> pixel_grid_mesh_forward_impl(
   auto vmask = torch::empty({batch, n}, ints), fmask = torch::empty_like(vmask);
   auto prefix = torch::empty({2, batch, n + 1}, indices);
   auto vp = prefix[0], fp = prefix[1];
-  int64_t nv = 0, nf = 0;
+  int64_t nv = vertex_capacity < 0 ? 0 : vertex_capacity;
+  int64_t nf = face_capacity < 0 ? 0 : face_capacity;
   if (batch) {
     realize_kernel<index_t><<<GET_BLOCKS(batch * n, 256), 256, 0, stream>>>(
         static_cast<index_t>(batch * n),
@@ -978,11 +988,15 @@ std::vector<torch::Tensor> pixel_grid_mesh_forward_impl(
     local_prefix_kernel<index_t><<<GET_BLOCKS(count, 256), 256, 0, stream>>>(
         static_cast<index_t>(count),
         getTensorInfoCompact<index_t, index_t, 3>(cumulative),
-        getTensorInfoCompact<index_t, index_t, 3>(prefix));
+        getTensorInfoCompact<index_t, index_t, 3>(prefix),
+        vertex_capacity,
+        face_capacity);
     C10_CUDA_KERNEL_LAUNCH_CHECK();
-    auto maxima = prefix.select(2, n).amax(1).cpu();
-    nv = maxima.template data_ptr<index_t>()[0];
-    nf = maxima.template data_ptr<index_t>()[1];
+    if (vertex_capacity < 0) {
+      auto maxima = prefix.select(2, n).amax(1).cpu();
+      nv = maxima.template data_ptr<index_t>()[0];
+      nf = maxima.template data_ptr<index_t>()[1];
+    }
   }
   TORCH_CHECK(
       nv <= std::numeric_limits<int32_t>::max(),
@@ -1171,7 +1185,9 @@ std::vector<torch::Tensor> pixel_grid_mesh_forward(
     const torch::Tensor& down,
     const torch::Tensor& diagonal,
     const torch::Tensor& width,
-    bool metadata) {
+    bool metadata,
+    int64_t vertex_capacity,
+    int64_t face_capacity) {
   TORCH_CHECK(
       depth.is_cuda(), "pixel_grid_mesh(): expected CUDA tensors; use pixel_grid_mesh_ref for CPU");
   TORCH_CHECK(
@@ -1220,16 +1236,46 @@ std::vector<torch::Tensor> pixel_grid_mesh_forward(
       "pixel_grid_mesh(): expected feather_width shape [N, H, W], got ",
       width.sizes());
   const at::cuda::OptionalCUDAGuard device_guard(device_of(depth));
+  TORCH_CHECK(
+      (vertex_capacity == -1 && face_capacity == -1) ||
+          (vertex_capacity >= 0 && face_capacity >= 0 &&
+           vertex_capacity <= std::numeric_limits<int32_t>::max()),
+      "pixel_grid_mesh(): output capacities must both be nonnegative, "
+      "with at most int32 vertices, or both -1");
   // Account for the largest padded output and the combined vertex/face scan.
   bool index32 = depth.numel() <= std::numeric_limits<int32_t>::max() / 64 &&
       h <= std::numeric_limits<int32_t>::max() / 64 / w;
+  if (vertex_capacity >= 0 && batch > 0) {
+    index32 = index32 && vertex_capacity <= std::numeric_limits<int32_t>::max() / 3 / batch &&
+        face_capacity <= std::numeric_limits<int32_t>::max() / 3 / batch;
+  }
   for (const auto& tensor : {depth, displacement, intrinsics, alive, right, down, diagonal, width})
     index32 = index32 && at::native::canUse32BitIndexMath(tensor);
   if (index32)
     return pixel_grid_mesh_forward_impl<int32_t>(
-        depth, displacement, intrinsics, alive, right, down, diagonal, width, metadata);
+        depth,
+        displacement,
+        intrinsics,
+        alive,
+        right,
+        down,
+        diagonal,
+        width,
+        metadata,
+        vertex_capacity,
+        face_capacity);
   return pixel_grid_mesh_forward_impl<int64_t>(
-      depth, displacement, intrinsics, alive, right, down, diagonal, width, metadata);
+      depth,
+      displacement,
+      intrinsics,
+      alive,
+      right,
+      down,
+      diagonal,
+      width,
+      metadata,
+      vertex_capacity,
+      face_capacity);
 }
 
 std::vector<torch::Tensor> pixel_grid_mesh_backward(
