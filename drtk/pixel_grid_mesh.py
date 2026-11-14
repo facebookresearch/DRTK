@@ -22,8 +22,8 @@ from drtk.utils import load_torch_ops
 try:
     load_torch_ops("drtk.pixel_grid_mesh_ext")
 except ImportError:
-    # The extension has CUDA sources only, so a ROCm build's module is empty; importing drtk
-    # must still work there, and the pixel-grid operators below are then None.
+    # On a ROCm build without the extension, importing drtk still works and the pixel-grid
+    # operators below are None.
     if th.version.hip is None:
         raise
 
