@@ -82,8 +82,9 @@ void rasterize_triangles_cpu(
       const int32_t vi_2 = vi_face[vi_sI * 2];
 
       // Skip degenerate triangles
-      if ((vi_0 == vi_1) && (vi_1 == vi_2))
+      if ((vi_0 == vi_1) && (vi_1 == vi_2)) {
         continue;
+      }
 
       const scalar_t* v_n = v_ptr + n * v_sN;
 
@@ -99,8 +100,9 @@ void rasterize_triangles_cpu(
       const scalar_t p2_z = v_n[v_sV * vi_2 + v_sC * 2];
 
       // All z must be > 0
-      if (!(p0_z > 1e-8f && p1_z > 1e-8f && p2_z > 1e-8f))
+      if (!(p0_z > 1e-8f && p1_z > 1e-8f && p2_z > 1e-8f)) {
         continue;
+      }
 
       const scalar_t min_x = std::min({p0_x, p1_x, p2_x});
       const scalar_t min_y = std::min({p0_y, p1_y, p2_y});
@@ -109,8 +111,9 @@ void rasterize_triangles_cpu(
 
       // Check if triangle is in canvas
       if (!(min_x <= static_cast<scalar_t>(W - 1) && min_y <= static_cast<scalar_t>(H - 1) &&
-            max_x > 0.f && max_y > 0.f))
+            max_x > 0.f && max_y > 0.f)) {
         continue;
+      }
 
       const scalar_t v01_x = p1_x - p0_x;
       const scalar_t v01_y = p1_y - p0_y;
@@ -120,8 +123,9 @@ void rasterize_triangles_cpu(
       const scalar_t v12_y = p2_y - p1_y;
 
       const scalar_t denominator = v01_x * v02_y - v01_y * v02_x;
-      if (denominator == 0.f)
+      if (denominator == 0.f) {
         continue;
+      }
 
       const scalar_t sign_denom = denominator > 0 ? scalar_t(1) : scalar_t(-1);
       const scalar_t abs_denom = std::abs(denominator);
@@ -159,8 +163,9 @@ void rasterize_triangles_cpu(
 
           const bool on_edge_or_inside = (bary_0 >= 0.f) && (bary_1 >= 0.f) && (bary_2 >= 0.f);
 
-          if (!on_edge_or_inside)
+          if (!on_edge_or_inside) {
             continue;
+          }
 
           const bool on_edge_0 = bary_0 == 0.f;
           const bool on_edge_1 = bary_1 == 0.f;
@@ -170,8 +175,9 @@ void rasterize_triangles_cpu(
               !((!is_top_left_0 && on_edge_0) || (!is_top_left_1 && on_edge_1) ||
                 (!is_top_left_2 && on_edge_2));
 
-          if (!is_top_left_or_inside)
+          if (!is_top_left_or_inside) {
             continue;
+          }
 
           bary_0 /= abs_denom;
           bary_1 /= abs_denom;

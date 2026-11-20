@@ -171,8 +171,9 @@ void render_backward_cpu_impl(
       const int32_t tr_index =
           index_img_ptr[n * index_img_sN + h * index_img_sH + w * index_img_sW];
 
-      if (tr_index == -1)
+      if (tr_index == -1) {
         continue;
+      }
 
       const int32_t* vi_face = vi_ptr + n * vi_sN + tr_index * vi_sV;
       const int32_t vi_0 = vi_face[0 * vi_sF];
@@ -251,12 +252,15 @@ void render_backward_cpu_impl(
 
       // Accumulate z gradients with atomic add (multiple pixels may share vertices)
       scalar_t* grad_v_n = grad_v_ptr + grad_v_sN * n;
-      if (!z0_clamped)
+      if (!z0_clamped) {
         atomic_add(&grad_v_n[grad_v_sV * vi_0 + grad_v_sC * 2], dL_p0_z);
-      if (!z1_clamped)
+      }
+      if (!z1_clamped) {
         atomic_add(&grad_v_n[grad_v_sV * vi_1 + grad_v_sC * 2], dL_p1_z);
-      if (!z2_clamped)
+      }
+      if (!z2_clamped) {
         atomic_add(&grad_v_n[grad_v_sV * vi_2 + grad_v_sC * 2], dL_p2_z);
+      }
 
       // Barycentric gradients
       const scalar_t dL_bary_0 = dL_bary3D_0 * d_inv_0 * depth + dL_depth_inverse * d_inv_0;
