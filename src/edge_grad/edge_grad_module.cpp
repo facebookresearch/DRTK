@@ -113,6 +113,8 @@ torch::Tensor edge_grad_estimator_fwd(
 
 // Ideally we would need to turn off autograd handling and re-dispatch, but we just call
 // cuda kernels directly
+namespace {
+
 class EdgeGradEstimatorFunction : public torch::autograd::Function<EdgeGradEstimatorFunction> {
  public:
   static torch::autograd::tensor_list forward(
@@ -168,6 +170,8 @@ class EdgeGradEstimatorFunction : public torch::autograd::Function<EdgeGradEstim
         torch::Tensor()};
   }
 };
+
+} // namespace
 
 torch::Tensor edge_grad_estimator_autograd(
     const torch::Tensor& v_pix,
