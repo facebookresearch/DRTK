@@ -45,8 +45,8 @@ class RasterizeFunction : public torch::autograd::Function<RasterizeFunction> {
   }
 
   static torch::autograd::tensor_list backward(
-      torch::autograd::AutogradContext* ctx,
-      const torch::autograd::tensor_list& grad_outputs) {
+      torch::autograd::AutogradContext* /*ctx*/,
+      const torch::autograd::tensor_list& /*grad_outputs*/) {
     return {torch::Tensor(), torch::Tensor(), torch::Tensor(), torch::Tensor(), torch::Tensor()};
   }
 };
