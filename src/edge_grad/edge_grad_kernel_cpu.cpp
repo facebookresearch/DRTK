@@ -17,7 +17,7 @@ namespace {
 
 template <typename scalar_t>
 struct TriInfo {
-  typedef TVec2<scalar_t> scalar2_t;
+  using scalar2_t = TVec2<scalar_t>;
 
   scalar2_t p_0;
   scalar2_t p_1;
@@ -29,8 +29,8 @@ struct TriInfo {
 
 template <typename scalar_t>
 bool pix_in_tri(const TriInfo<scalar_t>& tri, int x, int y) {
-  typedef TVec2<scalar_t> scalar2_t;
-  typedef TVec3<scalar_t> scalar3_t;
+  using scalar2_t = TVec2<scalar_t>;
+  using scalar3_t = TVec3<scalar_t>;
 
   if (tri.denominator != scalar_t(0)) {
     const scalar2_t p = {(scalar_t)x, (scalar_t)y};
@@ -78,7 +78,7 @@ TriInfo<scalar_t> get_tri_info(
     int32_t vi0,
     int32_t vi1,
     int32_t vi2) {
-  typedef TVec2<scalar_t> scalar2_t;
+  using scalar2_t = TVec2<scalar_t>;
   const scalar2_t p_0 = {v_ptr[v_sV * vi0 + v_sC * 0], v_ptr[v_sV * vi0 + v_sC * 1]};
   const scalar2_t p_1 = {v_ptr[v_sV * vi1 + v_sC * 0], v_ptr[v_sV * vi1 + v_sC * 1]};
   const scalar2_t p_2 = {v_ptr[v_sV * vi2 + v_sC * 0], v_ptr[v_sV * vi2 + v_sC * 1]};
@@ -100,7 +100,7 @@ TVec3<scalar_t> get_tri_normal(
     int32_t vi0,
     int32_t vi1,
     int32_t vi2) {
-  typedef TVec3<scalar_t> scalar3_t;
+  using scalar3_t = TVec3<scalar_t>;
   const scalar3_t p_0 = {
       v_ptr[v_sV * vi0 + v_sC * 0], v_ptr[v_sV * vi0 + v_sC * 1], v_ptr[v_sV * vi0 + v_sC * 2]};
   const scalar3_t p_1 = {
@@ -116,7 +116,7 @@ TVec2<scalar_t> get_dp_dr(
     const TVec2<scalar_t>& n_varying_,
     const TVec2<scalar_t>& n_fixed_,
     scalar_t max_magnitude = scalar_t(0)) {
-  typedef TVec2<scalar_t> scalar2_t;
+  using scalar2_t = TVec2<scalar_t>;
 
   const auto n_varying = normalize(n_varying_);
   const auto n_fixed = normalize(n_fixed_);
@@ -176,8 +176,8 @@ void edge_grad_backward_cpu_impl(
     int64_t gvpi_sH,
     int64_t gvpi_sW,
     double max_dp_dr) {
-  typedef TVec2<scalar_t> scalar2_t;
-  typedef TVec3<scalar_t> scalar3_t;
+  using scalar2_t = TVec2<scalar_t>;
+  using scalar3_t = TVec3<scalar_t>;
 
   const int64_t count = N * H * W;
 
